@@ -1,0 +1,21 @@
+# Admin panel .htaccess
+Options -Indexes
+
+# Protect config and includes
+<FilesMatch "^(config|auth)\.php$">
+    Order deny,allow
+    Deny from all
+</FilesMatch>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    # Redirect bare /admin/ to index
+    RewriteRule ^$ index.php [L]
+</IfModule>
+
+# Security headers
+<IfModule mod_headers.c>
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-Content-Type-Options "nosniff"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
