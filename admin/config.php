@@ -31,7 +31,8 @@ define('UPLOAD_URL', SITE_URL . '/uploads/');
 // ─────────────────────────────────────────────────────────────
 // DB CONNECTION  (PDO, singleton)
 // ─────────────────────────────────────────────────────────────
-function db(): PDO {
+function db(): PDO
+{
     static $pdo = null;
 
     if ($pdo === null) {
@@ -46,12 +47,10 @@ function db(): PDO {
                 PDO::ATTR_EMULATE_PREPARES   => false,
                 PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"
             ]);
-
         } catch (PDOException $e) {
 
             die('<div style="font-family:monospace;color:red;padding:20px">
-            DB Connection failed: '.htmlspecialchars($e->getMessage()).'</div>');
-
+            DB Connection failed: ' . htmlspecialchars($e->getMessage()) . '</div>');
         }
     }
 
@@ -61,16 +60,19 @@ function db(): PDO {
 // ─────────────────────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────────────────────
-function e(string $s): string {
+function e(string $s): string
+{
     return htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 }
 
-function redirect(string $url): void {
+function redirect(string $url): void
+{
     header('Location: ' . $url);
     exit;
 }
 
-function flash(string $key, string $msg = null): ?string {
+function flash(string $key, string $msg = null): ?string
+{
     if ($msg !== null) {
         $_SESSION['flash'][$key] = $msg;
         return null;
@@ -80,7 +82,8 @@ function flash(string $key, string $msg = null): ?string {
     return $val;
 }
 
-function slugify(string $text): string {
+function slugify(string $text): string
+{
     $text = strtolower(trim($text));
     $text = preg_replace('/[^a-z0-9\s-]/', '', $text);
     $text = preg_replace('/[\s-]+/', '-', $text);
@@ -91,7 +94,8 @@ function slugify(string $text): string {
  * Generate next job code for a given prefix.
  * Uses DB counter with a transaction to avoid race conditions.
  */
-function nextJobCode(string $prefix): array {
+function nextJobCode(string $prefix): array
+{
     $pdo = db();
     $pdo->beginTransaction();
     try {
@@ -114,11 +118,13 @@ function nextJobCode(string $prefix): array {
 /**
  * Log admin activity
  */
-function logActivity(string $action, string $entity = null, int $entityId = null, string $notes = null): void {
+function logActivity(string $action, string $entity = null, int $entityId = null, string $notes = null): void
+{
     try {
         db()->prepare(
             "INSERT INTO activity_log (admin_id, action, entity, entity_id, notes)
              VALUES (?, ?, ?, ?, ?)"
         )->execute([$_SESSION['admin_id'] ?? null, $action, $entity, $entityId, $notes]);
-    } catch (Exception $e) { /* silent */ }
+    } catch (Exception $e) { /* silent */
+    }
 }
