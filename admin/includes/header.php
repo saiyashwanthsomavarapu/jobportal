@@ -5,513 +5,390 @@ $pageTitle = $pageTitle ?? 'Dashboard';
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title><?= e($pageTitle) ?> — <?= SITE_NAME ?></title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
-<link href="https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.snow.min.css" rel="stylesheet">
-<style>
-/* ════════════════════════════════════════════
-   RESET & ROOT
-════════════════════════════════════════════ */
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --bg:#f0f2f7;
-  --surface:#ffffff;
-  --card:#ffffff;
-  --card2:#f7f8fb;
-  --border:#e2e6f0;
-  --border2:#d5daea;
-  --accent:#1A4C8F;
-  --accent-glow:rgba(59,127,245,.12);
-  --accent2:#7c4df0;
-  --accent3:#20b38a;
-  --text:#1a1f36;
-  --text2:#5a6282;
-  --muted:#9aa0bb;
-  --danger:#e04545;
-  --warn:#e89e10;
-  --success:#1fad72;
-  --r:8px;
-  --r2:12px;
-  --sidebar:140px;
-  --topbar:58px;
-  /** --font-h:'Syne',sans-serif; **/
-  --font:'DM Sans',sans-serif;
-  --shadow:0 2px 16px rgba(60,72,120,.10);
-}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title><?= e($pageTitle) ?> — <?= SITE_NAME ?></title>
 
-html,body{height:100%}
-body{background:var(--bg);color:var(--text);font-family:var(--font);
-  font-size:14px;line-height:1.6;overflow-x:hidden}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.snow.min.css" rel="stylesheet">
 
-a{color:inherit;text-decoration:none}
-img{max-width:100%;display:block}
-button,input,select,textarea{font-family:var(--font)}
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <!-- <script src="https://cdn.tailwindcss.com"></script> -->
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" />
+  <script>
+    // tailwind.config = {
+    //   theme: {
+    //     extend: {
+    //       colors: {
+    //         bg: '#f4f5f8',
+    //         surface: '#ffffff',
+    //         card2: '#f8f9fc',
+    //         line: '#e7e9f0',
+    //         line2: '#d8dbe6',
+    //         accent: '#1A4C8F',
+    //         'accent-dark': '#123863',
+    //         'accent-soft': '#eaf1fa',
+    //         ink: '#111827',
+    //         ink2: '#5b6072',
+    //         muted: '#9aa0b4',
+    //         danger: '#dc3545',
+    //         warn: '#d97706',
+    //         success: '#0f9d63',
+    //       },
+    //       fontFamily: {
+    //         head: ['Syne', 'sans-serif'],
+    //         sans: ['DM Sans', 'sans-serif'],
+    //       },
+    //       boxShadow: {
+    //         card: '0 1px 2px rgba(17,24,39,.04), 0 8px 24px -12px rgba(17,24,39,.08)',
+    //         pop: '0 4px 14px rgba(26,76,143,.22)',
+    //       },
+    //     }
+    //   }
+    // }
+  </script>
+  <style type="text/tailwindcss">
+    :root {
+    --color-base-100: #ffffff;
+    --color-base-200: #f8f9fc;
+    --color-base-300: #e7e9f0;
+    --color-base-content: #111827;
 
-/* ════════════════════════════════════════════
-   SCROLLBAR
-════════════════════════════════════════════ */
-::-webkit-scrollbar{width:6px;height:6px}
-::-webkit-scrollbar-track{background:var(--bg)}
-::-webkit-scrollbar-thumb{background:var(--border2);border-radius:10px}
-::-webkit-scrollbar-thumb:hover{background:var(--muted)}
+    --color-primary: #1A4C8F;
+    --color-primary-content: #ffffff;
 
-/* ════════════════════════════════════════════
-   LAYOUT
-════════════════════════════════════════════ */
-.admin-layout{display:flex;min-height:100vh}
+    --color-secondary: #5b6072;
+    --color-secondary-content: #ffffff;
 
-/* ── SIDEBAR ── */
+    --color-accent: #1A4C8F;
+    --color-accent-content: #ffffff;
 
-.main-body form#jobForm {
-    max-width: 1200px;
-}
+    --color-neutral: #111827;
+    --color-neutral-content: #ffffff;
 
+    --color-info: #2563eb;
+    --color-success: #0f9d63;
+    --color-warning: #d97706;
+    --color-error: #dc3545;
+  }
+    @theme {
+    --color-bg: #f4f5f8;
+    --color-surface: #ffffff;
+    --color-card2: #f8f9fc;
+    --color-line: #e7e9f0;
+    --color-line2: #d8dbe6;
 
-.sidebar{
-  flex-shrink:0;
-  background:#f0f2f7;
-  border-right:1px solid var(--border);
-  display:flex;flex-direction:column;
-  position:fixed;top:0;left:0;height:100vh;
-  overflow-y:auto;z-index:100;
-  transition:transform .3s;
-  box-shadow:2px 0 12px rgba(60,72,120,.06);
-}
-.sb-logo{
-    max-width: 150px;
-  padding:22px 20px 18px;
-  border-bottom:1px solid var(--border);
-  flex-shrink:0;
-}
-.sb-logo a{
-  font-family:var(--font-h);font-size:20px;font-weight:800;
-  letter-spacing:-0.5px;color:var(--text);display:block;
-}
-.sb-logo a span{color:var(--accent)}
-.sb-logo small{display:block;font-size:11px;color:var(--muted);margin-top:2px;font-weight:400;letter-spacing:.5px;text-transform:uppercase}
+    --color-accent: #1A4C8F;
+    --color-accent-dark: #123863;
+    --color-accent-soft: #eaf1fa;
 
-.sb-nav{padding:14px 0;flex:1}
-.sb-section{
-  font-size:10px;letter-spacing:1.2px;text-transform:uppercase;
-  color:#000;padding:14px 20px 5px;font-weight:600;
-}
-.sb-item{
-  display:flex;align-items:center;gap:11px;
-  padding:9px 20px;color:#000;font-size:13px;font-weight:400;
-  transition:all .16s;border-left:3px solid transparent;
-  position:relative;cursor:pointer;
-}
-.sb-item:hover{color:var(--text);background:rgba(59,127,245,.06);border-left-color:var(--border2)}
-.sb-item.active{color:#000;background:rgba(59,127,245,.08);border-left-color:var(--accent);font-weight:500}
-.sb-icon{font-size:15px;width:20px;text-align:center;flex-shrink:0}
-.sb-badge{
-  margin-left:auto;background:var(--accent);color:#fff;
-  border-radius:20px;font-size:10px;font-weight:700;
-  padding:1px 7px;letter-spacing:.3px;
-}
-.sb-badge.draft{background:var(--warn)}
+    --color-ink: #111827;
+    --color-ink2: #5b6072;
+    --color-muted: #9aa0b4;
 
-.sb-footer{
-  padding:14px 20px;border-top:1px solid var(--border);
-  font-size:12px;color:var(--muted);
-}
-.sb-user{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-.sb-avatar{
-  width:32px;height:32px;border-radius:50%;
-  background:linear-gradient(135deg,var(--accent),var(--accent2));
-  display:flex;align-items:center;justify-content:center;
-  font-family:var(--font-h);font-size:13px;font-weight:700;color:#fff;flex-shrink:0;
-}
-.sb-user-info strong{display:block;font-size:13px;color:#000;font-weight:500}
-.sb-user-info span{font-size:11px;color:#000;text-transform:capitalize}
-.sb-logout{
-  display:flex;align-items:center;gap:7px;color:#000;
-  font-size:12px;padding:6px 0;transition:color .15s;cursor:pointer;
-}
-.sb-logout:hover{color:var(--danger)}
+    --color-danger: #dc3545;
+    --color-warn: #d97706;
+    --color-success: #0f9d63;
 
-/* ── TOPBAR ── */
-.topbar{
-  position:fixed;top:0;left:var(--sidebar);right:0;height:var(--topbar);
-  background:var(--surface);border-bottom:1px solid var(--border);
-  display:flex;align-items:center;padding:0 28px;gap:16px;z-index:90;
-  box-shadow:0 2px 8px rgba(60,72,120,.06);
-}
-.topbar-title{
-  font-family:var(--font-h);font-size:16px;font-weight:700;color:var(--text);flex:1;
-}
-.topbar-breadcrumb{font-size:12px;color:var(--muted)}
-.topbar-breadcrumb a{color:var(--accent)}
-.topbar-breadcrumb a:hover{text-decoration:underline}
-.topbar-actions{display:flex;align-items:center;gap:10px}
-.topbar-btn{
-  display:flex;align-items:center;gap:6px;
-  background:var(--accent);color:#fff;border:none;border-radius:var(--r);
-  font-family:var(--font-h);font-size:12px;font-weight:700;letter-spacing:.3px;
-  padding:8px 16px;cursor:pointer;transition:all .18s;
-}
-.topbar-btn:hover{background:#5a94ff;transform:translateY(-1px)}
-.topbar-btn.outline{background:transparent;color:var(--text2);border:1px solid var(--border2)}
-.topbar-btn.outline:hover{color:var(--text);border-color:var(--muted);transform:none}
+    --font-head: "Syne", sans-serif;
+    --font-sans: "DM Sans", sans-serif;
 
-/* ── MAIN CONTENT ── */
-.main{
-  margin-left:var(--sidebar);
-  padding-top:var(--topbar);
-  min-height:100vh;
-  display:flex;flex-direction:column;
-}
-.main-body{
-  padding:28px 30px;flex:1;
-}
+    --shadow-card:
+    0 1px 2px rgba(17, 24, 39, .04),
+    0 8px 24px -12px rgba(17, 24, 39, .08);
 
-/* ════════════════════════════════════════════
-   FLASH MESSAGES
-════════════════════════════════════════════ */
-.flash{
-  display:flex;align-items:flex-start;gap:10px;
-  padding:12px 16px;border-radius:var(--r);margin-bottom:20px;font-size:13.5px;
-}
-.flash-success{background:rgba(31,173,114,.08);border:1px solid rgba(31,173,114,.22);color:var(--success)}
-.flash-error{background:rgba(224,69,69,.08);border:1px solid rgba(224,69,69,.25);color:var(--danger)}
-.flash-warn{background:rgba(232,158,16,.08);border:1px solid rgba(232,158,16,.25);color:var(--warn)}
-.flash ul{margin:4px 0 0 16px}
+    --shadow-pop:
+    0 4px 14px rgba(26, 76, 143, .22);
+    }
+    </style>
+  <style>
+    body {
+      font-size: 14px;
+      -webkit-font-smoothing: antialiased;
+    }
 
-/* ════════════════════════════════════════════
-   CARDS & SECTIONS
-════════════════════════════════════════════ */
-.card{
-  background:var(--card);border:1px solid var(--border);
-  border-radius:var(--r2);padding:24px 26px;margin-bottom:22px;
-  box-shadow:var(--shadow);
-}
-.card-sm{padding:18px 20px}
-.section-title{
-  font-family:var(--font-h);font-size:11px;font-weight:700;
-  text-transform:uppercase;letter-spacing:1.2px;color:var(--accent);
-  margin-bottom:20px;display:flex;align-items:center;gap:10px;
-}
-.section-title::after{content:'';flex:1;height:1px;background:var(--border)}
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
 
-/* ════════════════════════════════════════════
-   FORM ELEMENTS
-════════════════════════════════════════════ */
-.form-grid{display:grid;gap:16px 20px}
-.g2{grid-template-columns:1fr 1fr}
-.g3{grid-template-columns:1fr 1fr 1fr}
-.g4{grid-template-columns:1fr 1fr 1fr 1fr}
-.gc2{grid-column:span 2}
-.gc3{grid-column:span 3}
-.gc4{grid-column:1/-1}
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
 
-.field{display:flex;flex-direction:column;gap:5px}
-.field label{
-  font-size:11px;font-weight:600;color:var(--text2);
-  text-transform:uppercase;letter-spacing:.7px;
-}
-.req{color:var(--accent);margin-left:2px}
-.field-hint{font-size:11px;color:var(--muted);margin-top:2px}
+    ::-webkit-scrollbar-thumb {
+      background: #d8dbe6;
+      border-radius: 10px;
+    }
 
-.ctrl{
-  background:var(--bg);border:1px solid var(--border);
-  border-radius:var(--r);color:var(--text);
-  font-family:var(--font);font-size:13.5px;
-  padding:9px 12px;width:100%;outline:none;
-  transition:border-color .18s,box-shadow .18s;
-  -webkit-appearance:none;
-}
-.ctrl:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
-.ctrl:disabled,.ctrl[readonly]{opacity:.5;cursor:not-allowed}
-.ctrl.error-field{border-color:var(--danger)}
-select.ctrl option{background:var(--surface)}
-textarea.ctrl{resize:vertical;min-height:80px}
+    ::-webkit-scrollbar-thumb:hover {
+      background: #9aa0b4;
+    }
 
-/* Custom select arrow */
-select.ctrl{
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%239aa0bb' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
-  background-repeat:no-repeat;background-position:right 12px center;
-  padding-right:34px;
-}
+    .ql-toolbar {
+      background: #f8f9fc !important;
+      border: 1px solid #e7e9f0 !important;
+      border-radius: 10px 10px 0 0 !important;
+    }
 
-/* Job code compound row */
-.jc-row{display:flex;align-items:center;gap:8px}
-.jc-prefix{
-  background:rgba(59,127,245,.08);border:1px solid rgba(59,127,245,.25);
-  border-radius:var(--r);color:var(--accent);
-  font-family:var(--font-h);font-weight:700;font-size:14px;
-  padding:9px 14px;white-space:nowrap;letter-spacing:1px;min-width:72px;text-align:center;
-}
-.jc-sep{color:var(--muted);font-weight:700;font-size:16px;flex-shrink:0}
+    .ql-container {
+      background: #ffffff !important;
+      border: 1px solid #e7e9f0 !important;
+      border-top: none !important;
+      border-radius: 0 0 10px 10px !important;
+      color: #111827 !important;
+      font-family: 'DM Sans', sans-serif !important;
+      font-size: 13.5px !important;
+      min-height: 130px;
+    }
 
-/* "Other" reveal field */
-.other-wrap{margin-top:7px;display:none}
-.other-wrap.show{display:block}
-.other-wrap .ctrl{border-color:var(--accent2)}
-.other-wrap .ctrl:focus{box-shadow:0 0 0 3px rgba(124,77,240,.12)}
+    .ql-toolbar .ql-stroke {
+      stroke: #5b6072 !important;
+    }
 
-/* Quick-pick tags */
-.qtags{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
-.qtag{
-  background:rgba(59,127,245,.06);color:var(--text2);
-  border:1px solid var(--border2);border-radius:20px;
-  font-size:11px;padding:2px 10px;cursor:pointer;transition:all .15s;
-}
-.qtag:hover{background:rgba(59,127,245,.14);color:var(--accent);border-color:rgba(59,127,245,.3)}
+    .ql-toolbar .ql-fill {
+      fill: #5b6072 !important;
+    }
 
-/* ── Quill overrides ── */
-.ql-toolbar{
-  background:var(--card2)!important;border:1px solid var(--border)!important;
-  border-radius:var(--r) var(--r) 0 0!important;
-}
-.ql-container{
-  background:var(--bg)!important;border:1px solid var(--border)!important;
-  border-top:none!important;border-radius:0 0 var(--r) var(--r)!important;
-  color:var(--text)!important;font-family:var(--font)!important;
-  font-size:13.5px!important;min-height:130px;
-}
-.ql-toolbar .ql-stroke{stroke:var(--text2)!important}
-.ql-toolbar .ql-fill{fill:var(--text2)!important}
-.ql-toolbar button:hover .ql-stroke,.ql-toolbar button.ql-active .ql-stroke{stroke:var(--accent)!important}
-.ql-toolbar button:hover .ql-fill,.ql-toolbar button.ql-active .ql-fill{fill:var(--accent)!important}
-.ql-toolbar .ql-picker-label{color:var(--text2)!important}
-.ql-editor.ql-blank::before{color:var(--muted)!important;font-style:normal!important}
-.ql-editor{color:var(--text)!important;min-height:130px}
-.ql-picker-options{background:var(--surface)!important;border-color:var(--border)!important}
-.ql-picker-item{color:var(--text2)!important}
-.ql-hidden-ta{display:none}
+    .ql-toolbar button:hover .ql-stroke,
+    .ql-toolbar button.ql-active .ql-stroke {
+      stroke: #1A4C8F !important;
+    }
 
-/* ════════════════════════════════════════════
-   BUTTONS
-════════════════════════════════════════════ */
-.btn{
-  display:inline-flex;align-items:center;gap:7px;
-  border:none;border-radius:var(--r);cursor:pointer;
-  font-family:var(--font-h);font-size:13px;font-weight:700;letter-spacing:.3px;
-  padding:10px 22px;transition:all .18s;white-space:nowrap;
-}
-.btn-primary{background:var(--accent);color:#fff;box-shadow:0 4px 14px rgba(59,127,245,.22)}
-.btn-primary:hover{background:#5a94ff;box-shadow:0 6px 20px rgba(59,127,245,.35);transform:translateY(-1px)}
-.btn-draft{background:rgba(124,77,240,.08);color:var(--accent2);border:1px solid rgba(124,77,240,.25)}
-.btn-draft:hover{background:rgba(124,77,240,.16);transform:translateY(-1px)}
-.btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border2)}
-.btn-ghost:hover{color:var(--text);border-color:var(--muted)}
-.btn-danger{background:rgba(224,69,69,.08);color:var(--danger);border:1px solid rgba(224,69,69,.22)}
-.btn-danger:hover{background:rgba(224,69,69,.16)}
-.btn-sm{padding:6px 14px;font-size:11px}
+    .ql-toolbar button:hover .ql-fill,
+    .ql-toolbar button.ql-active .ql-fill {
+      fill: #1A4C8F !important;
+    }
 
-/* ════════════════════════════════════════════
-   TABLES
-════════════════════════════════════════════ */
-.table-wrap{overflow-x:auto;border-radius:var(--r2);border:1px solid var(--border);box-shadow:var(--shadow)}
-table{width:100%;border-collapse:collapse;font-size:13px}
-thead{background:var(--card2)}
-thead th{
-  padding:11px 14px;text-align:left;font-size:11px;font-weight:600;
-  color:var(--text2);text-transform:uppercase;letter-spacing:.8px;
-  border-bottom:1px solid var(--border);white-space:nowrap;
-}
-tbody tr{border-bottom:1px solid var(--border);transition:background .12s}
-tbody tr:last-child{border-bottom:none}
-tbody tr:hover{background:rgba(59,127,245,.03)}
-td{padding:12px 14px;vertical-align:middle;color:var(--text)}
-.td-muted{color:var(--text2)}
+    .ql-toolbar .ql-picker-label {
+      color: #5b6072 !important;
+    }
 
-/* Status badges */
-.badge{
-  display:inline-flex;align-items:center;gap:4px;
-  border-radius:20px;font-size:11px;font-weight:600;
-  padding:3px 10px;letter-spacing:.3px;white-space:nowrap;
-}
-.badge::before{content:'';width:5px;height:5px;border-radius:50%;flex-shrink:0}
-.badge-published{background:rgba(31,173,114,.1);color:var(--success)}
-.badge-published::before{background:var(--success)}
-.badge-draft{background:rgba(232,158,16,.1);color:var(--warn)}
-.badge-draft::before{background:var(--warn)}
-.badge-closed{background:rgba(154,160,187,.15);color:var(--muted)}
-.badge-closed::before{background:var(--muted)}
-.badge-archived{background:rgba(224,69,69,.08);color:var(--danger)}
-.badge-archived::before{background:var(--danger)}
+    .ql-editor.ql-blank::before {
+      color: #9aa0b4 !important;
+      font-style: normal !important;
+    }
 
-/* Country badges */
-.flag{font-size:16px;vertical-align:middle}
-.country-ind{color:#e07b00}
-.country-usa{color:#2a4ea6}
-.country-cad{color:#c0251a}
+    .ql-editor {
+      color: #111827 !important;
+      min-height: 130px;
+    }
 
-/* ════════════════════════════════════════════
-   STAT CARDS
-════════════════════════════════════════════ */
-.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
-.stat-card{
-  background:var(--card);border:1px solid var(--border);border-radius:var(--r2);
-  padding:20px 22px;position:relative;overflow:hidden;
-  box-shadow:var(--shadow);
-}
-.stat-card::before{
-  content:'';position:absolute;top:0;left:0;right:0;height:3px;
-  background:linear-gradient(90deg,var(--c1),var(--c2));
-}
-.stat-card.blue{--c1:#3b7ff5;--c2:#7ab3ff}
-.stat-card.purple{--c1:#7c4df0;--c2:#b48fff}
-.stat-card.green{--c1:#1fad72;--c2:#5cd9a0}
-.stat-card.orange{--c1:#e89e10;--c2:#fbbf24}
-.stat-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
-.stat-value{font-family:var(--font-h);font-size:28px;font-weight:800;color:var(--text);line-height:1}
-.stat-sub{font-size:12px;color:var(--text2);margin-top:6px}
-.stat-icon{
-  position:absolute;right:18px;top:50%;transform:translateY(-50%);
-  font-size:32px;opacity:.1;
-}
+    .ql-picker-options {
+      background: #ffffff !important;
+      border-color: #e7e9f0 !important;
+    }
 
-/* ════════════════════════════════════════════
-   PAGINATION
-════════════════════════════════════════════ */
-.pagination{display:flex;gap:5px;align-items:center;margin-top:16px;justify-content:flex-end}
-.pg{
-  padding:6px 12px;border-radius:var(--r);font-size:13px;
-  border:1px solid var(--border);color:var(--text2);background:var(--card);
-  cursor:pointer;transition:all .15s;
-}
-.pg:hover{border-color:var(--accent);color:var(--accent)}
-.pg.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-.pg.disabled{opacity:.3;cursor:not-allowed}
+    .ql-picker-item {
+      color: #5b6072 !important;
+    }
 
-/* ════════════════════════════════════════════
-   FILTERS BAR
-════════════════════════════════════════════ */
-.filters{
-  background:var(--card);border:1px solid var(--border);
-  border-radius:var(--r2);padding:16px 20px;margin-bottom:20px;
-  display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;
-  box-shadow:var(--shadow);
-}
-.filter-field{display:flex;flex-direction:column;gap:4px;min-width:140px}
-.filter-field label{font-size:11px;color:var(--muted);font-weight:500}
-.filter-field .ctrl{padding:7px 10px;font-size:13px}
-.filter-actions{display:flex;gap:8px;align-items:flex-end;margin-left:auto}
-
-/* ════════════════════════════════════════════
-   RESPONSIVE
-════════════════════════════════════════════ */
-@media(max-width:1024px){
-  .g3,.g4{grid-template-columns:1fr 1fr}
-  .gc3{grid-column:span 2}
-  .stats-row{grid-template-columns:1fr 1fr}
-}
-@media(max-width:768px){
-  .sidebar{transform:translateX(-100%)}
-  .sidebar.open{transform:translateX(0)}
-  .main{margin-left:0}
-  .topbar{left:0}
-  .g2,.g3,.g4{grid-template-columns:1fr}
-  .gc2,.gc3,.gc4{grid-column:span 1}
-  .main-body{padding:18px 16px}
-  .stats-row{grid-template-columns:1fr 1fr}
-}
-</style>
+    .ql-hidden-ta {
+      display: none;
+    }
+  </style>
 </head>
-<body>
-<div class="admin-layout">
 
-<!-- ═══════ SIDEBAR ═══════ -->
-<aside class="sidebar" id="sidebar">
-  <div class="sb-logo">
-    <a href="<?= ADMIN_URL ?>/index.php">
-        <img src="https://www.accelonconsulting.com/wp-content/uploads/2025/07/Accelon-logo.webp">
+<body class="bg-bg text-ink font-sans antialiased">
+  <div class="flex min-h-screen p-3 gap-3 max-md:p-0 max-md:gap-0">
+
+    <!-- Mobile sidebar toggle -->
+    <button id="sidebarToggle" class="md:hidden fixed top-3 left-3 z-[110] bg-accent text-white p-2 rounded-xl shadow-pop">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+      </svg>
+    </button>
+    <div id="sidebarOverlay" class="fixed inset-0 bg-ink/40 z-[95] hidden md:hidden backdrop-blur-[1px]"></div>
+
+    <!-- ═══════ SIDEBAR ═══════ -->
+    <aside id="sidebar"
+      class="fixed md:static top-3 left-3 md:top-0 md:left-0 h-[calc(100vh-24px)] md:h-[calc(100vh-24px)]
+             w-[240px] flex-shrink-0 bg-surface border border-line rounded-2xl shadow-card
+             flex flex-col overflow-hidden z-[100]
+             -translate-x-[calc(100%+24px)] md:translate-x-0 transition-transform duration-300">
+
+      <div class="px-5 pt-5 pb-4 border-b border-line flex-shrink-0">
+        <a href="<?= ADMIN_URL ?>/index.php" class="block">
+          <img src="https://www.accelonconsulting.com/wp-content/uploads/2025/07/Accelon-logo.webp" class="max-w-[130px] block">
         </a>
-    <small>Admin Panel</small>
-  </div>
-
-  <nav class="sb-nav">
-    <span class="sb-section">Overview</span>
-    <a href="<?= ADMIN_URL ?>/index.php"
-       class="sb-item <?= (basename($_SERVER['PHP_SELF'])==='index.php')?'active':'' ?>">
-      <span class="sb-icon">⊞</span> Dashboard
-    </a>
-
-    <span class="sb-section">Jobs</span>
-    <a href="<?= ADMIN_URL ?>/pages/jobs.php"
-       class="sb-item <?= (basename($_SERVER['PHP_SELF'])==='jobs.php')?'active':'' ?>">
-      <span class="sb-icon">≡</span> All Jobs
-      <?php
-        try {
-          $tc = db()->query("SELECT COUNT(*) FROM jobs WHERE status='published'")->fetchColumn();
-          if ($tc > 0) echo '<span class="sb-badge">'.$tc.'</span>';
-        } catch(Exception $e){}
-      ?>
-    </a>
-     <a href="<?= ADMIN_URL ?>/pages/clients.php"
-       class="sb-item <?= (basename($_SERVER['PHP_SELF'])==='clients.php')?'active':'' ?>">
-      <span class="sb-icon">🏢</span> Clients
-    </a>
-    <a href="<?= ADMIN_URL ?>/pages/post_job.php"
-       class="sb-item <?= (basename($_SERVER['PHP_SELF'])==='post_job.php')?'active':'' ?>">
-      <span class="sb-icon">＋</span> Post a Job
-    </a>
-    <a href="<?= ADMIN_URL ?>/pages/jobs.php?status=draft"
-       class="sb-item">
-      <span class="sb-icon">◎</span> Drafts
-      <?php
-        try {
-          $dc = db()->query("SELECT COUNT(*) FROM jobs WHERE status='draft'")->fetchColumn();
-          if ($dc > 0) echo '<span class="sb-badge draft">'.$dc.'</span>';
-        } catch(Exception $e){}
-      ?>
-    </a>
-
-    <span class="sb-section">Settings</span>
-   
-    <a href="<?= ADMIN_URL ?>/pages/admins.php"
-       class="sb-item <?= (basename($_SERVER['PHP_SELF'])==='admins.php')?'active':'' ?>">
-      <span class="sb-icon">👤</span> Admin Users
-    </a>
-  </nav>
-
-  <div class="sb-footer">
-    <div class="sb-user">
-      <div class="sb-avatar"><?= strtoupper(substr($currentAdmin['name'],0,1)) ?></div>
-      <div class="sb-user-info">
-        <strong><?= e($currentAdmin['name']) ?></strong>
-        <span><?= e($currentAdmin['role']) ?></span>
+        <div class="flex items-center gap-1.5 mt-2">
+          <span class="w-1.5 h-1.5 rounded-full bg-accent"></span>
+          <small class="text-[10.5px] font-semibold text-muted tracking-[1.2px] uppercase">Admin Panel</small>
+        </div>
       </div>
-    </div>
-    <a href="<?= ADMIN_URL ?>/logout.php" class="sb-logout">
-      ⏻ Sign out
-    </a>
-  </div>
-</aside>
 
-<!-- ═══════ TOPBAR ═══════ -->
-<div class="topbar">
-  <div>
-    <div class="topbar-title"><?= e($pageTitle) ?></div>
-    <?php if (!empty($breadcrumbs)): ?>
-    <div class="topbar-breadcrumb">
-      <?php foreach ($breadcrumbs as $i => [$label,$url]): ?>
-        <?= $i>0 ? ' › ' : '' ?>
-        <?= $url ? '<a href="'.e($url).'">'.e($label).'</a>' : e($label) ?>
-      <?php endforeach; ?>
-    </div>
-    <?php endif; ?>
-  </div>
-  <div class="topbar-actions">
-    <a href="https://www.accelonconsulting.com/careers/" target="_blank" class="topbar-btn outline">↗ View Site</a>
-    <a href="<?= ADMIN_URL ?>/pages/post_job.php" class="topbar-btn">＋ Post Job</a>
-  </div>
-</div>
+      <nav class="py-4 px-3 flex-1 overflow-y-auto space-y-0.5">
 
-<!-- ═══════ MAIN ═══════ -->
-<div class="main">
-<div class="main-body">
+        <p class="px-2.5 pt-2 pb-1.5 text-[10.5px] font-bold text-muted tracking-[1.1px] uppercase">Overview</p>
 
-<?php
-// Show flash messages
-foreach (['success','error','warn'] as $t) {
-    $msg = flash($t);
-    if ($msg) echo '<div class="flash flash-'.$t.'">'.($t==='success'?'✓':($t==='error'?'✕':'⚠')).' '.$msg.'</div>';
-}
-?>
+        <?php $isActive = basename($_SERVER['PHP_SELF']) === 'index.php'; ?>
+        <a href="<?= ADMIN_URL ?>/index.php"
+          class="group flex items-center gap-3 px-2.5 py-2 rounded-lg text-[13.5px] font-medium transition-colors
+                 <?= $isActive ? 'bg-accent-soft text-accent-dark' : 'text-ink2 hover:bg-card2 hover:text-ink' ?>">
+          <svg class="h-[18px] w-[18px] flex-shrink-0 <?= $isActive ? 'text-accent' : 'text-muted group-hover:text-ink2' ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75A1.5 1.5 0 015.25 5.25h4.5A1.5 1.5 0 0111.25 6.75v4.5a1.5 1.5 0 01-1.5 1.5h-4.5a1.5 1.5 0 01-1.5-1.5v-4.5zM12.75 6.75a1.5 1.5 0 011.5-1.5h4.5a1.5 1.5 0 011.5 1.5v4.5a1.5 1.5 0 01-1.5 1.5h-4.5a1.5 1.5 0 01-1.5-1.5v-4.5zM3.75 15.75a1.5 1.5 0 011.5-1.5h4.5a1.5 1.5 0 011.5 1.5v4.5a1.5 1.5 0 01-1.5 1.5h-4.5a1.5 1.5 0 01-1.5-1.5v-4.5zM12.75 15.75a1.5 1.5 0 011.5-1.5h4.5a1.5 1.5 0 011.5 1.5v4.5a1.5 1.5 0 01-1.5 1.5h-4.5a1.5 1.5 0 01-1.5-1.5v-4.5z" />
+          </svg>
+          Dashboard
+        </a>
+
+        <p class="px-2.5 pt-4 pb-1.5 text-[10.5px] font-bold text-muted tracking-[1.1px] uppercase">Jobs</p>
+
+        <?php $isActive = basename($_SERVER['PHP_SELF']) === 'jobs.php'; ?>
+        <a href="<?= ADMIN_URL ?>/pages/jobs.php"
+          class="group flex items-center gap-3 px-2.5 py-2 rounded-lg text-[13.5px] font-medium transition-colors
+                 <?= $isActive ? 'bg-accent-soft text-accent-dark' : 'text-ink2 hover:bg-card2 hover:text-ink' ?>">
+          <svg class="h-[18px] w-[18px] flex-shrink-0 <?= $isActive ? 'text-accent' : 'text-muted group-hover:text-ink2' ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 6V4.5A1.5 1.5 0 0110.5 3h3A1.5 1.5 0 0115 4.5V6m-9 0h12a1.5 1.5 0 011.5 1.5v10.5a1.5 1.5 0 01-1.5 1.5H6a1.5 1.5 0 01-1.5-1.5V7.5A1.5 1.5 0 016 6z" />
+          </svg>
+          <span class="flex-1">All Jobs</span>
+          <?php
+          try {
+            $tc = db()->query("SELECT COUNT(*) FROM jobs WHERE status='published'")->fetchColumn();
+            if ($tc > 0) echo '<span class="bg-accent text-white rounded-full text-[10px] font-bold px-[7px] py-px leading-[16px]">' . $tc . '</span>';
+          } catch (Exception $e) {
+          }
+          ?>
+        </a>
+
+        <?php $isActive = basename($_SERVER['PHP_SELF']) === 'clients.php'; ?>
+        <a href="<?= ADMIN_URL ?>/pages/clients.php"
+          class="group flex items-center gap-3 px-2.5 py-2 rounded-lg text-[13.5px] font-medium transition-colors
+                 <?= $isActive ? 'bg-accent-soft text-accent-dark' : 'text-ink2 hover:bg-card2 hover:text-ink' ?>">
+          <svg class="h-[18px] w-[18px] flex-shrink-0 <?= $isActive ? 'text-accent' : 'text-muted group-hover:text-ink2' ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21V6.75A1.5 1.5 0 015.25 5.25h6A1.5 1.5 0 0112.75 6.75V21M3.75 21h16.5M3.75 21H2.25M20.25 21V10.5a1.5 1.5 0 00-1.5-1.5h-3a1.5 1.5 0 00-1.5 1.5V21m3-15h.008v.008H18v-.008zm0 3h.008v.008H18v-.008zm0 3h.008v.008H18v-.008zM6.75 9h.008v.008H6.75V9zm0 3h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm3-6h.008v.008H9.75V9zm0 3h.008v.008H9.75V12zm0 3h.008v.008H9.75V15z" />
+          </svg>
+          Clients
+        </a>
+
+        <?php $isActive = basename($_SERVER['PHP_SELF']) === 'post_job.php'; ?>
+        <a href="<?= ADMIN_URL ?>/pages/post_job.php"
+          class="group flex items-center gap-3 px-2.5 py-2 rounded-lg text-[13.5px] font-medium transition-colors
+                 <?= $isActive ? 'bg-accent-soft text-accent-dark' : 'text-ink2 hover:bg-card2 hover:text-ink' ?>">
+          <svg class="h-[18px] w-[18px] flex-shrink-0 <?= $isActive ? 'text-accent' : 'text-muted group-hover:text-ink2' ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          Post a Job
+        </a>
+
+        <a href="<?= ADMIN_URL ?>/pages/jobs.php?status=draft"
+          class="group flex items-center gap-3 px-2.5 py-2 rounded-lg text-[13.5px] font-medium text-ink2 hover:bg-card2 hover:text-ink transition-colors">
+          <svg class="h-[18px] w-[18px] flex-shrink-0 text-muted group-hover:text-ink2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m6.75 12l-3-3m0 0l-3 3m3-3v6m-9-3.75h-1.5m1.5 0V21a2.25 2.25 0 002.25 2.25h13.5A2.25 2.25 0 0021 21V9a2.25 2.25 0 00-.659-1.591l-4.75-4.75A2.25 2.25 0 0013.999.75H6.75A2.25 2.25 0 004.5 3v6" />
+          </svg>
+          <span class="flex-1">Drafts</span>
+          <?php
+          try {
+            $dc = db()->query("SELECT COUNT(*) FROM jobs WHERE status='draft'")->fetchColumn();
+            if ($dc > 0) echo '<span class="bg-warn text-white rounded-full text-[10px] font-bold px-[7px] py-px leading-[16px]">' . $dc . '</span>';
+          } catch (Exception $e) {
+          }
+          ?>
+        </a>
+
+        <p class="px-2.5 pt-4 pb-1.5 text-[10.5px] font-bold text-muted tracking-[1.1px] uppercase">Settings</p>
+
+        <?php $isActive = basename($_SERVER['PHP_SELF']) === 'admins.php'; ?>
+        <a href="<?= ADMIN_URL ?>/pages/admins.php"
+          class="group flex items-center gap-3 px-2.5 py-2 rounded-lg text-[13.5px] font-medium transition-colors
+                 <?= $isActive ? 'bg-accent-soft text-accent-dark' : 'text-ink2 hover:bg-card2 hover:text-ink' ?>">
+          <svg class="h-[18px] w-[18px] flex-shrink-0 <?= $isActive ? 'text-accent' : 'text-muted group-hover:text-ink2' ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+          </svg>
+          Admin Users
+        </a>
+      </nav>
+
+      <div class="px-3.5 py-3.5 border-t border-line flex-shrink-0">
+        <div class="flex items-center gap-2.5 px-1.5 py-2 rounded-lg mb-1">
+          <div class="w-8 h-8 rounded-full bg-accent flex items-center justify-center
+                      font-head text-[13px] font-bold text-white flex-shrink-0">
+            <?= strtoupper(substr($currentAdmin['name'], 0, 1)) ?>
+          </div>
+          <div class="min-w-0 flex-1">
+            <strong class="block text-[13px] text-ink font-semibold truncate"><?= e($currentAdmin['name']) ?></strong>
+            <span class="block text-[11px] text-ink2 capitalize truncate"><?= e($currentAdmin['role']) ?></span>
+          </div>
+          <a href="<?= ADMIN_URL ?>/logout.php" title="Sign out"
+            class="flex-shrink-0 p-1.5 rounded-md text-muted hover:text-danger hover:bg-danger/[.06] transition-colors">
+            <svg class="h-[17px] w-[17px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 9V5.25A2.25 2.25 0 0110.5 3h6a2.25 2.25 0 012.25 2.25v13.5A2.25 2.25 0 0116.5 21h-6a2.25 2.25 0 01-2.25-2.25V15m-3 0l-3-3m0 0l3-3m-3 3H15" />
+            </svg>
+          </a>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ═══════ MAIN COLUMN ═══════ -->
+    <div class="flex-1 flex flex-col min-w-0 md:ml-0 max-md:mt-0">
+
+      <!-- TOPBAR -->
+      <div class="sticky top-3 md:top-3 mb-3 max-md:mx-3 max-md:mt-16 bg-surface border border-line rounded-2xl shadow-card
+                  flex items-center px-6 py-3.5 gap-4 z-[90]">
+        <div class="flex-1 min-w-0">
+          <div class="font-head text-[17px] font-bold text-ink tracking-tight truncate"><?= e($pageTitle) ?></div>
+          <?php if (!empty($breadcrumbs)): ?>
+            <div class="text-[12px] text-muted mt-0.5 flex items-center gap-1.5 flex-wrap">
+              <?php foreach ($breadcrumbs as $i => [$label, $url]): ?>
+                <?php if ($i > 0): ?><span class="text-line2">/</span><?php endif; ?>
+                <?= $url ? '<a href="' . e($url) . '" class="text-accent hover:underline">' . e($label) . '</a>' : '<span>' . e($label) . '</span>' ?>
+              <?php endforeach; ?>
+            </div>
+          <?php endif; ?>
+        </div>
+
+        <div class="hidden lg:flex items-center gap-2 bg-card2 border border-line rounded-lg px-3 py-2 w-64 text-muted">
+          <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
+          </svg>
+          <input type="text" placeholder="Search..." class="bg-transparent border-none outline-none text-[13px] text-ink w-full placeholder-muted">
+        </div>
+
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <a href="https://www.accelonconsulting.com/careers/" target="_blank"
+            class="hidden sm:flex items-center gap-1.5 bg-transparent text-ink2 border border-line2 rounded-lg font-head
+                   text-[12px] font-bold tracking-wide px-3.5 py-2 hover:text-ink hover:border-muted hover:bg-card2 transition-all">
+            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+            </svg>
+            View Site
+          </a>
+          <a href="<?= ADMIN_URL ?>/pages/post_job.php"
+            class="flex items-center gap-1.5 bg-accent text-white rounded-lg font-head text-[12px] font-bold
+                   tracking-wide px-4 py-2 shadow-pop hover:bg-accent-dark transition-all">
+            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.25">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Post Job
+          </a>
+        </div>
+      </div>
+
+      <!-- MAIN BODY -->
+      <div class="flex-1 bg-surface border border-line rounded-2xl shadow-card px-7 py-6 max-md:mx-3 max-md:mb-3 max-md:px-4 max-md:py-4 overflow-y-auto">
+
+        <?php
+        // Show flash messages
+        $flashIcons = [
+          'success' => '<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/>',
+          'error'   => '<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>',
+          'warn'    => '<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.008v.008H12v-.008zM21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>',
+        ];
+        $flashStyles = [
+          'success' => 'bg-success/[.08] border border-success/[.20] text-success',
+          'error'   => 'bg-danger/[.08] border border-danger/[.20] text-danger',
+          'warn'    => 'bg-warn/[.08] border border-warn/[.20] text-warn',
+        ];
+        foreach (['success', 'error', 'warn'] as $t) {
+          $msg = flash($t);
+          if ($msg) {
+            echo '<div class="flex items-start gap-2.5 px-4 py-3 rounded-xl mb-5 text-[13.5px] font-medium ' . $flashStyles[$t] . '">'
+              . '<svg class="h-[18px] w-[18px] flex-shrink-0 mt-px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">' . $flashIcons[$t] . '</svg>'
+              . '<span>' . $msg . '</span></div>';
+          }
+        }
+        ?>
+        <!-- Page content continues below this include -->
