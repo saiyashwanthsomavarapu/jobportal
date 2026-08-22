@@ -16,200 +16,34 @@ $pageTitle = $pageTitle ?? 'Dashboard';
   <link href="https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.snow.min.css" rel="stylesheet">
 
   <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
-  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-  <!-- <script src="https://cdn.tailwindcss.com"></script> -->
   <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" />
-  <script>
-    // tailwind.config = {
-    //   theme: {
-    //     extend: {
-    //       colors: {
-    //         bg: '#f4f5f8',
-    //         surface: '#ffffff',
-    //         card2: '#f8f9fc',
-    //         line: '#e7e9f0',
-    //         line2: '#d8dbe6',
-    //         accent: '#1A4C8F',
-    //         'accent-dark': '#123863',
-    //         'accent-soft': '#eaf1fa',
-    //         ink: '#111827',
-    //         ink2: '#5b6072',
-    //         muted: '#9aa0b4',
-    //         danger: '#dc3545',
-    //         warn: '#d97706',
-    //         success: '#0f9d63',
-    //       },
-    //       fontFamily: {
-    //         head: ['Syne', 'sans-serif'],
-    //         sans: ['DM Sans', 'sans-serif'],
-    //       },
-    //       boxShadow: {
-    //         card: '0 1px 2px rgba(17,24,39,.04), 0 8px 24px -12px rgba(17,24,39,.08)',
-    //         pop: '0 4px 14px rgba(26,76,143,.22)',
-    //       },
-    //     }
-    //   }
-    // }
-  </script>
-  <style type="text/tailwindcss">
-    :root {
-    --color-base-100: #ffffff;
-    --color-base-200: #f8f9fc;
-    --color-base-300: #e7e9f0;
-    --color-base-content: #111827;
-
-    --color-primary: #1A4C8F;
-    --color-primary-content: #ffffff;
-
-    --color-secondary: #5b6072;
-    --color-secondary-content: #ffffff;
-
-    --color-accent: #1A4C8F;
-    --color-accent-content: #ffffff;
-
-    --color-neutral: #111827;
-    --color-neutral-content: #ffffff;
-
-    --color-info: #2563eb;
-    --color-success: #0f9d63;
-    --color-warning: #d97706;
-    --color-error: #dc3545;
-  }
-    @theme {
-    --color-bg: #f4f5f8;
-    --color-surface: #ffffff;
-    --color-card2: #f8f9fc;
-    --color-line: #e7e9f0;
-    --color-line2: #d8dbe6;
-
-    --color-accent: #1A4C8F;
-    --color-accent-dark: #123863;
-    --color-accent-soft: #eaf1fa;
-
-    --color-ink: #111827;
-    --color-ink2: #5b6072;
-    --color-muted: #9aa0b4;
-
-    --color-danger: #dc3545;
-    --color-warn: #d97706;
-    --color-success: #0f9d63;
-
-    --font-head: "Syne", sans-serif;
-    --font-sans: "DM Sans", sans-serif;
-
-    --shadow-card:
-    0 1px 2px rgba(17, 24, 39, .04),
-    0 8px 24px -12px rgba(17, 24, 39, .08);
-
-    --shadow-pop:
-    0 4px 14px rgba(26, 76, 143, .22);
-    }
-    </style>
-  <style>
-    body {
-      font-size: 14px;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    ::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-
-    ::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    ::-webkit-scrollbar-thumb {
-      background: #d8dbe6;
-      border-radius: 10px;
-    }
-
-    ::-webkit-scrollbar-thumb:hover {
-      background: #9aa0b4;
-    }
-
-    .ql-toolbar {
-      background: #f8f9fc !important;
-      border: 1px solid #e7e9f0 !important;
-      border-radius: 10px 10px 0 0 !important;
-    }
-
-    .ql-container {
-      background: #ffffff !important;
-      border: 1px solid #e7e9f0 !important;
-      border-top: none !important;
-      border-radius: 0 0 10px 10px !important;
-      color: #111827 !important;
-      font-family: 'DM Sans', sans-serif !important;
-      font-size: 13.5px !important;
-      min-height: 130px;
-    }
-
-    .ql-toolbar .ql-stroke {
-      stroke: #5b6072 !important;
-    }
-
-    .ql-toolbar .ql-fill {
-      fill: #5b6072 !important;
-    }
-
-    .ql-toolbar button:hover .ql-stroke,
-    .ql-toolbar button.ql-active .ql-stroke {
-      stroke: #1A4C8F !important;
-    }
-
-    .ql-toolbar button:hover .ql-fill,
-    .ql-toolbar button.ql-active .ql-fill {
-      fill: #1A4C8F !important;
-    }
-
-    .ql-toolbar .ql-picker-label {
-      color: #5b6072 !important;
-    }
-
-    .ql-editor.ql-blank::before {
-      color: #9aa0b4 !important;
-      font-style: normal !important;
-    }
-
-    .ql-editor {
-      color: #111827 !important;
-      min-height: 130px;
-    }
-
-    .ql-picker-options {
-      background: #ffffff !important;
-      border-color: #e7e9f0 !important;
-    }
-
-    .ql-picker-item {
-      color: #5b6072 !important;
-    }
-
-    .ql-hidden-ta {
-      display: none;
-    }
-  </style>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <?php include __DIR__ . "/theme.php"; ?>
 </head>
 
-<body class="bg-bg text-ink font-sans antialiased">
+<body data-theme="accelon" class="bg-bg text-ink font-sans antialiased">
   <div class="flex min-h-screen p-3 gap-3 max-md:p-0 max-md:gap-0">
 
     <!-- Mobile sidebar toggle -->
-    <button id="sidebarToggle" class="md:hidden fixed top-3 left-3 z-[110] bg-accent text-white p-2 rounded-xl shadow-pop">
+    <button id="sidebarToggle" type="button" aria-label="Open navigation" aria-expanded="false" onclick="toggleAdminSidebar()" class="md:hidden fixed top-3 left-3 z-[110] bg-accent text-white p-2 rounded-xl shadow-pop">
       <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
       </svg>
     </button>
-    <div id="sidebarOverlay" class="fixed inset-0 bg-ink/40 z-[95] hidden md:hidden backdrop-blur-[1px]"></div>
+    <div id="sidebarOverlay" onclick="closeAdminSidebar()" class="fixed inset-0 bg-ink/40 z-[95] hidden md:hidden backdrop-blur-[1px]"></div>
 
     <!-- ═══════ SIDEBAR ═══════ -->
     <aside id="sidebar"
-      class="fixed md:static top-3 left-3 md:top-0 md:left-0 h-[calc(100vh-24px)] md:h-[calc(100vh-24px)]
-             w-[240px] flex-shrink-0 bg-surface border border-line rounded-2xl shadow-card
-             flex flex-col overflow-hidden z-[100]
-             -translate-x-[calc(100%+24px)] md:translate-x-0 transition-transform duration-300">
+      class="fixed left-3 top-3 z-[100]
+           h-[calc(100vh-24px)]
+           w-[240px]
+           overflow-hidden
+           rounded-2xl border border-line
+           bg-surface shadow-card
+           flex flex-col
+           -translate-x-[calc(100%+24px)]
+           transition-transform duration-300
+           md:translate-x-0">
 
       <div class="px-5 pt-5 pb-4 border-b border-line flex-shrink-0">
         <a href="<?= ADMIN_URL ?>/index.php" class="block">
@@ -322,8 +156,54 @@ $pageTitle = $pageTitle ?? 'Dashboard';
       </div>
     </aside>
 
+    <script>
+      function setAdminSidebarOpen(isOpen) {
+        var sidebar = document.getElementById('sidebar');
+        var overlay = document.getElementById('sidebarOverlay');
+        var toggle = document.getElementById('sidebarToggle');
+
+        if (sidebar) {
+          sidebar.classList.toggle('is-open', isOpen);
+          sidebar.style.translate = isOpen ? '0 0' : '';
+          sidebar.style.transform = isOpen ? 'translateX(0)' : '';
+        }
+
+        if (overlay) {
+          overlay.classList.toggle('hidden', !isOpen);
+          overlay.classList.toggle('is-open', isOpen);
+        }
+
+        if (toggle) {
+          toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        }
+
+        document.body.classList.toggle('overflow-hidden', isOpen);
+      }
+
+      function toggleAdminSidebar() {
+        var sidebar = document.getElementById('sidebar');
+        setAdminSidebarOpen(!sidebar || !sidebar.classList.contains('is-open'));
+      }
+
+      function closeAdminSidebar() {
+        setAdminSidebarOpen(false);
+      }
+
+      document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') {
+          closeAdminSidebar();
+        }
+      });
+
+      window.addEventListener('resize', function() {
+        if (window.innerWidth >= 768) {
+          closeAdminSidebar();
+        }
+      });
+    </script>
+
     <!-- ═══════ MAIN COLUMN ═══════ -->
-    <div class="flex-1 flex flex-col min-w-0 md:ml-0 max-md:mt-0">
+    <div class="flex-1 flex flex-col min-w-0 md:ml-0 max-md:mt-0 min-h-screen md:ml-[264px]">
 
       <!-- TOPBAR -->
       <div class="sticky top-3 md:top-3 mb-3 max-md:mx-3 max-md:mt-16 bg-surface border border-line rounded-2xl shadow-card

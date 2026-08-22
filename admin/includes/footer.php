@@ -494,14 +494,15 @@
        const sidebar = document.getElementById('sidebar');
        const sidebarOverlay = document.getElementById('sidebarOverlay');
 
-       sidebarToggle?.addEventListener('click', () => {
-           sidebar.classList.toggle('-translate-x-full');
-           sidebarOverlay.classList.toggle('hidden');
-       });
+       function setSidebarOpen(isOpen) {
+           if (typeof setAdminSidebarOpen === 'function') {
+               setAdminSidebarOpen(isOpen);
+           }
+       }
 
+       sidebarToggle?.setAttribute('aria-expanded', 'false');
        sidebarOverlay?.addEventListener('click', () => {
-           sidebar.classList.add('-translate-x-full');
-           sidebarOverlay.classList.add('hidden');
+           setSidebarOpen(false);
        });
 
        // Nav group accordion
@@ -534,15 +535,11 @@
        });
 
        function openSidebar() {
-           document.getElementById('sidebar').classList.add('open');
-           document.getElementById('sidebarOverlay').classList.add('open');
-           document.body.classList.add('overflow-hidden');
+           setSidebarOpen(true);
        }
 
        function closeSidebar() {
-           document.getElementById('sidebar').classList.remove('open');
-           document.getElementById('sidebarOverlay').classList.remove('open');
-           document.body.classList.remove('overflow-hidden');
+           setSidebarOpen(false);
        }
 
        document.addEventListener('keydown', function(event) {

@@ -781,7 +781,7 @@ include dirname(__DIR__) . "/includes/header.php";
   </form>
 
   <!-- ══ USERS TABLE ══ -->
-  <div class="bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden mt-5" style="background-color:#f8fafc !important">
+  <div class=" border border-slate-200 rounded-2xl overflow-hidden mt-5">
     <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200">
       <span class="font-head text-[15px] font-bold text-slate-900">All Admin Users</span>
       <span class="text-[12px] text-slate-500"><?= count($admins) ?> total</span>
@@ -939,64 +939,105 @@ include dirname(__DIR__) . "/includes/header.php";
 </div>
 
 <!-- RESET PASSWORD MODAL (light) -->
-<div class="modal-overla" id="resetModal">
-  <div class="modal-box bg-white border border-slate-200 rounded-2xl shadow-2xl p-7 w-full max-w-[440px] relative mx-4 text-slate-900" style="background-color:#ffffff !important">
-    <button onclick="closeResetModal()"
-      class="absolute top-4 right-4 w-7 h-7 flex items-center justify-center rounded-md border border-slate-300 text-slate-500 hover:text-red-600 hover:border-red-300 transition-colors">
+<dialog id="resetModal" class="modal">
+  <div class="modal-box bg-surface border border-line rounded-2xl shadow-pop p-7 w-full max-w-[440px] text-ink">
+    <!-- Close button -->
+    <button type="button" onclick="closeResetModal()" aria-label="Close reset password modal"
+      class="absolute top-4 right-4 w-7 h-7 flex items-center justify-center rounded-md border border-line text-muted hover:text-danger hover:border-danger/30 transition-colors">
       <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
       </svg>
     </button>
-    <div class="font-head text-[15px] font-bold mb-5 flex items-center gap-2 text-slate-900">
-      <svg class="h-4 w-4 text-[#2f6fc4]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+
+    <!-- Header -->
+    <div class="font-head text-[15px] font-bold mb-5 flex items-center gap-2 text-ink">
+      <svg class="h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
         <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
       </svg>
       Reset Password
     </div>
-    <p class="text-[13px] text-slate-600 mb-4">
-      Setting new password for: <strong id="resetUserName" class="text-slate-900"></strong>
+
+    <!-- Description -->
+    <p class="text-[13px] text-ink2 mb-4">
+      Setting new password for:
+      <strong id="resetUserName" class="text-ink"></strong>
     </p>
+
+    <!-- Form -->
     <form method="POST" id="resetForm" class="space-y-3.5">
       <input type="hidden" name="action" value="reset_password">
       <input type="hidden" name="user_id" id="resetUserId" value="">
 
+      <!-- New Password -->
       <div>
-        <label class="block text-[12px] text-slate-600 mb-1.5">New Password <span class="text-[#2f6fc4]">*</span></label>
+        <label for="resetPw" class="block text-[12px] text-ink2 mb-1.5">
+          New Password
+          <span class="text-primary">*</span>
+        </label>
         <input type="password" name="new_password" id="resetPw"
-          class="w-full bg-white border border-slate-300 rounded-lg px-3.5 py-2.5 text-[13.5px] text-slate-900 placeholder-slate-400 outline-none focus:border-[#2f6fc4] focus:ring-2 focus:ring-[#2f6fc4]/20 transition" style="background-color:#ffffff !important"
-          placeholder="Min. 8 characters" required
+          class="input w-full h-auto min-h-0 bg-surface border-line rounded-lg px-3.5 py-2.5 text-[13.5px] text-ink placeholder:text-muted outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition"
+          placeholder="Min. 8 characters"
+          required
           oninput="checkResetStrength(this.value)">
-        <div class="h-1 rounded-full bg-slate-200 overflow-hidden mt-1.5">
-          <div class="h-full w-0 rounded-full transition-all bg-[#2f6fc4]" id="resetPwBar"></div>
+        <!-- Password strength -->
+        <div class="h-1 rounded-full bg-line overflow-hidden mt-1.5">
+          <div
+            id="resetPwBar"
+            class="h-full w-0 rounded-full transition-all bg-primary"></div>
         </div>
-        <div class="text-[11px] text-slate-500 mt-1" id="resetPwHint"></div>
+        <div
+          id="resetPwHint"
+          class="text-[11px] text-muted mt-1"></div>
       </div>
 
+      <!-- Confirm Password -->
       <div>
-        <label class="block text-[12px] text-slate-600 mb-1.5">Confirm New Password <span class="text-[#2f6fc4]">*</span></label>
-        <input type="password" name="confirm_password" id="resetPwConf"
-          class="w-full bg-white border border-slate-300 rounded-lg px-3.5 py-2.5 text-[13.5px] text-slate-900 placeholder-slate-400 outline-none focus:border-[#2f6fc4] focus:ring-2 focus:ring-[#2f6fc4]/20 transition" style="background-color:#ffffff !important"
-          placeholder="Re-enter new password" required
+        <label
+          for="resetPwConf"
+          class="block text-[12px] text-ink2 mb-1.5">
+          Confirm New Password
+          <span class="text-primary">*</span>
+        </label>
+        <input
+          type="password"
+          name="confirm_password"
+          id="resetPwConf"
+          class="<?= INPUT_CLASS ?>"
+          placeholder="Re-enter new password"
+          required
           oninput="checkResetMatch()">
-        <div class="text-[11px] mt-1" id="resetMatchHint"></div>
+        <div
+          id="resetMatchHint"
+          class="text-[11px] mt-1"></div>
       </div>
 
-      <div class="flex gap-2.5 pt-1">
-        <button type="submit"
-          class="flex-1 flex items-center justify-center gap-2 bg-[#2f6fc4] text-white rounded-lg font-head text-[13px] font-bold tracking-wide py-2.5 shadow-[0_4px_16px_rgba(47,111,196,.25)] hover:bg-[#3a7cd6] transition-all">
+      <!-- Actions -->
+      <div class="flex flex-col-reverse sm:flex-row gap-2.5 pt-1">
+        <button
+          type="submit"
+          class="flex-1 flex items-center justify-center gap-2 btn btn-primary min-h-0 h-auto rounded-lg font-head text-[13px] font-bold tracking-wide py-2.5 shadow-pop">
           <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
             <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
           </svg>
           Reset Password
         </button>
-        <button type="button" onclick="closeResetModal()"
-          class="px-4 py-2.5 rounded-lg border border-slate-300 text-slate-600 text-[13px] font-semibold hover:bg-slate-100 hover:text-slate-900 transition-colors">
+        <button
+          type="button"
+          onclick="closeResetModal()"
+          class="btn btn-ghost px-4 py-2.5 min-h-0 h-auto rounded-lg border border-line text-ink2 text-[13px] font-semibold hover:bg-card2 hover:text-ink">
           Cancel
         </button>
       </div>
     </form>
   </div>
-</div>
+
+  <!-- Click outside modal to close -->
+  <form
+    method="dialog"
+    class="modal-backdrop">
+    <button type="submit">close</button>
+  </form>
+</dialog>
 
 <script>
   function pwStrength(val) {
@@ -1101,70 +1142,138 @@ include dirname(__DIR__) . "/includes/header.php";
   }
 
   function openResetModal(id, name) {
-    document.getElementById('resetUserId').value = id;
-    document.getElementById('resetUserName').textContent = name;
-    document.getElementById('resetPw').value = '';
-    document.getElementById('resetPwConf').value = '';
-    document.getElementById('resetPwBar').style.cssText = 'width:0';
-    document.getElementById('resetPwHint').textContent = '';
-    document.getElementById('resetMatchHint').textContent = '';
-    document.getElementById('resetModal').classList.add('open');
-    setTimeout(() => document.getElementById('resetPw').focus(), 100);
+    const resetModal = document.getElementById('resetModal');
+    const resetUserId = document.getElementById('resetUserId');
+    const resetUserName = document.getElementById('resetUserName');
+    const resetPw = document.getElementById('resetPw');
+    const resetPwConf = document.getElementById('resetPwConf');
+    const resetPwBar = document.getElementById('resetPwBar');
+    const resetPwHint = document.getElementById('resetPwHint');
+    const resetMatchHint = document.getElementById('resetMatchHint');
+
+    if (resetModal && resetUserId && resetUserName) {
+      resetUserId.value = id;
+      resetUserName.textContent = name;
+
+      if (resetPw) resetPw.value = '';
+      if (resetPwConf) resetPwConf.value = '';
+      if (resetPwBar) resetPwBar.style.cssText = 'width:0';
+      if (resetPwHint) resetPwHint.textContent = '';
+      if (resetMatchHint) resetMatchHint.textContent = '';
+
+      resetModal.classList.add('open');
+
+      if (resetPw) {
+        setTimeout(() => resetPw.focus(), 100);
+      }
+    }
   }
 
   function closeResetModal() {
-    document.getElementById('resetModal').classList.remove('open');
+    const modal = document.getElementById('resetModal');
+    if (modal) {
+      modal.classList.remove('open');
+    }
   }
-  document.getElementById('resetModal').addEventListener('click', function(e) {
-    if (e.target === this) closeResetModal();
-  });
-  document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') closeResetModal();
+
+  // Initialize event listeners when DOM is ready
+  document.addEventListener('DOMContentLoaded', function() {
+    const resetModal = document.getElementById('resetModal');
+    if (resetModal) {
+      resetModal.addEventListener('click', function(e) {
+        if (e.target === this) closeResetModal();
+      });
+    }
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeResetModal();
+    });
+
+    <?php if ($editUser): ?>
+      const adminForm = document.getElementById('adminForm');
+      if (adminForm) {
+        adminForm.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start'
+        });
+      }
+    <?php endif; ?>
   });
 
   function checkResetStrength(val) {
+    const resetPwBar = document.getElementById('resetPwBar');
+    const resetPwHint = document.getElementById('resetPwHint');
+
+    if (!resetPwBar || !resetPwHint) return;
+
     const r = pwStrength(val);
-    document.getElementById('resetPwBar').style.cssText = `width:${r.pct||'0%'};background:${r.color}`;
-    const hintEl = document.getElementById('resetPwHint');
+    resetPwBar.style.cssText = `width:${r.pct||'0%'};background:${r.color}`;
+
     if (!val) {
-      hintEl.innerHTML = '';
+      resetPwHint.innerHTML = '';
       checkResetMatch();
       return;
     }
     if (r.hints.length) {
-      hintEl.innerHTML = '<span style="color:' + r.color + '">' + r.label + '</span>' +
+      resetPwHint.innerHTML = '<span style="color:' + r.color + '">' + r.label + '</span>' +
         ' &mdash; still needs: <span style="color:#dc2626">' + r.hints.join(', ') + '</span>';
     } else {
-      hintEl.innerHTML = '<span style="color:' + r.color + '">✓ ' + r.label + '</span>';
+      resetPwHint.innerHTML = '<span style="color:' + r.color + '">✓ ' + r.label + '</span>';
     }
     checkResetMatch();
   }
 
   function checkResetMatch() {
-    const pw = document.getElementById('resetPw').value;
-    const cfm = document.getElementById('resetPwConf').value;
-    const el = document.getElementById('resetMatchHint');
+    const resetPw = document.getElementById('resetPw');
+    const resetPwConf = document.getElementById('resetPwConf');
+    const resetMatchHint = document.getElementById('resetMatchHint');
+
+    if (!resetPw || !resetPwConf || !resetMatchHint) return;
+
+    const pw = resetPw.value;
+    const cfm = resetPwConf.value;
+
     if (!cfm) {
-      el.textContent = '';
+      resetMatchHint.textContent = '';
       return;
     }
     if (pw === cfm) {
-      el.textContent = '✓ Match';
-      el.style.color = '#16a34a';
+      resetMatchHint.textContent = '✓ Match';
+      resetMatchHint.style.color = '#16a34a';
     } else {
-      el.textContent = '✕ No match';
-      el.style.color = '#dc2626';
+      resetMatchHint.textContent = '✕ No match';
+      resetMatchHint.style.color = '#dc2626';
     }
   }
 
-  <?php if ($editUser): ?>
-    document.addEventListener('DOMContentLoaded', () => {
-      document.getElementById('adminForm').scrollIntoView({
-        behavior: 'smooth',
-        block: 'start'
-      });
-    });
-  <?php endif; ?>
+  function openResetModal(userId, userName) {
+    const modal = document.getElementById('resetModal');
+
+    document.getElementById('resetUserId').value = userId;
+    document.getElementById('resetUserName').textContent = userName;
+
+    // Reset form
+    document.getElementById('resetForm').reset();
+
+    // Restore hidden user ID after reset()
+    document.getElementById('resetUserId').value = userId;
+
+    // Reset password indicators
+    document.getElementById('resetPwBar').style.width = '0%';
+    document.getElementById('resetPwHint').textContent = '';
+    document.getElementById('resetMatchHint').textContent = '';
+
+    modal.showModal();
+  }
+
+
+  function closeResetModal() {
+    const modal = document.getElementById('resetModal');
+
+    if (modal.open) {
+      modal.close();
+    }
+  }
 </script>
 
 <?php include dirname(__DIR__) . "/includes/footer.php"; ?>

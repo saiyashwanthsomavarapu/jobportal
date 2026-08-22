@@ -105,7 +105,6 @@ $expToOpts = array_merge(array_map("strval", range(4, 15)), ["15+"]);
 
 $salaryTypes = ["Annual", "Monthly", "Per Hour", "Yearly"];
 
-$salaryCurrencies = ["USD", "INR", "CAD"];
 
 /* HELPERS */
 
@@ -318,12 +317,12 @@ function validateJob(array $data, string $clientSuffix): array
     $errors[] = "Close Date is required.";
   }
 
-  if (!$data['job_description'] || strip_tags($data['job_description']) === '') {
-    $errors[] = 'Job Description is required.';
-  }
-  if (!$data['key_skills'] || strip_tags($data['key_skills']) === '') {
-    $errors[] = 'Requirements is required.';
-  }
+  // if (!$data['job_description'] || strip_tags($data['job_description']) === '') {
+  //   $errors[] = 'Job Description is required.';
+  // }
+  // if (!$data['key_skills'] || strip_tags($data['key_skills']) === '') {
+  //   $errors[] = 'Requirements is required.';
+  // }
 
   if (!$data["our_terms"] || strip_tags($data["our_terms"]) === "") {
     $errors[] = "Why Join Us is required.";
@@ -412,14 +411,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     "salary_rate" => "",
     "industry" => "",
     "industry_other" => "",
-    "job_description" => $_POST["job_description"] ?? "abdc",
-    "key_skills" => $_POST["key_skills"] ?? "abcd",
+    "job_description" => $_POST["our_terms"] ?? "abdc",
+    "key_skills" => $_POST["our_terms"] ?? "abcd",
     "our_terms" => $_POST["our_terms"] ?? "abdc",
     "open_date" => $openDateRaw,
     "close_date" => $autoCloseDate,
     "status" => ($_POST["submit_action"] ?? "") === "publish"
       ? "published"
       : "draft",
+    "client_id" => trim($_POST["client_id"] ?? 0),
   ];
 
   /* Experience */
@@ -495,88 +495,28 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       }
 
       /* CREATE / CLONE */ else {
+        // Build dynamic INSERT query
+        $insertFields = array_merge($jobFields, ['slug', 'created_by', 'published_at']);
+        $insertColumns = implode(', ', $insertFields);
+
+        // Build placeholders
+        $placeholders = [];
+        foreach ($insertFields as $field) {
+          if ($field === 'published_at') {
+            $placeholders[] = "IF(:published_status = 'published', NOW(), NULL)";
+          } else {
+            $placeholders[] = ":{$field}";
+          }
+        }
+        $insertValues = implode(', ', $placeholders);
+
+        // Build parameters
         $params = buildJobParams($jobFields, $data);
         $params[":slug"] = $slug;
         $params[":created_by"] = $_SESSION["admin_id"];
         $params[":published_status"] = $data["status"];
-        $sql = "
-                INSERT INTO jobs (
-                  country,
-                  job_code,
-                  job_code_prefix,
-                  job_code_number,
-                  client_code,
-                  job_title,
-                  slug,
-                  city,
-                  state_province,
-                  postal_code,
-                  workplace_type,
-                  workplace_type_other,
-                  timezone,
-                  job_type,
-                  job_type_other,
-                  experience,
-                  salary_from,
-                  salary_to,
-                  salary_unit_from,
-                  salary_unit_to,
-                  salary_type,
-                  salary_currency,
-                  salary_rate,
-                  salary_boe,
-                  industry,
-                  industry_other,
-                  job_description,
-                  key_skills,
-                  our_terms,
-                  open_date,
-                  close_date,
-                  status,
-                  created_by,
-                  published_at
-              )
-              VALUES (
-                  :country,
-                  :job_code,
-                  :job_code_prefix,
-                  :job_code_number,
-                  :client_code,
-                  :job_title,
-                  :slug,
-                  :city,
-                  :state_province,
-                  :postal_code,
-                  :workplace_type,
-                  :workplace_type_other,
-                  :timezone,
-                  :job_type,
-                  :job_type_other,
-                  :experience,
-                  :salary_from,
-                  :salary_to,
-                  :salary_unit_from,
-                  :salary_unit_to,
-                  :salary_type,
-                  :salary_currency,
-                  :salary_rate,
-                  :salary_boe,
-                  :industry,
-                  :industry_other,
-                  :job_description,
-                  :key_skills,
-                  :our_terms,
-                  :open_date,
-                  :close_date,
-                  :status,
-                  :created_by,
-                  IF(
-                      :published_status = 'published',
-                      NOW(),
-                      NULL
-                  )
-              )
-            ";
+
+        $sql = "INSERT INTO jobs ({$insertColumns}) VALUES ({$insertValues})";
         $pdo->prepare($sql)->execute($params);
 
         // IMPORTANT:
@@ -811,11 +751,17 @@ include dirname(__DIR__) . "/includes/header.php";
             <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0112 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 01-.673-.38m0 0A2.18 2.18 0 013 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0013.5 3h-3a2.25 2.25 0 00-2.25 2.25v.894m7.5 0a48.667 48.667 0 00-7.5 0" />
           </svg>
         </div>
-        <span class="font-head text-[14px] font-bold text-[#111827]">Client &amp; Role</span>
+        <div class="min-w-0">
+          <h2 class="text-sm font-bold text-base-content">
+            Client &amp; Role
+          </h2>
+          <p class="mt-0.5 text-xs text-base-content/50">
+            Select the client and define the position you're hiring for.
+          </p>
+        </div>
       </div>
 
       <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-
         <!-- Job Number — auto, locked (AC prefix global counter). Intentionally hidden;
            the internal job number is assigned automatically and isn't a decision the
            recruiter makes, so it stays out of the visible form (unchanged from original). -->
@@ -839,19 +785,11 @@ include dirname(__DIR__) . "/includes/header.php";
               readonly tabindex="-1">
           </div>
           <input type="hidden" name="job_code_display" id="jobCodeDisplay"
-            value="<?= $isEdit
-                      ? e($job["job_code"])
-                      : ($isClone
-                        ? e($cloneNewCode)
-                        : "") ?>">
+            value="<?= $isEdit ? e($job["job_code"]) : ($isClone ? e($cloneNewCode) : "") ?>">
           <input type="hidden" name="job_code_prefix" id="jobCodePrefix"
             value="<?= $isEdit || $isClone ? "AC" : "AC" ?>">
           <input type="hidden" name="job_code_number" id="jobCodeNumber"
-            value="<?= $isEdit
-                      ? e($job["job_code_number"])
-                      : ($isClone
-                        ? e($cloneNewNumber)
-                        : "") ?>">
+            value="<?= $isEdit ? e($job["job_code_number"]) : ($isClone ? e($cloneNewNumber) : "") ?>">
           <span class="text-xs text-[#9aa0b4]">Full number: <strong id="jcFull" class="text-[#0f9d63]">
               <?= $isEdit
                 ? e($job["job_code"])
@@ -860,6 +798,24 @@ include dirname(__DIR__) . "/includes/header.php";
                   : "Assigned on save") ?>
             </strong></span>
         </div>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">
+            Company or Client name
+            <span class="text-error">*</span>
+          </legend>
+          <select name="client_id" id="client_id" class="<?= SELECT_CLASS ?>" onchange="onCountryChange()" required
+            <?= $isEdit ? 'disabled' : '' ?>>
+            <option value="">Select Client Name</option>
+
+            <?php foreach ($clientsList as $client): ?>
+              <option
+                value="<?= e($client['id']) ?>"
+                <?= oldSel('client_id', $client['id']) ?>>
+                <?= e($client['client_name']) ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+        </fieldset>
 
         <!-- Client reference (was mislabeled "Job Code" — it's actually the client
           reference code, distinct from the internal Job Number above). -->
@@ -945,10 +901,7 @@ include dirname(__DIR__) . "/includes/header.php";
        the controlling field and the fields it controls in the same card
        makes that relationship visible instead of split across two cards. -->
     <div class="rounded-2xl border border-base-300 bg-base-100 p-6 shadow-sm">
-
-      <!-- Section Header -->
-      <div class="mb-5 flex items-center gap-2.5 border-b border-base-300 pb-3.5">
-
+      <div class="mb-6 flex items-center gap-3 border-b border-base-300 pb-4">
         <div class="<?= SVG_DIV ?>">
           <svg
             class="<?= SVG_ICON ?>"
@@ -967,9 +920,15 @@ include dirname(__DIR__) . "/includes/header.php";
           </svg>
         </div>
 
-        <h2 class="text-sm font-bold text-base-content">
-          Location &amp; Work Arrangement
-        </h2>
+        <div class="min-w-0">
+          <h2 class="text-sm font-bold text-base-content">
+            Location & Work Arrangement
+          </h2>
+
+          <p class="mt-0.5 text-xs text-base-content/50">
+            Specify where the role is based and how the candidate will work.
+          </p>
+        </div>
 
       </div>
 
@@ -1056,94 +1015,9 @@ include dirname(__DIR__) . "/includes/header.php";
        Job Type and Experience are both "what kind of hire is this" —
        neither is about location, so pulling them out of the old Work
        Location card into their own group reads more coherently. -->
-    <div class="rounded-2xl border border-base-300 bg-base-100 p-6 shadow-sm">
-      <div class="mb-5 flex items-center gap-2.5 border-b border-[#e7e9f0] pb-3.5">
-        <div class="<?= SVG_DIV ?>">
-          <svg class="<?= SVG_ICON ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        </div>
-        <span class="font-head text-[14px] font-bold text-[#111827]">Role Requirements</span>
-      </div>
-
-      <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
-        <!-- Job Type -->
-        <fieldset class="fieldset">
-          <legend class="fieldset-legend">
-            Job Type <span class="text-error">*</span>
-          </legend>
-          <select name="job_type" id="jobTypeSelect" class="<?= SELECT_CLASS ?>" onchange="toggleOther(this, 'otherJobType')" required>
-            <option value="">Select job type</option>
-          </select>
-
-          <!-- Other Job Type -->
-          <div id="otherJobType" class="mt-2 hidden">
-            <input type="text" name="job_type_other" class="<?= INPUT_CLASS ?>" placeholder="Specify job type" value="<?= old('job_type_other') ?>" />
-          </div>
-        </fieldset>
-
-        <!-- Experience -->
-        <fieldset class="fieldset">
-          <legend class="fieldset-legend">
-            Experience <span class="text-error">*</span>
-          </legend>
-          <div class="grid grid-cols-2 gap-3">
-            <!-- From -->
-            <fieldset class="fieldset">
-              <select name="exp_from" id="expFrom" class="<?= SELECT_CLASS ?>" required onchange="updateExpPreview()">
-                <option value="">Select min years</option>
-                <?php foreach ($expFromOpts as $v): ?>
-                  <option
-                    value="<?= e($v) ?>"
-                    <?= $savedExpFrom === $v ? 'selected' : '' ?>>
-                    <?= e($v) ?>
-                  </option>
-                <?php endforeach; ?>
-              </select>
-            </fieldset>
-            <!-- To -->
-            <fieldset class="fieldset">
-              <select name="exp_to" id="expTo" class="<?= SELECT_CLASS ?>" required onchange="updateExpPreview()">
-                <option value="">Select max years</option>
-                <?php foreach ($expToOpts as $v): ?>
-                  <option
-                    value="<?= e($v) ?>"
-                    <?= $savedExpTo === $v ? 'selected' : '' ?>>
-                    <?= e($v) ?>
-                  </option>
-                <?php endforeach; ?>
-              </select>
-            </fieldset>
-          </div>
-
-          <!-- Experience Preview -->
-          <label class="label mt-1">
-            <span class="label-text-alt text-base-content/60">
-              Preview:
-              <strong
-                id="expPreview"
-                class="text-primary">
-                <?php if ($savedExpFrom !== '' && $savedExpTo !== ''): ?>
-                  <?= e($savedExpFrom . ' - ' . $savedExpTo . ' years') ?>
-                <?php else: ?>
-                  Select experience range
-                <?php endif; ?>
-              </strong>
-            </span>
-          </label>
-        </fieldset>
-      </div>
-    </div>
-
-    <!-- ═══ CARD 4: COMPENSATION ═══════════════════════════════════
-       Salary now gets a full-width card of its own instead of sharing a
-       2-column grid with two invisible date fields — the old layout left
-       half the card visually empty since Open/Close Date are hidden
-       inputs, not visible content. -->
-    <div class="rounded-2xl border border-base-300 bg-base-100 p-6 shadow-sm">
-
-      <!-- Section Header -->
-      <div class="mb-6 flex items-center gap-2.5 border-b border-base-300 pb-3.5">
+    <div class="w-full rounded-2xl border border-base-300 bg-base-100 shadow-sm">
+      <!-- SECTION HEADER -->
+      <div class="flex items-center gap-3 border-b border-base-300 px-6 py-5">
         <div class="<?= SVG_DIV ?>">
           <svg
             class="<?= SVG_ICON ?>"
@@ -1154,272 +1028,455 @@ include dirname(__DIR__) . "/includes/header.php";
             <path
               stroke-linecap="round"
               stroke-linejoin="round"
-              d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0
-                       1.172-.879 1.172-2.303 0-3.182C13.536 12.219
-                       12.768 12 12 12c-.725 0-1.45-.22-2.003-.659
-                       -1.106-.879-1.106-2.303 0-3.182s2.9-.879
-                       4.006 0l.415.33M21 12a9 9 0 11-18 0
-                       9 9 0 0118 0z" />
+              d="M9 12.75L11.25 15 15 9.75
+              M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         </div>
-        <span class="text-sm font-bold text-base-content">
-          Compensation
-        </span>
+        <div>
+          <h2 class="text-sm font-bold text-base-content">
+            Role Requirements
+          </h2>
+          <p class="mt-0.5 text-xs text-base-content/50">
+            Define the role type and experience required for this position.
+          </p>
+        </div>
       </div>
 
-      <!-- Compensation Content -->
-      <div class="max-w-2xl">
-        <!-- Salary -->
-        <fieldset class="fieldset">
-          <legend class="fieldset-legend">
-            Salary / Rate
-            <span class="text-error">*</span>
-            <span class="text-xs font-normal text-base-content/50">
-              (numeric · e.g. 35 LPA, 80 K)
-            </span>
-          </legend>
-          <!-- BOE -->
-          <label class="label mt-1 cursor-pointer justify-start gap-2">
-            <input
-              type="checkbox"
-              name="salary_boe"
-              id="salaryBoe"
-              value="1"
-              class="checkbox checkbox-primary checkbox-sm"
-              onchange="toggleSalaryBoe()"
-              <?= $savedSalBoe ? 'checked' : '' ?>>
+      <!-- CONTENT -->
+      <div class="p-6">
+        <div class="grid w-full grid-cols-1 gap-6 lg:grid-cols-2">
+          <!-- JOB TYPE -->
+          <fieldset class="fieldset w-full">
+            <legend class="fieldset-legend">
+              Job Type
+              <span class="text-error">*</span>
+            </legend>
+            <select
+              name="job_type"
+              id="jobTypeSelect"
+              class="<?= SELECT_CLASS ?> h-11 w-full"
+              onchange="toggleOther(this, 'otherJobType')"
+              required>
+              <option value="">
+                Select job type
+              </option>
+            </select>
+            <!-- OTHER JOB TYPE -->
+            <div
+              id="otherJobType"
+              class="mt-3 hidden">
+              <label
+                for="jobTypeOther"
+                class="mb-1.5 block text-xs font-medium text-base-content/60">
+                Specify job type
+              </label>
+              <input
+                type="text"
+                name="job_type_other"
+                id="jobTypeOther"
+                class="<?= INPUT_CLASS ?> h-11 w-full"
+                placeholder="e.g. Contract, Freelance"
+                value="<?= old('job_type_other') ?>">
+            </div>
+          </fieldset>
 
-            <span class="text-sm font-medium">
-              BOE
-            </span>
-            <span class="text-xs text-base-content/50">
-              (Based on Experience)
-            </span>
-          </label>
-
-          <!-- BOE Message -->
-          <div role="alert" id="salaryBoeText" class="alert alert-success alert-soft <?= $savedSalBoe ? '' : 'hidden' ?>"">
-            <span>Salary will be based on experience.</span>
-          </div>
-
-          <!-- Salary Range -->
-          <div
-            id=" salaryInputsWrap"
-            class="<?= $savedSalBoe ? 'hidden' : '' ?> mt-2">
-            <div class="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto_1fr] sm:items-end">
-
-              <!-- FROM -->
+          <!-- EXPERIENCE -->
+          <fieldset class="fieldset w-full">
+            <legend class="fieldset-legend">
+              Experience
+              <span class="text-error">*</span>
+            </legend>
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] ">
+              <!-- MINIMUM -->
               <fieldset class="fieldset">
-                <legend class="fieldset-legend text-xs font-normal">
-                  From
-                </legend>
-                <div class="flex gap-2">
-                  <input
-                    type="number"
-                    name="salary_from"
-                    id="salaryFrom"
-                    class="<?= INPUT_CLASS ?>"
-                    placeholder="35"
-                    value="<?= e($savedSalFrom) ?>"
-                    min="0"
-                    step="any"
-                    oninput="updateSalaryPreview()"
-                    <?= $savedSalBoe ? '' : 'required' ?>>
-
-                  <select
-                    name="salary_unit_from"
-                    id="salaryUnitFrom"
-                    class="<?= SELECT_CLASS ?>"
-                    onchange="updateSalaryPreview()">
-                    <option value="" <?= $savedSalUnitFrom === '' ? 'selected' : '' ?>>
-                      —
-                    </option>
+                <select name="exp_from" id="expFrom" class="<?= SELECT_CLASS ?> h-11 w-full" required onchange="updateExpPreview()">
+                  <option value="">
+                    Select min years
+                  </option>
+                  <?php foreach ($expFromOpts as $v): ?>
                     <option
-                      value="L"
-                      <?= $savedSalUnitFrom === 'L' ? 'selected' : '' ?>>
-                      L (Lakhs)
+                      value="<?= e($v) ?>"
+                      <?= $savedExpFrom === $v ? 'selected' : '' ?>>
+                      <?= e($v) ?>
                     </option>
-                    <option
-                      value="K"
-                      <?= $savedSalUnitFrom === 'K' ? 'selected' : '' ?>>
-                      K (Thousands)
-                    </option>
-                  </select>
-                </div>
+                  <?php endforeach; ?>
+                </select>
               </fieldset>
 
               <!-- RANGE SEPARATOR -->
-              <div class="hidden pb-3 text-xl text-base-content/40 sm:block">
-                –
-              </div>
-              <!-- TO -->
-              <fieldset class="fieldset">
-                <legend class="fieldset-legend text-xs font-normal">
-                  To
-                </legend>
-                <div class="flex gap-2">
-                  <input
-                    type="number"
-                    name="salary_to"
-                    id="salaryTo"
-                    class="<?= INPUT_CLASS ?>"
-                    placeholder="45"
-                    value="<?= e($savedSalTo) ?>"
-                    min="0"
-                    step="any"
-                    oninput="updateSalaryPreview()"
-                    <?= $savedSalBoe ? '' : 'required' ?>>
-
-                  <select
-                    name="salary_unit_to"
-                    id="salaryUnitTo"
-                    class="<?= SELECT_CLASS ?>"
-                    onchange="updateSalaryPreview()">
-                    <option value="" <?= $savedSalUnitTo === '' ? 'selected' : '' ?>>
-                      —
-                    </option>
-                    <option
-                      value="L"
-                      <?= $savedSalUnitTo === 'L' ? 'selected' : '' ?>>
-                      L (Lakhs)
-                    </option>
-                    <option
-                      value="K"
-                      <?= $savedSalUnitTo === 'K' ? 'selected' : '' ?>>
-                      K (Thousands)
-                    </option>
-                  </select>
+              <div class="hidden sm:flex items-center justify-center pb-1">
+                <div class="flex h-8 w-8 items-center justify-center rounded-full bg-base-200 text-base-content/40">
+                  <span class="text-sm font-semibold">
+                    –
+                  </span>
                 </div>
-              </fieldset>
-            </div>
-          </div>
-
-          <!-- Currency + Salary Type -->
-          <div
-            id="salaryCurrencyTypeWrap"
-            class="<?= $savedSalBoe ? 'mt-4' : 'mt-5' ?>">
-            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <!-- Currency -->
+              </div>
+              <!-- MAXIMUM -->
               <fieldset class="fieldset">
-                <legend class="fieldset-legend">
-                  Currency
-                  <span class="text-error">*</span>
-                </legend>
                 <select
-                  name="salary_currency"
-                  id="salaryCurrency"
-                  class="<?= SELECT_CLASS ?>"
+                  name="exp_to"
+                  id="expTo"
+                  class="<?= SELECT_CLASS ?> h-11 w-full"
                   required
-                  onchange="updateSalaryPreview()">
-                  <option value="">Select currency</option>
-                  <?php foreach ($salaryCurrencies as $cur): ?>
+                  onchange="updateExpPreview()">
+                  <option value="">
+                    Select max years
+                  </option>
+                  <?php foreach ($expToOpts as $v): ?>
                     <option
-                      value="<?= e($cur) ?>"
-                      <?= $savedSalCur === $cur ? 'selected' : '' ?>>
-                      <?= e($cur) ?>
-                    </option>
-                  <?php endforeach; ?>
-                </select>
-              </fieldset>
-
-
-              <!-- Salary Type -->
-              <fieldset class="fieldset">
-
-                <legend class="fieldset-legend">
-                  Type
-                  <span class="text-error">*</span>
-                </legend>
-                <select
-                  name="salary_type"
-                  id="salaryType"
-                  class="<?= SELECT_CLASS ?>"
-                  required
-                  onchange="updateSalaryPreview()">
-                  <option value="">Select type</option>
-                  <?php foreach ($salaryTypes as $st): ?>
-                    <option
-                      value="<?= e($st) ?>"
-                      <?= $savedSalType === $st ? 'selected' : '' ?>>
-                      <?= e($st) ?>
+                      value="<?= e($v) ?>"
+                      <?= $savedExpTo === $v ? 'selected' : '' ?>>
+                      <?= e($v) ?>
                     </option>
                   <?php endforeach; ?>
                 </select>
               </fieldset>
             </div>
 
-            <!-- Salary Preview -->
-            <label class="label mt-2">
-              <span class="label-text-alt text-base-content/60">
-                Preview:
-
+            <!-- EXPERIENCE PREVIEW -->
+            <div class="mt-4 flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/[.04] px-3.5 py-3">
+              <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <svg
+                  class="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="1.75">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M13 16h-1v-4h-1m1-4h.01
+                    M21 12a9 9 0 11-18 0
+                    9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div class="min-w-0">
+                <span class="block text-[11px] font-medium uppercase tracking-wide text-base-content/40">
+                  Experience Preview
+                </span>
                 <strong
-                  id="salaryPreview"
-                  class="ml-1 font-semibold text-primary">
-                  <?php
-                  if ($savedSalFrom !== '' || $savedSalTo !== '') {
-
-                    $fromDisp = $savedSalFrom !== ''
-                      ? $savedSalFrom .
-                      ($savedSalUnitFrom !== ''
-                        ? ' ' . $savedSalUnitFrom
-                        : '')
-                      : '';
-
-                    $toDisp = $savedSalTo !== ''
-                      ? $savedSalTo .
-                      ($savedSalUnitTo !== ''
-                        ? ' ' . $savedSalUnitTo
-                        : '')
-                      : '';
-
-                    $range = ($fromDisp !== '' && $toDisp !== '')
-                      ? $fromDisp . ' – ' . $toDisp
-                      : ($fromDisp ?: $toDisp);
-
-                    echo e(
-                      implode(
-                        ' | ',
-                        array_filter([
-                          $range,
-                          $savedSalCur,
-                          $savedSalType
-                        ])
-                      )
-                    );
-                  } else {
-                    echo '—';
-                  }
-                  ?>
+                  id="expPreview"
+                  class="mt-0.5 block break-words text-sm font-semibold text-primary">
+                  <?php if ($savedExpFrom !== '' && $savedExpTo !== ''): ?>
+                    <?= e($savedExpFrom . ' - ' . $savedExpTo . ' years') ?>
+                  <?php else: ?>
+                    Select experience range
+                  <?php endif; ?>
                 </strong>
-              </span>
-            </label>
+              </div>
+            </div>
+          </fieldset>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ CARD 4: COMPENSATION ═══════════════════════════════════
+       Salary now gets a full-width card of its own instead of sharing a
+       2-column grid with two invisible date fields — the old layout left
+       half the card visually empty since Open/Close Date are hidden
+       inputs, not visible content. -->
+    <div class="w-full rounded-2xl border border-base-300 bg-base-100 shadow-sm">
+      <!-- SECTION HEADER -->
+      <div class="flex items-center justify-between gap-4 border-b border-base-300 px-6 py-5">
+        <div class="flex items-center gap-3">
+          <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <svg
+              class="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="1.75">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659
+                -1.106-.879-1.106-2.303 0-3.182s2.9-.879
+                4.006 0l.415.33M21 12a9 9 0 11-18 0
+                9 9 0 0118 0z" />
+            </svg>
           </div>
-        </fieldset>
+          <div>
+            <h2 class="text-sm font-bold text-base-content">
+              Compensation
+            </h2>
+            <p class="mt-0.5 text-xs text-base-content/50">
+              Define the salary, rate and compensation structure.
+            </p>
+          </div>
+        </div>
+        <span class="badge badge-primary badge-soft hidden sm:inline-flex">
+          Required
+        </span>
       </div>
 
+      <!-- CONTENT -->
+      <div class="p-6">
+        <!-- SALARY / RATE HEADER -->
+        <div class="mb-5 flex items-start justify-between gap-4">
+          <div>
+            <h3 class="text-sm font-bold text-base-content">
+              Salary / Rate
+              <span class="text-error">*</span>
+            </h3>
+            <p class="mt-1 text-xs text-base-content/50">
+              Provide a salary range or let compensation be based on experience.
+            </p>
+          </div>
+          <span class="text-[11px] font-medium text-base-content/40">
+            Numeric values
+          </span>
+        </div>
 
-      <!-- Hidden Dates -->
-      <input
-        type="hidden"
-        id="openDate"
-        name="open_date"
-        value="<?= e(
-                  $isEdit
-                    ? ($job['open_date'] ?? date('Y-m-d'))
-                    : date('Y-m-d')
-                ) ?>">
+        <!-- BOE OPTION -->
+        <label
+          for="salaryBoe"
+          class="
+        group flex cursor-pointer items-center gap-4
+        rounded-xl border p-4
+        transition-all duration-200
+        <?= $savedSalBoe
+          ? 'border-success/40 bg-success/[.06]'
+          : 'border-base-300 bg-base-200/30 hover:border-primary/30 hover:bg-primary/[.03]' ?>">
+          <input
+            type="checkbox"
+            name="salary_boe"
+            id="salaryBoe"
+            value="1"
+            class="checkbox checkbox-primary checkbox-sm sm:checkbox-md"
+            onchange="toggleSalaryBoe()"
+            <?= $savedSalBoe ? 'checked' : '' ?>>
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="text-sm font-semibold text-base-content">
+                Based on Experience
+              </span>
+              <span class="badge badge-success badge-sm">
+                BOE
+              </span>
+            </div>
+            <p class="mt-1 text-xs leading-relaxed text-base-content/50">
+              Salary will be determined based on the candidate's
+              experience, skills and qualifications.
+            </p>
+          </div>
+          <svg class="hidden sm:block h-5 w-5 shrink-0<?= $savedSalBoe ? 'text-success' : 'text-base-content/20' ?>"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="1.75">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M9 12.75l2.25 2.25L15 10.5 M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </label>
 
-      <input
-        type="hidden"
-        id="closeDate"
-        name="close_date"
-        value="<?= e(
-                  $isEdit
-                    ? ($job['close_date'] ?? '')
-                    : date('Y-m-d', strtotime('+28 days'))
-                ) ?>">
+        <!-- BOE MESSAGE -->
+        <div id="salaryBoeText" class="<?= $savedSalBoe ? '' : 'hidden' ?> mt-3">
+          <div class="alert alert-success alert-soft py-3 text-xs">
+            <svg
+              class="h-4 w-4 shrink-0"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M9 12.75l2.25 2.25L15 10.5
+               M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>
+              Salary will be based on experience.
+            </span>
+          </div>
+        </div>
 
+        <!-- SALARY RANGE -->
+        <div id="salaryInputsWrap" class="<?= $savedSalBoe ? 'hidden' : '' ?> mt-7">
+          <div class="mb-4 flex items-center justify-between">
+            <div>
+              <h4 class="text-sm font-semibold text-base-content">
+                Salary Range
+              </h4>
+              <p class="mt-0.5 text-xs text-base-content/50">
+                Enter the expected minimum and maximum compensation.
+              </p>
+            </div>
+            <span class="hidden sm:block text-xs text-base-content/40">
+              Optional range
+            </span>
+          </div>
+          <div class="grid w-full grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_40px_minmax(0,1fr)] md:items-end">
+            <!-- FROM -->
+            <fieldset class="fieldset w-full">
+
+              <legend class="fieldset-legend">
+                Minimum
+              </legend>
+              <div class="flex w-full">
+                <input type="number" name="salary_from" id="salaryFrom" class="<?= INPUT_CLASS ?> h-11 min-w-0 flex-1 rounded-r-none"
+                  placeholder="35"
+                  value="<?= e($savedSalFrom) ?>"
+                  min="0"
+                  step="any"
+                  oninput="updateSalaryPreview()"
+                  <?= $savedSalBoe ? '' : 'required' ?>>
+                <select
+                  name="salary_unit_from"
+                  id="salaryUnitFrom"
+                  class="<?= SELECT_CLASS ?> h-11 w-[105px] shrink-0 rounded-l-none border-l-0 sm:w-[120px]"
+                  onchange="updateSalaryPreview()">
+                  <option value="" <?= $savedSalUnitFrom === '' ? 'selected' : '' ?>> — </option>
+                  <option value="L" <?= $savedSalUnitFrom === 'L' ? 'selected' : '' ?>> L — Lakhs </option>
+                  <option value="K" <?= $savedSalUnitFrom === 'K' ? 'selected' : '' ?>> K — Thousands </option>
+                </select>
+              </div>
+            </fieldset>
+
+            <!-- RANGE SEPARATOR -->
+            <div class="hidden md:flex items-center justify-center pb-1">
+              <div class="flex h-8 w-8 items-center justify-center rounded-full bg-base-200 text-base-content/40">
+                <span class="text-sm font-semibold">–</span>
+              </div>
+            </div>
+
+            <!-- TO -->
+            <fieldset class="fieldset w-full">
+              <legend class="fieldset-legend">
+                Maximum
+              </legend>
+              <div class="flex w-full">
+                <input
+                  type="number"
+                  name="salary_to"
+                  id="salaryTo"
+                  class="<?= INPUT_CLASS ?> h-11 min-w-0 flex-1 rounded-r-none"
+                  placeholder="45"
+                  value="<?= e($savedSalTo) ?>"
+                  min="0"
+                  step="any"
+                  oninput="updateSalaryPreview()"
+                  <?= $savedSalBoe ? '' : 'required' ?>>
+                <select
+                  name="salary_unit_to"
+                  id="salaryUnitTo"
+                  class="<?= SELECT_CLASS ?> h-11 w-[105px] shrink-0 rounded-l-none border-l-0 sm:w-[120px]"
+                  onchange="updateSalaryPreview()">
+                  <option value="" <?= $savedSalUnitTo === '' ? 'selected' : '' ?>> — </option>
+                  <option value="L" <?= $savedSalUnitTo === 'L' ? 'selected' : '' ?>> L — Lakhs </option>
+                  <option value="K" <?= $savedSalUnitTo === 'K' ? 'selected' : '' ?>> K — Thousands </option>
+                </select>
+              </div>
+            </fieldset>
+          </div>
+        </div>
+        <!--  CURRENCY + TYPE -->
+        <div
+          id="salaryCurrencyTypeWrap"
+          class="mt-7 border-t border-base-300 pt-6">
+          <div class="grid w-full grid-cols-1 gap-5 md:grid-cols-2">
+            <!-- CURRENCY -->
+            <fieldset>
+              <legend class="fieldset-legend"
+                for="salaryCurrency"
+                class="mb-1.5 block text-xs font-semibold text-base-content/70">
+                Currency
+                <span class="text-error">*</span>
+              </legend>
+              <select
+                name="salary_currency"
+                id="salaryCurrency"
+                class="<?= SELECT_CLASS ?> h-11 w-full"
+                required
+                onchange="updateSalaryPreview()">
+                <option value=""> Select currency </option>
+              </select>
+            </fieldset>
+
+            <!-- SALARY TYPE -->
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend"
+                for="salaryType"
+                class="mb-1.5 block text-xs font-semibold text-base-content/70">
+                Salary Type
+                <span class="text-error">*</span>
+              </legend>
+              <select
+                name="salary_type"
+                id="salaryType"
+                class="<?= SELECT_CLASS ?> h-11 w-full"
+                required
+                onchange="updateSalaryPreview()">
+                <option value=""> Select salary type </option>
+                <?php foreach ($salaryTypes as $st): ?>
+                  <option
+                    value="<?= e($st) ?>"
+                    <?= $savedSalType === $st ? 'selected' : '' ?>>
+                    <?= e($st) ?>
+                  </option>
+                <?php endforeach; ?>
+              </select>
+            </fieldset>
+          </div>
+        </div>
+
+        <!--  LIVE PREVIEW -->
+        <div class=" mt-6 flex flex-col gap-2 rounded-xl border border-primary/20 bg-primary/[.04] px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+          <div class="flex items-center gap-2">
+            <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <svg
+                class="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="1.75">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M13 16h-1v-4h-1m1-4h.01
+                  M21 12a9 9 0 11-18 0
+                  9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <span class="text-xs font-medium text-base-content/50">
+              Salary Preview
+            </span>
+          </div>
+          <div
+            id="salaryPreview"
+            class="break-words text-sm font-bold text-primary sm:text-right">
+            <?php
+            if ($savedSalFrom !== '' || $savedSalTo !== '') {
+              $fromDisp = $savedSalFrom !== ''
+                ? $savedSalFrom . ($savedSalUnitFrom !== '' ? ' ' . $savedSalUnitFrom : '')
+                : '';
+
+              $toDisp = $savedSalTo !== ''
+                ? $savedSalTo . ($savedSalUnitTo !== '' ? ' ' . $savedSalUnitTo : '')
+                : '';
+
+              $range = ($fromDisp !== '' && $toDisp !== '')
+                ? $fromDisp . ' – ' . $toDisp
+                : ($fromDisp ?: $toDisp);
+
+              echo e(
+                implode(
+                  ' | ',
+                  array_filter([
+                    $range,
+                    $savedSalCur,
+                    $savedSalType
+                  ])
+                )
+              );
+            } else {
+              echo '—';
+            }
+            ?>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ═══ CARD 5: JOB CONTENT ═════════════════════════════════════ -->
@@ -1430,24 +1487,24 @@ include dirname(__DIR__) . "/includes/header.php";
             <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m6.75 12l-3-3m0 0l-3 3m3-3v6M6.75 21h10.5a2.25 2.25 0 002.25-2.25V6.108c0-.397-.158-.779-.44-1.06L15.94 1.44A1.5 1.5 0 0014.878 1H6.75A2.25 2.25 0 004.5 3.25v15.5A2.25 2.25 0 006.75 21z" />
           </svg>
         </div>
-        <span class="font-head text-[14px] font-bold text-[#111827]">Job Content</span>
+        <span class="text-sm font-bold text-base-content">Job Content</span>
       </div>
 
       <div class="flex flex-col gap-6">
-        <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium text-[#5b6072]">Job Description <span class="text-[#dc3545]">*</span></label>
+        <fieldset class=" fieldset flex flex-col gap-1.5">
+          <legend class="fieldset-legend">Job Description <span class="text-[#dc3545]">*</span></legend>
           <textarea id="job_description" name="job_description" class="<?= TEXTAREA_CLASS ?>"><?= old("job_description") ?></textarea>
-        </div>
+        </fieldset>
 
-        <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium text-[#5b6072]">Requirements <span class="text-[#dc3545]">*</span></label>
+        <fieldset class="flex flex-col gap-1.5">
+          <legend class=" fieldset-legend">Requirements <span class="text-[#dc3545]">*</span></legend>
           <textarea id="key_skills" name="key_skills" class="<?= TEXTAREA_CLASS ?>"><?= old("key_skills") ?></textarea>
-        </div>
+        </fieldset>
 
-        <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium text-[#5b6072]">Why Join Us <span class="text-[#dc3545]">*</span></label>
+        <fieldset class="flex flex-col gap-1.5">
+          <legend class=" fieldset-legend">Why Join Us <span class="text-[#dc3545]">*</span></legend>
           <textarea id="our_terms" name="our_terms" class="<?= TEXTAREA_CLASS ?>"><?= old("our_terms") ?></textarea>
-        </div>
+        </fieldset>
       </div>
     </div>
 
@@ -1565,63 +1622,34 @@ include dirname(__DIR__) . "/includes/header.php";
   const SAVED_WORKPLACE_TYPE = <?= json_encode(
                                   old("workplace_type", $isEdit || $isClone ? $job["workplace_type"] ?? "" : "")
                                 ) ?>;
+  const SAVED_SALARY_TYPE = <?= json_encode(old("salary_type", $isEdit || $isClone ? $job["salary_type"] ?? "" : "")) ?>;
 
   // ── BOE toggle ────────────────────────────────────────────────
   function toggleSalaryBoe() {
-    const checkbox = document.getElementById('salaryBoe');
-    const salaryInputs = document.getElementById('salaryInputsWrap');
-    const boeText = document.getElementById('salaryBoeText');
-    const salaryCurrencyTypeWrap = document.getElementById('salaryCurrencyTypeWrap');
+    const checked = document.getElementById('salaryBoe').checked;
+    document.getElementById('salaryBoeText').style.display = checked ? 'block' : 'none';
+    document.getElementById('salaryInputsWrap').style.display = checked ? 'none' : 'block';
+    document.getElementById('salaryCurrencyTypeWrap').style.display = checked ? 'none' : 'block';
 
-    const salaryFrom = document.getElementById('salaryFrom');
-    const salaryTo = document.getElementById('salaryTo');
-    const salaryCurrency = document.getElementById('salaryCurrency');
-    const salaryType = document.getElementById('salaryType');
-
-    if (!checkbox || !salaryInputs || !boeText || !salaryFrom || !salaryTo) {
-      return; // Required elements not found, skip update
-    }
-
-    const isBoe = checkbox.checked;
-
-    const checked = checkbox.checked;
-    boeText.style.display = checked ? 'block' : 'none';
-    salaryInputs.style.display = checked ? 'none' : 'block';
-    if (salaryCurrencyTypeWrap) {
-      salaryCurrencyTypeWrap.style.display = checked ? 'none' : 'block';
-    }
-
-    salaryInputs.classList.toggle('hidden', isBoe);
-    boeText.classList.toggle('hidden', !isBoe);
-
-    salaryFrom.required = !isBoe;
-    salaryTo.required = !isBoe;
-
-    // Handle salary_currency and salary_type required attributes
-    if (salaryCurrency) {
-      if (isBoe) {
-        salaryCurrency.removeAttribute('required');
+    // Toggle required on salary inputs so HTML5 validation doesn't fire
+    const inputs = document.querySelectorAll(
+      '#salaryInputsWrap input[type="number"], #salaryCurrency, #salaryType'
+    );
+    inputs.forEach(el => {
+      if (checked) {
+        el.removeAttribute('required');
       } else {
-        salaryCurrency.setAttribute('required', 'required');
+        el.setAttribute('required', 'required');
       }
-    }
+    });
 
-    if (salaryType) {
-      if (isBoe) {
-        salaryType.removeAttribute('required');
-      } else {
-        salaryType.setAttribute('required', 'required');
-      }
-    }
+    // if (isBoe) {
+    //   salaryFrom.value = '';
+    //   salaryTo.value = '';
+    // }
 
-    if (isBoe) {
-      salaryFrom.value = '';
-      salaryTo.value = '';
-    }
-
-    updateSalaryPreview();
+    // updateSalaryPreview();
   }
-
   // ── Client Code preview ───────────────────────────────────────
   function updateClientCodePreview() {
     const sel = document.getElementById('clientCodePrefix');
@@ -1668,11 +1696,12 @@ include dirname(__DIR__) . "/includes/header.php";
     }
     const country = countryEl.value;
     const data = getCountryData(country);
-
+    console.log('data:', data);
     const cityInput = document.getElementById('city');
     const stateSelect = document.getElementById('stateSelect');
     const timezoneSelect = document.getElementById('timezoneSelect');
     const jobTypeSelect = document.getElementById('jobTypeSelect');
+    const currentySelect = document.getElementById('salaryCurrency');
     console.log('data.types:', data.types);
     // ------------------------------------------------------------
     // City
@@ -1687,9 +1716,7 @@ include dirname(__DIR__) . "/includes/header.php";
       cityInput.value = '';
     }
 
-    // ------------------------------------------------------------
-    // State / Province
-    // ------------------------------------------------------------
+    /* State / Province */
     stateSelect.innerHTML = '<option value="">Select state</option>';
 
     Object.keys(data.states || {}).forEach(state => {
@@ -1705,9 +1732,7 @@ include dirname(__DIR__) . "/includes/header.php";
       stateSelect.appendChild(option);
     });
 
-    // ------------------------------------------------------------
-    // Time Zone
-    // ------------------------------------------------------------
+    /* Time Zone */
     timezoneSelect.innerHTML =
       '<option value="">Select timezone</option>';
 
@@ -1724,9 +1749,7 @@ include dirname(__DIR__) . "/includes/header.php";
       timezoneSelect.appendChild(option);
     });
 
-    // ------------------------------------------------------------
-    // Job Type
-    // ------------------------------------------------------------
+    /* Job Type */
     jobTypeSelect.innerHTML =
       '<option value="">Select job type</option>';
     console.log('data.types:', data.types);
@@ -1741,6 +1764,17 @@ include dirname(__DIR__) . "/includes/header.php";
       }
 
       jobTypeSelect.appendChild(option);
+    });
+
+    /* Currency */
+    currentySelect.innerHTML = '<option value="">Select currency</option>';
+    (data.currency || []).forEach(cur => {
+      const option = new Option(cur, cur);
+      if (SAVED_SALARY_TYPE && cur.trim().toLowerCase === SAVED_SALARY_TYPE.trim().toLowerCase()) {
+        option.selected = true;
+      }
+
+      currentySelect.appendChild(option);
     });
 
     // Handle "Other"
@@ -1937,7 +1971,6 @@ include dirname(__DIR__) . "/includes/header.php";
       console.error('Error during form initialization:', error);
     }
   }
-
   // Run when DOM is ready
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initializeForm);
@@ -1947,28 +1980,6 @@ include dirname(__DIR__) . "/includes/header.php";
   }
 
   document.addEventListener('DOMContentLoaded', initializeForm);
-  // document.addEventListener('DOMContentLoaded', function() {
-  //   const country = document.getElementById('country');
-  //   console.log('SAVED_COUNTRY:', SAVED_COUNTRY, 'country select:', country.value);
-  //   if (SAVED_COUNTRY) {
-  //     // exact match first, else case/whitespace-insensitive match
-  //     const exact = Array.from(country.options).some(o => o.value === SAVED_COUNTRY);
-  //     if (exact) {
-  //       country.value = SAVED_COUNTRY;
-  //     } else {
-  //       const target = SAVED_COUNTRY.trim().toLowerCase();
-  //       const opt = Array.from(country.options).find(o => o.value.trim().toLowerCase() === target);
-  //       if (opt) country.value = opt.value;
-  //       else console.warn('No matching country option for stored value:', SAVED_COUNTRY);
-  //     }
-  //   }
-  //   console.log('SAVED_COUNTRY:', SAVED_COUNTRY, 'selected country:', country.value);
-  //   onCountryChange();
-  //   updateExpPreview();
-  //   updateSalaryPreview();
-  //   updateClientCodePreview();
-  //   toggleSalaryBoe();
-  // });
 </script>
 
 <script src="https://cdn.tiny.cloud/1/yqey0x686cm618eysfgj0l4o0chy4vr9kthimc8hgtp2bhqn/tinymce/8/tinymce.min.js"
@@ -2031,19 +2042,16 @@ include dirname(__DIR__) . "/includes/header.php";
     selector: '#job_description, #key_skills, #our_terms',
     height: 300,
     menubar: false,
-    // skin: 'oxide-dark',
-    // content_css: 'dark',
     plugins: 'anchor autolink charmap codesample emoticons image link lists media searchreplace table visualblocks wordcount',
     toolbar: 'undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | alignleft aligncenter alignright alignjustify | bullist numlist | link image media table | removeformat',
-    font_family_formats: "Tahoma=tahoma,arial,helvetica,sans-serif; Lato=Lato,sans-serif; Arial=arial,helvetica,sans-serif",
+    font_family_formats: "Lato=Lato,sans-serif;Tahoma=tahoma,arial,helvetica,sans-serif;Arial=arial,helvetica,sans-serif",
     font_size_formats: "8pt 9pt 10pt 11pt 12pt 14pt 16pt 18pt 24pt 36pt",
     content_style: `
     body {
-      font-family: Tahoma, Lato, sans-serif;
+      font-family: Lato, sans-serif;
       font-size: 10pt;
     }
   `,
-
     setup: function(editor) {
       editor.on('change', function() {
         editor.save();

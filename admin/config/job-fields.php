@@ -32,4 +32,5 @@ return [
     'open_date',
     'close_date',
     'status',
+    "client_id"
 ];

@@ -43,37 +43,233 @@ function countryFlag(string $country): string
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <meta name="robots" content="noindex">
-  <!-- Tailwind CSS + DaisyUI -->
-  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
-  <!-- <script src="https://cdn.tailwindcss.com"></script> -->
-  <script>
-    // tailwind.config = {
-    //   theme: {
-    //     extend: {
-    //       colors: {
-    //         primary: '#1A4C8F',
-    //         secondary: '#5b6a87',
-    //         accent: '#1A4C8F',
-    //         background: '#eef0f5',
-    //         surface: '#ffffff',
-    //       }
-    //     }
-    //   }
-    // }
-  </script>
 
-  <!-- sohne-var is a commercial Klim Type Foundry font; loading closest Google Fonts alternative that matches its character -->
+  <!-- Tailwind CSS + DaisyUI -->
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
+  <link href="/theme.css" rel="stylesheet" type="text/css" />
+
+  <!-- Google Fonts matching admin panel -->
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+
+  <!-- <style>
+    body {
+      font-family: "DM Sans", sans-serif;
+      background-color: #f4f5f8;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    .page-header h1 {
+      font-family: "Syne", sans-serif;
+      font-size: 2rem;
+      font-weight: 700;
+      color: #111827;
+      margin-bottom: 1.5rem;
+    }
+
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      justify-content: center;
+      margin-bottom: 1rem;
+    }
+
+    .filter-field {
+      position: relative;
+    }
+
+    .custom-select {
+      background: white;
+      border: 1px solid #e5e5e5;
+      border-radius: 0.5rem;
+      padding: 0.75rem 1rem;
+      min-width: 175px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.2s;
+    }
+
+    .custom-select:hover {
+      border-color: #3d6ba8;
+    }
+
+    .custom-select:focus {
+      border-color: #3d6ba8;
+      box-shadow: 0 0 0 2px rgba(61, 107, 168, 0.2);
+    }
+
+    .custom-dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: white;
+      border: 1px solid #e5e5e5;
+      border-radius: 0.5rem;
+      margin-top: 0.25rem;
+      box-shadow: 0 4px 14px rgba(61, 107, 168, 0.22);
+      z-index: 50;
+      display: none;
+    }
+
+    .custom-dropdown:not(.hidden) {
+      display: block;
+    }
+
+    .custom-option {
+      padding: 0.75rem 1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: background 0.2s;
+    }
+
+    .custom-option:hover {
+      background: #f2f2f2;
+    }
+
+    .custom-option.selected {
+      background: #e3f2fd;
+      color: #3d6ba8;
+      font-weight: 500;
+    }
+
+    .info-text {
+      text-align: center;
+      color: #525252;
+      font-size: 0.875rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .job-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .job-table th {
+      text-align: left;
+      padding: 1rem;
+      background: #f2f2f2;
+      font-weight: 600;
+      color: #111827;
+      border-bottom: 2px solid #e5e5e5;
+    }
+
+    .job-table td {
+      padding: 1rem;
+      border-bottom: 1px solid #e5e5e5;
+    }
+
+    .job-table tbody tr {
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .job-table tbody tr:hover {
+      background: #f2f2f2;
+    }
+
+    .job-title {
+      color: #3d6ba8;
+      font-weight: 500;
+      text-decoration: none;
+    }
+
+    .job-title:hover {
+      text-decoration: underline;
+    }
+
+    .workplace-badge {
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      background: #f2f2f2;
+      color: #525252;
+    }
+
+    .workplace-badge.remote {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .workplace-badge.hybrid {
+      background: #fef9c3;
+      color: #854d0e;
+    }
+
+    .workplace-badge.onsite {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+
+    .location-cell {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .flag-img {
+      width: 20px;
+      height: 14px;
+      object-fit: cover;
+      border-radius: 2px;
+    }
+
+    .flag-emoji {
+      font-size: 1.25rem;
+    }
+
+    .search-suggestions {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: white;
+      border: 1px solid #e5e5e5;
+      border-radius: 0.5rem;
+      margin-top: 0.25rem;
+      box-shadow: 0 4px 14px rgba(61, 107, 168, 0.22);
+      z-index: 50;
+      display: none;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .search-suggestions.open {
+      display: block;
+    }
+
+    .suggestion-item {
+      padding: 0.75rem 1rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .suggestion-item:hover,
+    .suggestion-item.active {
+      background: #f2f2f2;
+      color: #3d6ba8;
+    }
+  </style> -->
 
 </head>
 
-<body>
+<body data-theme="accelon">
 
   <div class="container">
-
     <!-- HEADER -->
     <div class="page-header">
       <h1>Job Openings</h1>
-
     </div>
 
     <!-- FILTERS -->
