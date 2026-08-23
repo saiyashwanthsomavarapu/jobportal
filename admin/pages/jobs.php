@@ -90,7 +90,7 @@ try {
     LEFT JOIN clients c
             ON (
                 c.id = j.client_id
-                OR c.client_code = REGEXP_REPLACE(j.client_code, '[^0-9]', '')
+                OR LEFT(j.client_code, 4) = c.client_code
             )
     WHERE $whereSQL
     ORDER BY j.created_at DESC
