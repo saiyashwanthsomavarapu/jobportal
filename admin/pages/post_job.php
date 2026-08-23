@@ -788,8 +788,7 @@ include dirname(__DIR__) . "/includes/header.php";
             Company or Client name
             <span class="text-error">*</span>
           </legend>
-          <select name="client_id" id="client_id" class="<?= SELECT_CLASS ?>" onchange="onCountryChange()" required
-            <?= $isEdit ? 'disabled' : '' ?>>
+          <select name="client_id" id="client_id" class="<?= SELECT_CLASS ?>" onchange="onCountryChange()" required>
             <option value="">Select Client Name</option>
 
             <?php foreach ($clientsList as $client): ?>
@@ -821,7 +820,7 @@ include dirname(__DIR__) . "/includes/header.php";
             class="<?= INPUT_CLASS ?> "
             placeholder="12345"
             maxlength="5"
-            value="<?= e($savedCcSuffix) ?>"
+            value="<?= e(preg_replace("/[^0-9]/", "", $savedCcSuffix)) ?>"
             oninput="this.value=this.value.replace(/[^0-9]/g,'');updateClientCodePreview()"
             title="4 or 5 digit number" />
 
@@ -1848,6 +1847,10 @@ include dirname(__DIR__) . "/includes/header.php";
 
       currentySelect.appendChild(option);
     });
+    if (currentySelect && SALARY_UNITS) {
+      currentySelect.value = SALARY_UNITS;
+      console.log('Set currency to:', SALARY_UNITS, 'current value:', currentySelect.value);
+    }
 
     // Handle "Other"
     toggleOther(jobTypeSelect, 'otherJobType');
