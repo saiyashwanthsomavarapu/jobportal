@@ -492,9 +492,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         // Activity log
         logActivity("edit_job", "job", $editId, $data["job_code"]);
         flash("success", "Job updated successfully.");
-      }
-
-      /* CREATE / CLONE */ else {
+      } else { /* CREATE / CLONE */
         // Build dynamic INSERT query
         $insertFields = array_merge($jobFields, ['slug', 'created_by', 'published_at']);
         $insertColumns = implode(', ', $insertFields);
@@ -517,6 +515,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $params[":published_status"] = $data["status"];
 
         $sql = "INSERT INTO jobs ({$insertColumns}) VALUES ({$insertValues})";
+        print_r($sql);
         $pdo->prepare($sql)->execute($params);
 
         // IMPORTANT:
@@ -617,39 +616,30 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   $savedSalBoe = !empty($job["salary_boe"]);
   $savedSalUnitFrom = $job["salary_unit_from"] ?? "";
   $savedSalUnitTo = $job["salary_unit_to"] ?? "";
+
   /* Restore salary information from legacy salary_rate */
   if ($savedSalFrom === "" && !empty($job["salary_rate"])) {
     $parts = array_map("trim", explode("|", $job["salary_rate"]));
 
     if (!empty($parts[0])) {
       $salaryText = $parts[0];
-      // Example:
-      // 35 LPA - 45 LPA
-      // 80K - 100K
       if (
         preg_match(
           '/^([\d.]+)\s*(LPA|K)?\s*[-–]\s*([\d.]+)\s*(LPA|K)?$/i',
           $salaryText,
           $matches
         )
-      ) {
+      ) { // Example: 35 LPA - 45 LPA or 80K - 100K
         $savedSalFrom = trim($matches[1]);
         $savedSalUnitFrom = strtoupper(trim($matches[2] ?? ""));
         $savedSalTo = trim($matches[3]);
         $savedSalUnitTo = strtoupper(trim($matches[4] ?? ""));
-      }
-
-      // Example:
-      // 50K
-      elseif (
+      } elseif (
         preg_match('/^([\d.]+)\s*(LPA|K)?$/i', $salaryText, $matches)
-      ) {
+      ) { // Example: 50K
         $savedSalFrom = trim($matches[1]);
         $savedSalUnitFrom = strtoupper(trim($matches[2] ?? ""));
-      }
-
-      // Legacy format
-      else {
+      } else { // Legacy format
         if (
           preg_match(
             '/^([\w.\s]+?)\s*[-–]\s*([\w.\s]+)$/',
@@ -687,7 +677,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   // so behavior remains unchanged.
   $savedCcSuffix = $job["client_code"] ?? "";
 }
-// print_r($job);
 /* HEADER */
 include dirname(__DIR__) . "/includes/header.php";
 ?>
@@ -730,12 +719,8 @@ include dirname(__DIR__) . "/includes/header.php";
           <path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
         </svg>
         <div>
-          <strong class="text-[#111827]">Cloning job <?= e(
-                                                        $job["job_code"]
-                                                      ) ?> — <?= e($job["job_title"]) ?></strong><br>
-          <span class="text-xs text-[#5b6072]">A new Job Number <strong class="text-[#0f9d63]"><?= e(
-                                                                                                  $cloneNewCode
-                                                                                                ) ?></strong> has been reserved. All fields are pre-filled from the source — edit as needed, then save.</span>
+          <strong class="text-[#111827]">Cloning job <?= e($job["job_code"]) ?> — <?= e($job["job_title"]) ?></strong><br>
+          <span class="text-xs text-[#5b6072]">A new Job Number <strong class="text-[#0f9d63]"><?= e($cloneNewCode) ?></strong> has been reserved. All fields are pre-filled from the source — edit as needed, then save.</span>
         </div>
       </div>
     <?php endif; ?>
@@ -1566,16 +1551,102 @@ include dirname(__DIR__) . "/includes/header.php";
 
           <!-- Delete -->
           <?php if ($isEdit): ?>
-            <a href="<?= ADMIN_URL ?>/pages/job_action.php?id=<?= $editId ?>&a=delete" cass="btn btn-error btn-outline ml-auto gap-2" onclick="return confirm('Delete this job permanently?')">
-              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+
+            <button
+              type="button"
+              onclick="openDeleteJobModal()"
+              class="btn btn-error btn-outline ml-auto h-10 min-h-10 gap-2 rounded-lg px-4 text-sm font-semibold">
+
+              <svg
+                class="size-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="1.75"
+                aria-hidden="true">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
               </svg>
+
               Delete Job
-            </a>
+            </button>
+
           <?php endif; ?>
         </div>
       </div>
     </div>
+
+    <dialog id="deleteJobModal" class="modal">
+      <div class="modal-box w-[calc(100%-2rem)] max-w-md rounded-xl border border-base-300 bg-base-100 p-0 shadow-xl">
+
+        <!-- Header -->
+        <div class="flex items-center gap-4 border-b border-base-200 px-5 py-5 sm:px-6">
+          <div class="flex size-10 shrink-0 items-center justify-center rounded-full bg-error/10 text-error">
+            <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+            </svg>
+          </div>
+          <div class="min-w-0 flex-1">
+            <h3 class="text-lg font-semibold leading-6 text-base-content">
+              Delete job
+            </h3>
+          </div>
+          <button
+            type="button"
+            onclick="closeDeleteJobModal()"
+            class="btn btn-sm btn-circle btn-ghost size-8 min-h-8 shrink-0 text-base-content/50"
+            aria-label="Close">
+            <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Body -->
+        <div class="px-5 py-5 sm:px-6">
+          <p class="text-sm leading-6">
+            Are you sure you want to permanently delete this job?
+            All associated job information will be removed.
+          </p>
+        </div>
+        <!-- Footer -->
+        <div class="modal-action m-0 flex flex-col-reverse gap-2 border-t border-base-200 bg-base-200/30 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+          <button
+            type="button"
+            onclick="closeDeleteJobModal()"
+            class="btn btn-ghost h-10 min-h-10 w-full rounded-lg px-5 text-sm font-semibold sm:w-auto">
+            Cancel
+          </button>
+          <a
+            id="confirmDeleteJobBtn"
+            href="#"
+            class="btn btn-error h-10 min-h-10 w-full rounded-lg px-5 text-sm font-semibold text-error-content sm:w-auto">
+            <svg
+              class="size-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+              aria-hidden="true">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6V9m-5-5h4a1 1 0 011 1v2H9V5a1 1 0 011-1z" />
+            </svg>
+            Delete permanently
+          </a>
+        </div>
+      </div>
+      <!-- Backdrop -->
+      <form method="dialog" class="modal-backdrop bg-black/40 backdrop-blur-[2px]">
+        <button type="submit">close</button>
+      </form>
+    </dialog>
 
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
@@ -1599,7 +1670,23 @@ include dirname(__DIR__) . "/includes/header.php";
                                   old("workplace_type", $isEdit || $isClone ? $job["workplace_type"] ?? "" : "")
                                 ) ?>;
   const SAVED_SALARY_TYPE = <?= json_encode(old("salary_type", $isEdit || $isClone ? $job["salary_type"] ?? "" : "")) ?>;
+  const SALARY_UNITS = <?= json_encode(old('salary_currency', $isEdit || $isClone ? $job["salary_currency"] ?? "" : "")) ?>;
 
+  console.log("data::", <?= json_encode($job) ?>);
+
+  function openDeleteJobModal() {
+    const modal = document.getElementById('deleteJobModal');
+    const confirmBtn = document.getElementById('confirmDeleteJobBtn');
+
+    confirmBtn.href =
+      '<?= ADMIN_URL ?>/pages/job_action.php?id=<?= (int)$editId ?>&a=delete';
+
+    modal.showModal();
+  }
+
+  function closeDeleteJobModal() {
+    document.getElementById('deleteJobModal')?.close();
+  }
   // ── BOE toggle ────────────────────────────────────────────────
   function toggleSalaryBoe() {
     const checked = document.getElementById('salaryBoe').checked;
@@ -1664,7 +1751,7 @@ include dirname(__DIR__) . "/includes/header.php";
 
   // ── Country change ────────────────────────────────────────────
   function onCountryChange() {
-    console.log('onCountryChange()');
+    console.log("onCountryChange");
     const countryEl = document.getElementById('country');
     if (!countryEl) {
       console.error('Country element not found');
@@ -1672,7 +1759,6 @@ include dirname(__DIR__) . "/includes/header.php";
     }
     const country = countryEl.value;
     const data = getCountryData(country);
-    console.log('data:', data);
     const cityInput = document.getElementById('city');
     const stateSelect = document.getElementById('stateSelect');
     const timezoneSelect = document.getElementById('timezoneSelect');
@@ -1728,7 +1814,7 @@ include dirname(__DIR__) . "/includes/header.php";
     /* Job Type */
     jobTypeSelect.innerHTML =
       '<option value="">Select job type</option>';
-    console.log('data.types:', data.types);
+
     (data.types || []).forEach(type => {
       const option = new Option(type, type);
 
@@ -1744,6 +1830,7 @@ include dirname(__DIR__) . "/includes/header.php";
 
     /* Currency */
     currentySelect.innerHTML = '<option value="">Select currency</option>';
+
     (data.currency || []).forEach(cur => {
       const option = new Option(cur, cur);
       if (SAVED_SALARY_TYPE && cur.trim().toLowerCase === SAVED_SALARY_TYPE.trim().toLowerCase()) {
@@ -1915,7 +2002,8 @@ include dirname(__DIR__) . "/includes/header.php";
       console.log('Form initialization started');
       console.log('SAVED_COUNTRY:', SAVED_COUNTRY);
       console.log('SAVED_WORKPLACE_TYPE:', SAVED_WORKPLACE_TYPE);
-
+      console.log("SAVED_CURRENCY:", SALARY_UNITS);
+      onCountryChange();
       const countrySelect = document.getElementById('country');
       if (countrySelect) {
         if (SAVED_COUNTRY) {
@@ -1933,7 +2021,15 @@ include dirname(__DIR__) . "/includes/header.php";
         console.log('Set workplace type to:', SAVED_WORKPLACE_TYPE);
       }
 
-      onCountryChange(); // MUST run after setting country
+      const currentySelect = document.getElementById('salaryCurrency');
+      if (currentySelect && SALARY_UNITS) {
+        if (SALARY_UNITS) {
+          currentySelect.value = SALARY_UNITS;
+          console.log('Set currency to:', SALARY_UNITS, 'current value:', currentySelect.value);
+        }
+      }
+
+      // MUST run after setting country
 
       toggleLocationFields(); // FIXED
 

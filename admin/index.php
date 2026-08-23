@@ -580,9 +580,7 @@ include __DIR__ . "/includes/header.php";
               </div>
             </a>
           <?php endforeach; ?>
-
         </div>
-
       <?php endif; ?>
     </div>
 
