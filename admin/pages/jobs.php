@@ -340,7 +340,7 @@ include dirname(__DIR__) . '/includes/header.php';
           </p>
         </div>
         <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-          <select name="action"
+          <select name="action" id="bulkAction"
             class="<?= SELECT_CLASS ?>">
             <option value="">Bulk Action…</option>
             <option value="publish">Publish</option>
@@ -524,176 +524,159 @@ include dirname(__DIR__) . '/includes/header.php';
             <?php endif; ?>
           </tbody>
         </table>
-        <dialog id="deleteModal" class="modal">
-          <div class="modal-box w-[calc(100%-2rem)] max-w-lg rounded-box border border-base-300 bg-base-100 p-0 shadow-xl">
-            <div class="flex items-center gap-4 border-b border-base-200 px-5 py-5 sm:px-6">
-              <div class="flex size-10 shrink-0 items-center justify-center rounded-full bg-error/10 text-error">
-                <svg
-                  class="size-[15px]"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  stroke-width="1.75"
-                  aria-hidden="true">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                </svg>
-              </div>
-              <div class="min-w-0 flex-1">
-                <h3 class="font-head text-lg font-bold leading-6 text-base-content">
-                  Delete job posting
-                </h3>
-              </div>
-              <button
-                type="button"
-                onclick="deleteModal.close()"
-                class="btn btn-sm btn-circle btn-ghost size-8 min-h-8 shrink-0 text-base-content/50"
-                aria-label="Close">
-                <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
 
-            <div class="space-y-4 px-5 py-5 sm:px-6">
-              <div class="alert border-error/20 bg-error/5 text-base-content">
-                <svg class="size-5 shrink-0 text-error" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-                </svg>
-                <span class="text-sm">
-                  This action cannot be undone.
-                </span>
-              </div>
-
-              <div class="rounded-box border border-base-300 bg-base-200/50 p-4">
-                <div class="flex items-start gap-3">
-                  <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-base-100 text-base-content/50 shadow-sm">
-                    <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M20 7h-4V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2H4a2 2 0 00-2 2v9a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2zM8 7h8" />
-                    </svg>
-                  </div>
-                  <div class="min-w-0 flex-1">
-                    <p class="text-[11px] font-bold uppercase tracking-wide text-base-content/45">
-                      Selected job
-                    </p>
-                    <p id="deleteJobName" class="mt-1 truncate text-sm font-semibold text-base-content"></p>
-                    <p class="mt-1 text-xs leading-5 text-base-content/55">
-                      Related job metadata and listing content will be removed.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="modal-action m-0 flex flex-col-reverse gap-2 border-t border-base-200 bg-base-200/30 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
-              <button
-                type="button"
-                onclick="deleteModal.close()"
-                class="btn btn-ghost h-10 min-h-10 w-full rounded-lg px-5 text-sm font-semibold sm:w-auto">
-                Cancel
-              </button>
-
-              <a
-                id="confirmDeleteBtn"
-                href="#"
-                class="btn btn-error h-10 min-h-10 w-full rounded-lg px-5 text-sm font-semibold text-error-content sm:w-auto">
-                <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3m-9 0h14" />
-                </svg>
-                Delete permanently
-              </a>
-            </div>
-          </div>
-
-          <form method="dialog" class="modal-backdrop bg-black/40 backdrop-blur-[2px]">
-            <button>close</button>
-          </form>
-
-        </dialog>
-
-        <dialog id="cloneModal" class="modal">
-          <div class="modal-box w-[calc(100%-2rem)] max-w-lg rounded-box border border-base-300 bg-base-100 p-0 shadow-xl">
-            <div class="flex items-center gap-4 border-b border-base-200 px-5 py-5 sm:px-6">
-              <div class="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary/10 text-secondary">
-                <svg class="size-[15px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
-                </svg>
-              </div>
-              <div class="min-w-0 flex-1">
-                <h3 class="text-lg font-semibold leading-6 text-base-content">
-                  Clone job posting
-                </h3>
-              </div>
-              <button
-                type="button"
-                onclick="cloneModal.close()"
-                class="btn btn-sm btn-circle btn-ghost size-8 min-h-8 shrink-0 text-base-content/50"
-                aria-label="Close">
-                <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <div class="space-y-4 px-5 py-5 sm:px-6">
-              <div class="rounded-box border border-base-300 bg-base-200/50 p-4">
-                <div class="flex items-start gap-3">
-                  <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-base-100 text-base-content/50 shadow-sm">
-                    <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M20 7h-4V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2H4a2 2 0 00-2 2v9a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2zM8 7h8" />
-                    </svg>
-                  </div>
-                  <div class="min-w-0 flex-1">
-                    <p class="text-[11px] font-bold uppercase tracking-wide text-base-content/45">
-                      Selected job
-                    </p>
-                    <p id="cloneJobName" class="mt-1 truncate text-sm font-semibold text-base-content"></p>
-                    <p class="mt-1 text-xs leading-5 text-base-content/55">
-                      Clone this job? A new Job Number will be assigned.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="modal-action m-0 flex flex-col-reverse gap-2 border-t border-base-200 bg-base-200/30 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
-              <button
-                type="button"
-                onclick="cloneModal.close()"
-                class="btn btn-ghost h-10 min-h-10 w-full rounded-lg px-5 text-sm font-semibold sm:w-auto">
-                Cancel
-              </button>
-
-              <a
-                id="confirmCloneBtn"
-                href="#"
-                class="btn btn-primary h-10 min-h-10 w-full rounded-lg px-5 text-sm font-semibold text-error-content sm:w-auto">
-                Clone job
-              </a>
-            </div>
-          </div>
-
-          <form method="dialog" class="modal-backdrop bg-black/40 backdrop-blur-[2px]">
-            <button>close</button>
-          </form>
-
-        </dialog>
       </div>
     </section>
   </form>
 
+  <!-- Delete Modal -->
+  <dialog id="deleteModal" class="modal">
+    <div class="modal-box w-[calc(100%-2rem)] max-w-lg rounded-box border border-base-300 bg-base-100 p-0 shadow-xl">
+      <!-- Header -->
+      <div class="flex items-center gap-4 border-b border-base-200 px-5 py-5 sm:px-6">
+        <div class="flex size-10 shrink-0 items-center justify-center rounded-full bg-error/10 text-error">
+          <svg
+            class="<?= SVG_ICON ?>"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="1.75"
+            aria-hidden="true">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+          </svg>
+        </div>
+        <div class="min-w-0 flex-1">
+          <h3 class="<?= MODAL_HEADING ?>">
+            Delete job posting
+          </h3>
+          <p class="mt-1 text-sm text-base-content/60">
+            This action cannot be undone
+          </p>
+        </div>
+        <button
+          type="button"
+          onclick="deleteModal.close()"
+          class="btn btn-sm btn-circle btn-ghost size-9 min-h-9 shrink-0 text-base-content/50 hover:bg-base-200"
+          aria-label="Close">
+          <svg class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div class="px-6 py-5">
+        <div class="rounded-xl  p-4">
+          <div class="flex items-start gap-3">
+            <div class="flex-1">
+              <p class="text-sm font-medium text-base-content">
+                Are you sure you want to delete <strong id="deleteJobName" class="text-error"></strong>?
+              </p>
+              <p class="mt-2 text-xs leading-5 text-base-content/60">
+                This will permanently remove the job posting and all associated data. This action cannot be undone.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="flex flex-col-reverse gap-3 border-t border-base-200 bg-base-200/30 px-6 py-4 sm:flex-row sm:justify-end">
+        <button
+          type="button"
+          onclick="deleteModal.close()"
+          class="btn btn-ghost h-11 min-h-11 w-full rounded-xl px-6 text-sm font-semibold sm:w-auto hover:bg-base-200">
+          Cancel
+        </button>
+        <a
+          id="confirmDeleteBtn"
+          href="#"
+          class="btn btn-error h-11 min-h-11 w-full rounded-xl px-6 text-sm font-semibold text-error-content sm:w-auto shadow-lg">
+          <svg class="size-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3m-9 0h14" />
+          </svg>
+          Delete job
+        </a>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop bg-black/40">
+      <button>close</button>
+    </form>
+  </dialog>
+
+  <!-- Clone Modal -->
+  <dialog id="cloneModal" class="modal">
+    <div class="modal-box w-[calc(100%-2rem)] max-w-lg rounded-2xl border border-base-300 bg-base-100 p-0 shadow-2xl">
+      <div class="flex items-center gap-4 border-b border-base-200 px-6 py-5">
+        <div class="<?= SVG_DIV ?>">
+          <svg class="<?= SVG_ICON ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
+          </svg>
+        </div>
+        <div class="min-w-0 flex-1">
+          <h3 class="<?= MODAL_HEADING ?>">
+            Clone job posting
+          </h3>
+          <p class="mt-1 text-sm text-base-content/60">
+            Create a copy of this job
+          </p>
+        </div>
+        <button
+          type="button"
+          onclick="cloneModal.close()"
+          class="btn btn-sm btn-circle btn-ghost size-9 min-h-9 shrink-0 text-base-content/50 hover:bg-base-200"
+          aria-label="Close">
+          <svg class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div class="px-6 py-5">
+        <div class="rounded-xl p-4">
+          <div class="flex items-start gap-3">
+            <div class="flex-1">
+              <p class="text-sm font-medium text-base-content">
+                Clone <strong id="cloneJobName" class="text-primary"></strong>?
+              </p>
+              <p class="mt-2 text-xs leading-5 text-base-content/60">
+                A new job with a unique Job Number will be created based on this job's details.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="flex flex-col-reverse gap-3 border-t border-base-200 bg-base-200/30 px-6 py-4 sm:flex-row sm:justify-end">
+        <button
+          type="button"
+          onclick="cloneModal.close()"
+          class="btn btn-ghost h-11 min-h-11 w-full rounded-xl px-6 text-sm font-semibold sm:w-auto hover:bg-base-200">
+          Cancel
+        </button>
+        <a
+          id="confirmCloneBtn"
+          href="#"
+          class="btn btn-primary h-11 min-h-11 w-full rounded-xl px-6 text-sm font-semibold text-primary-content sm:w-auto shadow-lg">
+          <svg class="size-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
+          </svg>
+          Clone job
+        </a>
+      </div>
+    </div>
+
+    <form method="dialog" class="modal-backdrop bg-black/40">
+      <button>close</button>
+    </form>
+  </dialog>
+
+  <!-- Bulk action modal -->
   <dialog id="bulkActionModal" class="modal">
     <div
       class="modal-box w-[calc(100%-2rem)] max-w-md rounded-xl border border-base-300 bg-base-100 p-0 shadow-xl">
-
       <!-- Header -->
       <div class="flex items-center gap-4 border-b border-base-200 px-5 py-5 sm:px-6">
-
-        <div class="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+        <div class="<?= SVG_DIV ?>">
           <svg
-            class="size-5"
+            class="<?= SVG_ICON ?>"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -705,17 +688,14 @@ include dirname(__DIR__) . '/includes/header.php';
               d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a3 3 0 006 0M9 5a3 3 0 013-3 3 3 0 013 3" />
           </svg>
         </div>
-
         <div class="min-w-0 flex-1">
-          <h3 class="font-head text-lg font-bold leading-6 text-base-content">
+          <h3 class="<?= MODAL_HEADING ?>">
             Apply action
           </h3>
-
           <p class="mt-0.5 text-xs text-base-content/50">
             Confirm the action for the selected jobs.
           </p>
         </div>
-
         <button
           type="button"
           onclick="bulkActionModal.close()"
@@ -734,105 +714,77 @@ include dirname(__DIR__) . '/includes/header.php';
               d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
-
       </div>
 
       <!-- Body -->
-      <div class="space-y-4 px-5 py-5 sm:px-6">
-
-        <div class="rounded-lg border border-base-300 bg-base-200/50 p-4">
+      <div class="px-6 py-5">
+        <div class="rounded-xl p-4">
           <div class="flex items-start gap-3">
-
-            <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-base-100 text-base-content/50 shadow-sm">
-              <svg
-                class="size-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                stroke-width="1.8">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M9 12l2 2 4-4m5.5-1.5A7.5 7.5 0 1112 4.5a7.5 7.5 0 019.5 4.5z" />
-              </svg>
-            </div>
-
-            <div class="min-w-0 flex-1">
-              <p class="text-sm font-semibold text-base-content">
-                Selected jobs
+            <div class="flex-1">
+              <p class="text-sm font-medium text-base-content">
+                Are you sure you want to jobs <strong id="selectedAction"></strong> ?
               </p>
-
-              <p class="mt-0.5 text-xs text-base-content/55">
+              <p class=" mt-2 text-xs leading-5 text-base-content/60">
                 You are about to apply the selected action to
                 <strong id="selectedJobCount" class="font-semibold text-base-content">
                   0
                 </strong>
                 selected job(s).
+                A new job with a unique Job Number will be created based on this job's details.
               </p>
             </div>
+          </div>
+          <div class="alert mt-4 border-warning/20 bg-warning/5 text-base-content">
+            <svg
+              class="size-5 shrink-0 text-warning"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="1.8">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
 
+            <span class="text-xs leading-5">
+              Please review your selection before continuing.
+            </span>
           </div>
         </div>
-
-        <div class="alert border-warning/20 bg-warning/5 text-base-content">
-          <svg
-            class="size-5 shrink-0 text-warning"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            stroke-width="1.8">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-          </svg>
-
-          <span class="text-xs leading-5">
-            Please review your selection before continuing.
-          </span>
-        </div>
-
       </div>
 
       <!-- Footer -->
       <div class="modal-action m-0 flex flex-col-reverse gap-2 border-t border-base-200 bg-base-200/30 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
-
         <button
           type="button"
           onclick="bulkActionModal.close()"
           class="btn btn-ghost h-10 min-h-10 w-full rounded-lg px-5 text-sm font-semibold sm:w-auto">
           Cancel
         </button>
-
         <button
           type="button"
           onclick="submitBulkAction()"
           class="btn btn-primary h-10 min-h-10 w-full rounded-lg px-5 text-sm font-semibold sm:w-auto">
-
           <svg
             class="size-4"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
             stroke-width="1.8">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M5 12h14M13 6l6 6-6 6" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 6l6 6-6 6" />
           </svg>
-
           Apply action
         </button>
-
       </div>
-
     </div>
 
     <!-- Backdrop -->
-    <form method="dialog" class="modal-backdrop bg-black/40 backdrop-blur-[2px]">
+    <form method="dialog" class="modal-backdrop bg-black/40">
       <button type="submit">close</button>
     </form>
   </dialog>
+
   <!-- ══ PAGINATION ══ -->
   <?php if ($totalPages > 1): ?>
     <div class="mt-5 flex items-center justify-end">
@@ -890,11 +842,13 @@ include dirname(__DIR__) . '/includes/header.php';
       'input[name="ids[]"]:checked'
     );
 
+    const selectedAction = document.getElementById('bulkAction').value;
     if (selected.length === 0) {
       return;
     }
 
     document.getElementById('selectedJobCount').textContent = selected.length;
+    document.getElementById('selectedAction').textContent = selectedAction;
 
     document.getElementById('bulkActionModal').showModal();
   }

@@ -50,54 +50,52 @@
     <!-- 404 Content -->
     <main class="min-h-[calc(100vh-73px)] flex items-center justify-center px-4 py-12">
 
-        <div class="w-full max-w-lg">
+        <div style="width: 100%; max-width: 480px;">
 
-            <div class="card border border-base-300 bg-base-100 shadow-lg">
-                <div class="card-body items-center text-center p-8 sm:p-10">
+            <div style="border: 1px solid #e5e5e5; border-radius: 1rem; background: #ffffff; box-shadow: 0 1px 2px rgba(17, 24, 39, .04), 0 8px 24px -12px rgba(17, 24, 39, .08); padding: 2.5rem; text-align: center;">
 
-                    <!-- Icon -->
-                    <div class="flex size-16 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-5">
-                        <svg class="size-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7">
-                            <path stroke-linecap="round" stroke-linejoin="round"
-                                d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <!-- Icon -->
+                <div style="display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 1rem; background: rgba(61, 107, 168, 0.1); color: #3d6ba8; margin: 0 auto 1.25rem;">
+                    <svg style="width: 32px; height: 32px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+
+                <!-- Error code -->
+                <div style="font-family: 'Syne', sans-serif; font-size: 4rem; font-weight: 800; letter-spacing: -0.05em; color: rgba(61, 107, 168, 0.15); line-height: 1;">
+                    404
+                </div>
+
+                <h1 style="font-family: 'Syne', sans-serif; margin-top: 0.5rem; font-size: 1.75rem; font-weight: 700; color: #111827;">
+                    Job not found
+                </h1>
+
+                <p style="margin-top: 0.75rem; max-width: 28rem; font-size: 0.9375rem; line-height: 1.6; color: #525252; margin-left: auto; margin-right: auto;">
+                    The job you're looking for may have been removed, closed,
+                    or the link may no longer be valid.
+                </p>
+
+                <!-- Actions -->
+                <div style="margin-top: 1.75rem; display: flex; flex-direction: column; gap: 0.75rem; width: 100%;">
+
+                    <a href="https://accelonconsulting.com/careers" style="display: flex; align-items: center; justify-content: center; gap: 8px; background: #3d6ba8; color: #ffffff; padding: 12px 24px; border-radius: 0.75rem; text-decoration: none; font-size: 14px; font-weight: 600; box-shadow: 0 4px 14px rgba(61, 107, 168, 0.22); transition: all 0.2s;">
+                        <svg style="width: 16px; height: 16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                            stroke-width="1.8">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 12h18M3 12l6-6M3 12l6 6" />
                         </svg>
-                    </div>
+                        View All Jobs
+                    </a>
 
-                    <!-- Error code -->
-                    <div class="font-head text-5xl sm:text-6xl font-extrabold tracking-tight text-primary/15">
-                        404
-                    </div>
-
-                    <h1 class="font-head mt-2 text-2xl sm:text-3xl font-bold text-base-content">
-                        Job not found
-                    </h1>
-
-                    <p class="mt-3 max-w-md text-sm sm:text-base leading-6 text-base-content/60">
-                        The job you're looking for may have been removed, closed,
-                        or the link may no longer be valid.
-                    </p>
-
-                    <!-- Actions -->
-                    <div class="mt-7 flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-
-                        <a href="https://accelonconsulting.com/careers" class="btn btn-primary px-6">
-                            <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                                stroke-width="1.8">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 12h18M3 12l6-6M3 12l6 6" />
-                            </svg>
-                            View All Jobs
-                        </a>
-
-                        <button type="button" onclick="history.back()" class="btn btn-outline px-6">
-                            Go Back
-                        </button>
-
-                    </div>
+                    <button type="button" onclick="history.back()" style="background: transparent; border: 1px solid #e5e5e5; color: #525252; padding: 12px 24px; border-radius: 0.75rem; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;">
+                        Go Back
+                    </button>
 
                 </div>
+
             </div>
 
-            <p class="mt-5 text-center text-xs text-base-content/40">
+            <p style="margin-top: 1.25rem; text-align: center; font-size: 12px; color: #9ca3af;">
                 Accelon Consulting · Careers
             </p>
 

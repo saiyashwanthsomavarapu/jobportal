@@ -930,7 +930,7 @@ include dirname(__DIR__) . "/includes/header.php";
 
       <!-- Title -->
       <div class="min-w-0 flex-1">
-        <h3 class="text-lg font-semibold leading-6 text-base-content">
+        <h3 class="<?= MODAL_HEADING ?>">
           Reset password of <span
             id="resetUserName">
           </span>
@@ -1070,7 +1070,7 @@ include dirname(__DIR__) . "/includes/header.php";
   <!-- Click outside to close -->
   <form
     method="dialog"
-    class="modal-backdrop bg-black/40 backdrop-blur-[2px]">
+    class="modal-backdrop bg-black/40">
     <button type="submit">close</button>
   </form>
 
@@ -1080,10 +1080,9 @@ include dirname(__DIR__) . "/includes/header.php";
   <div class="modal-box w-[calc(100%-2rem)] max-w-lg rounded-box border border-base-300 bg-base-100 p-0 shadow-xl">
     <!-- Close button -->
     <div class="flex items-center gap-4 border-b border-base-200 px-5 py-5 sm:px-6">
-
-      <div class="flex size-10 shrink-0 items-center justify-center rounded-full bg-error/10 text-error">
+      <div class="<?= SVG_DIV_ERROR ?>">
         <svg
-          class="size-4"
+          class="<?= SVG_ICON ?>"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -1094,54 +1093,44 @@ include dirname(__DIR__) . "/includes/header.php";
             d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
         </svg>
       </div>
-
       <div class="min-w-0 flex-1">
-        <h3 class="text-lg font-semibold leading-6 text-base-content">
+        <h3 class="<?= MODAL_HEADING ?>">
           Delete user
         </h3>
       </div>
-
       <button
         type="button"
         onclick="deleteClientModal.close()"
         class="btn btn-sm btn-circle btn-ghost size-8 min-h-8 shrink-0 text-base-content/50"
         aria-label="Close">
-
         <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
-
       </button>
     </div>
-
     <!-- Body -->
-    <div class="space-y-4 px-5 py-5 sm:px-6">
-      The user <span
-        id="deleteUserName"
-        class="mt-1 truncate text-sm font-semibold text-base-content">
-      </span> will be permanently deleted.
-      <!-- <p
-        id="deleteUserName"
-        class="mt-1 truncate text-sm font-semibold text-base-content">
-      </p> -->
+    <div class="px-6 py-5">
+      <div class="rounded-xl  p-4">
+        <div class="flex items-start gap-3">
+          <div class="flex-1">
+            <p class="text-sm font-medium text-base-content">
+              Are you sure you want to delete <strong id="deleteUserName" class="text-error"></strong> account?
+            </p>
+            <p class="mt-2 text-xs leading-5 text-base-content/60">
+              This will permanently remove the user. This action cannot be undone.
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
     <!-- Actions -->
     <div class="modal-action m-0 flex flex-col-reverse gap-2 border-t border-base-200 bg-base-200/30 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
-      <!-- <button
-        type="submit"
-        class="flex-1 flex items-center justify-center gap-2 btn btn-primary min-h-0 h-auto rounded-lg font-head text-[13px] font-bold tracking-wide py-2.5 shadow-pop">
-        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
-        </svg>
-        Delete
-      </button> -->
       <button
         type="button"
         onclick="deleteModal.close()"
         class="btn btn-ghost px-4 py-2.5 min-h-0 h-auto rounded-lg border border-line text-ink2 text-[13px] font-semibold hover:bg-card2 hover:text-ink">
         Cancel
       </button>
-
       <form method="POST" id="confirmDeleteUserForm" class="w-full sm:w-auto">
         <input type="hidden" name="action" value="delete">
         <input type="hidden" name="user_id" id="deleteUserId">
@@ -1159,7 +1148,6 @@ include dirname(__DIR__) . "/includes/header.php";
               stroke-linejoin="round"
               d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3m-9 0h14" />
           </svg>
-
           Delete permanently
         </button>
       </form>
@@ -1169,7 +1157,7 @@ include dirname(__DIR__) . "/includes/header.php";
   <!-- Click outside modal to close -->
   <form
     method="dialog"
-    class="modal-backdrop bg-black/40 backdrop-blur-[2px]">
+    class="modal-backdrop bg-black/40">
     <button type="submit">close</button>
   </form>
 </dialog>

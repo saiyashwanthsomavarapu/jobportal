@@ -1578,13 +1578,14 @@ include dirname(__DIR__) . "/includes/header.php";
       </div>
     </div>
 
+    <!-- Delete Job Modal -->
     <dialog id="deleteJobModal" class="modal">
       <div class="modal-box w-[calc(100%-2rem)] max-w-md rounded-xl border border-base-300 bg-base-100 p-0 shadow-xl">
 
         <!-- Header -->
         <div class="flex items-center gap-4 border-b border-base-200 px-5 py-5 sm:px-6">
-          <div class="flex size-10 shrink-0 items-center justify-center rounded-full bg-error/10 text-error">
-            <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+          <div class="<?= SVG_DIV_ERROR ?>">
+            <svg class="<?= SVG_ICON ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
               <path
                 stroke-linecap="round"
                 stroke-linejoin="round"
@@ -1592,7 +1593,7 @@ include dirname(__DIR__) . "/includes/header.php";
             </svg>
           </div>
           <div class="min-w-0 flex-1">
-            <h3 class="text-lg font-semibold leading-6 text-base-content">
+            <h3 class="<?= MODAL_HEADING ?>">
               Delete job
             </h3>
           </div>
@@ -1608,11 +1609,19 @@ include dirname(__DIR__) . "/includes/header.php";
         </div>
 
         <!-- Body -->
-        <div class="px-5 py-5 sm:px-6">
-          <p class="text-sm leading-6">
-            Are you sure you want to permanently delete this job?
-            All associated job information will be removed.
-          </p>
+        <div class="px-6 py-5">
+          <div class="rounded-xl  p-4">
+            <div class="flex items-start gap-3">
+              <div class="flex-1">
+                <p class="text-sm font-medium text-base-content">
+                  Are you sure you want to permanently delete this job?
+                </p>
+                <p class="mt-2 text-xs leading-5 text-base-content/60">
+                  All associated job information will be removed.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
         <!-- Footer -->
         <div class="modal-action m-0 flex flex-col-reverse gap-2 border-t border-base-200 bg-base-200/30 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
@@ -1643,7 +1652,7 @@ include dirname(__DIR__) . "/includes/header.php";
         </div>
       </div>
       <!-- Backdrop -->
-      <form method="dialog" class="modal-backdrop bg-black/40 backdrop-blur-[2px]">
+      <form method="dialog" class="modal-backdrop bg-black/40">
         <button type="submit">close</button>
       </form>
     </dialog>

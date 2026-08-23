@@ -304,151 +304,100 @@ include dirname(__DIR__) . "/includes/header.php";
           <?php endif; ?>
         </tbody>
       </table>
-      <dialog id="deleteClientModal" class="modal">
-        <div class="modal-box w-[calc(100%-2rem)] max-w-lg rounded-box border border-base-300 bg-base-100 p-0 shadow-xl">
-
-          <!-- Header -->
-          <div class="flex items-center gap-4 border-b border-base-200 px-5 py-5 sm:px-6">
-
-            <div class="flex size-10 shrink-0 items-center justify-center rounded-full bg-error/10 text-error">
-              <svg
-                class="size-[15px]"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                stroke-width="1.75">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-              </svg>
-            </div>
-
-            <div class="min-w-0 flex-1">
-              <h3 class="font-head text-lg font-bold leading-6 text-base-content">
-                Delete client
-              </h3>
-            </div>
-
-            <button
-              type="button"
-              onclick="deleteClientModal.close()"
-              class="btn btn-sm btn-circle btn-ghost size-8 min-h-8 shrink-0 text-base-content/50"
-              aria-label="Close">
-
-              <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-
-            </button>
-          </div>
-
-          <!-- Body -->
-          <div class="space-y-4 px-5 py-5 sm:px-6">
-
-            <div class="alert border-error/20 bg-error/5 text-base-content">
-              <svg
-                class="size-5 shrink-0 text-error"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                stroke-width="1.8">
-
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-              </svg>
-
-              <span class="text-sm">
-                This action cannot be undone.
-              </span>
-            </div>
-
-            <div class="rounded-box border border-base-300 bg-base-200/50 p-4">
-              <div class="flex items-start gap-3">
-
-                <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-base-100 text-base-content/50 shadow-sm">
-                  <svg
-                    class="size-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    stroke-width="1.8">
-
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      d="M20 7h-4V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2H4a2 2 0 00-2 2v9a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2zM8 7h8" />
-                  </svg>
-                </div>
-
-                <div class="min-w-0 flex-1">
-                  <p class="text-[11px] font-bold uppercase tracking-wide text-base-content/45">
-                    Selected client
-                  </p>
-
-                  <p
-                    id="deleteClientName"
-                    class="mt-1 truncate text-sm font-semibold text-base-content">
-                  </p>
-
-                  <p class="mt-1 text-xs leading-5 text-base-content/55">
-                    This client and its associated information will be permanently removed.
-                  </p>
-                </div>
-
-              </div>
-            </div>
-
-          </div>
-
-          <!-- Footer -->
-          <div class="modal-action m-0 flex flex-col-reverse gap-2 border-t border-base-200 bg-base-200/30 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
-
-            <button
-              type="button"
-              onclick="deleteClientModal.close()"
-              class="btn btn-ghost h-10 min-h-10 w-full rounded-lg px-5 text-sm font-semibold sm:w-auto">
-              Cancel
-            </button>
-
-            <form method="POST" id="confirmDeleteClientForm" class="w-full sm:w-auto">
-              <input type="hidden" name="action" value="delete">
-              <input type="hidden" name="client_id" id="deleteClientId">
-
-              <button
-                type="submit"
-                class="btn btn-error h-10 min-h-10 w-full rounded-lg px-5 text-sm font-semibold text-error-content sm:w-auto">
-
-                <svg
-                  class="size-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  stroke-width="2">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3m-9 0h14" />
-                </svg>
-
-                Delete permanently
-              </button>
-            </form>
-
-          </div>
-
-        </div>
-
-        <form method="dialog" class="modal-backdrop bg-black/40 backdrop-blur-[2px]">
-          <button>close</button>
-        </form>
-      </dialog>
     </div>
   </div>
-
 </div>
+
+<!-- Delete Client Modal -->
+<dialog id="deleteClientModal" class="modal">
+  <div class="modal-box w-[calc(100%-2rem)] max-w-lg rounded-box border border-base-300 bg-base-100 p-0 shadow-xl">
+
+    <!-- Header -->
+    <div class="flex items-center gap-4 border-b border-base-200 px-5 py-5 sm:px-6">
+
+      <div class="<?= SVG_DIV_ERROR ?>">
+        <svg
+          class="<?= SVG_ICON ?>"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="1.75">
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+        </svg>
+      </div>
+
+      <div class="min-w-0 flex-1">
+        <h3 class="<?= MODAL_HEADING ?>">
+          Delete client
+        </h3>
+      </div>
+
+      <button
+        type="button"
+        onclick="deleteClientModal.close()"
+        class="btn btn-sm btn-circle btn-ghost size-8 min-h-8 shrink-0 text-base-content/50"
+        aria-label="Close">
+
+        <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+
+      </button>
+    </div>
+
+    <!-- Body -->
+    <div class="px-6 py-5">
+      <div class="rounded-xl  p-4">
+        <div class="flex items-start gap-3">
+          <div class="flex-1">
+            <p class="text-sm font-medium text-base-content">
+              Are you sure you want to delete <strong id="deleteClientName" class="text-error"></strong> client?
+            </p>
+            <p class="mt-2 text-xs leading-5 text-base-content/60">
+              This will permanently remove the job posting and all associated data. This action cannot be undone.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="modal-action m-0 flex flex-col-reverse gap-2 border-t border-base-200 bg-base-200/30 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+      <button
+        type="button"
+        onclick="deleteClientModal.close()"
+        class="btn btn-ghost h-10 min-h-10 w-full rounded-lg px-5 text-sm font-semibold sm:w-auto">
+        Cancel
+      </button>
+      <form method="POST" id="confirmDeleteClientForm" class="w-full sm:w-auto">
+        <input type="hidden" name="action" value="delete">
+        <input type="hidden" name="client_id" id="deleteClientId">
+        <button
+          type="submit"
+          class="btn btn-error h-10 min-h-10 w-full rounded-lg px-5 text-sm font-semibold text-error-content sm:w-auto">
+          <svg
+            class="size-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3m-9 0h14" />
+          </svg>
+          Delete permanently
+        </button>
+      </form>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop bg-black/40">
+    <button>close</button>
+  </form>
+</dialog>
 
 <script>
   function openDeleteModal(clientId, clientName) {
