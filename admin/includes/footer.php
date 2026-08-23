@@ -180,308 +180,129 @@
                     } catch (Exception $e) {
                     }
                     ?>
-
                </a>
-
 
                <!-- Clients -->
                <?php
                 $isActive = basename($_SERVER['PHP_SELF']) === 'clients.php';
                 ?>
-
-               <a
-                   href="<?= ADMIN_URL ?>/pages/clients.php"
-                   class="
-              group flex items-center gap-3
-              px-2.5 py-2.5
-              rounded-lg
-              text-[13.5px]
-              font-medium
-              transition-colors
-
-              <?= $isActive
-                    ? 'bg-accent-soft text-accent-dark'
-                    : 'text-ink2 hover:bg-card2 hover:text-ink'
-                ?>
-            ">
-
-                   <svg
-                       class="h-[18px] w-[18px] flex-shrink-0
-              <?= $isActive
-                    ? 'text-accent'
-                    : 'text-muted group-hover:text-ink2'
-                ?>"
+               <a href="<?= ADMIN_URL ?>/pages/clients.php" class="group flex items-center gap-3 px-2.5 py-2.5 rounded-lg text-[13.5px] font-medium transition-colors <?= $isActive
+                                                                                                                                                                            ? 'bg-accent-soft text-accent-dark'
+                                                                                                                                                                            : 'text-ink2 hover:bg-card2 hover:text-ink'
+                                                                                                                                                                        ?>
+                ">
+                   <svg class="h-[18px] w-[18px] flex-shrink-0 <?= $isActive
+                                                                    ? 'text-accent'
+                                                                    : 'text-muted group-hover:text-ink2'
+                                                                ?>"
                        fill="none"
                        viewBox="0 0 24 24"
                        stroke="currentColor"
                        stroke-width="1.75">
-
-                       <path
-                           stroke-linecap="round"
-                           stroke-linejoin="round"
-                           d="M3.75 21V6.75A1.5 1.5 0 015.25 5.25h6A1.5 1.5 0 0112.75 6.75V21M3.75 21h16.5M3.75 21H2.25M20.25 21V10.5a1.5 1.5 0 00-1.5-1.5h-3a1.5 1.5 0 00-1.5 1.5V21" />
-
+                       <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21V6.75A1.5 1.5 0 015.25 5.25h6A1.5 1.5 0 0112.75 6.75V21M3.75 21h16.5M3.75 21H2.25M20.25 21V10.5a1.5 1.5 0 00-1.5-1.5h-3a1.5 1.5 0 00-1.5 1.5V21" />
                    </svg>
-
                    Clients
-
                </a>
-
 
                <!-- Post Job -->
                <?php
                 $isActive = basename($_SERVER['PHP_SELF']) === 'post_job.php';
                 ?>
-
-               <a
-                   href="<?= ADMIN_URL ?>/pages/post_job.php"
-                   class="
-              group flex items-center gap-3
-              px-2.5 py-2.5
-              rounded-lg
-              text-[13.5px]
-              font-medium
-              transition-colors
-
-              <?= $isActive
-                    ? 'bg-accent-soft text-accent-dark'
-                    : 'text-ink2 hover:bg-card2 hover:text-ink'
-                ?>
+               <a href="<?= ADMIN_URL ?>/pages/post_job.php" class="group flex items-center gap-3 px-2.5 py-2.5 rounded-lg text-[13.5px] font-medium transition-colors <?= $isActive
+                                                                                                                                                                            ? 'bg-accent-soft text-accent-dark'
+                                                                                                                                                                            : 'text-ink2 hover:bg-card2 hover:text-ink'
+                                                                                                                                                                        ?>
             ">
-
-                   <svg
-                       class="h-[18px] w-[18px] flex-shrink-0
-              <?= $isActive
-                    ? 'text-accent'
-                    : 'text-muted group-hover:text-ink2'
-                ?>"
+                   <svg class="h-[18px] w-[18px] flex-shrink-0 <?= $isActive ? 'text-accent' : 'text-muted group-hover:text-ink2' ?>"
                        fill="none"
                        viewBox="0 0 24 24"
                        stroke="currentColor"
                        stroke-width="1.75">
-
                        <path
                            stroke-linecap="round"
                            stroke-linejoin="round"
                            d="M12 4.5v15m7.5-7.5h-15" />
-
                    </svg>
-
                    Post a Job
-
                </a>
 
 
                <!-- Drafts -->
                <a
                    href="<?= ADMIN_URL ?>/pages/jobs.php?status=draft"
-                   class="
-              group
-              flex
-              items-center
-              gap-3
-              px-2.5
-              py-2.5
-              rounded-lg
-              text-[13.5px]
-              font-medium
-              text-ink2
-              hover:bg-card2
-              hover:text-ink
-              transition-colors
-            ">
-
-                   <svg
-                       class="h-[18px] w-[18px]
-                     flex-shrink-0
-                     text-muted
-                     group-hover:text-ink2"
-                       fill="none"
-                       viewBox="0 0 24 24"
-                       stroke="currentColor"
-                       stroke-width="1.75">
-
-                       <path
-                           stroke-linecap="round"
-                           stroke-linejoin="round"
-                           d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25" />
-
+                   class="group flex items-center gap-3 px-2.5 py-2.5 rounded-lg text-[13.5px] font-medium text-ink2 hover:bg-card2 hover:text-ink transition-colors">
+                   <svg class="h-[18px] w-[18px] flex-shrink-0 text-muted group-hover:text-ink2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                       <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25" />
                    </svg>
-
                    <span class="flex-1">
                        Drafts
                    </span>
-
                    <?php
                     try {
-
                         $dc = db()
                             ->query("SELECT COUNT(*) FROM jobs WHERE status='draft'")
                             ->fetchColumn();
-
                         if ($dc > 0) {
-
-                            echo '
-                <span
-                  class="bg-warn
-                         text-white
-                         rounded-full
-                         text-[10px]
-                         font-bold
-                         px-[7px]
-                         py-px
-                         leading-[16px]">'
-                                . $dc .
-                                '</span>';
+                            echo ' <span class="bg-warn text-white rounded-full text-[10px] font-bold px-[7px] py-px leading-[16px]">' . $dc . '</span>';
                         }
                     } catch (Exception $e) {
                     }
                     ?>
-
                </a>
 
-
                <!-- Settings -->
-               <p
-                   class="px-2.5
-                   pt-4
-                   pb-1.5
-                   text-[10.5px]
-                   font-bold
-                   text-muted
-                   tracking-[1.1px]
-                   uppercase">
-
-                   Settings
-
-               </p>
-
+               <p class="px-2.5 pt-4 pb-1.5 text-[10.5px] font-bold text-muted tracking-[1.1px] uppercase"> Settings </p>
 
                <!-- Admin Users -->
                <?php
                 $isActive = basename($_SERVER['PHP_SELF']) === 'admins.php';
                 ?>
-
-               <a
-                   href="<?= ADMIN_URL ?>/pages/admins.php"
-                   class="
-              group
-              flex
-              items-center
-              gap-3
-              px-2.5
-              py-2.5
-              rounded-lg
-              text-[13.5px]
-              font-medium
-              transition-colors
-
-              <?= $isActive
-                    ? 'bg-accent-soft text-accent-dark'
-                    : 'text-ink2 hover:bg-card2 hover:text-ink'
-                ?>
+               <a href="<?= ADMIN_URL ?>/pages/admins.php" class="group flex items-center gap-3 px-2.5 py-2.5 rounded-lg text-[13.5px] font-medium transition-colors <?= $isActive
+                                                                                                                                                                            ? 'bg-accent-soft text-accent-dark'
+                                                                                                                                                                            : 'text-ink2 hover:bg-card2 hover:text-ink'
+                                                                                                                                                                        ?>
             ">
-
-                   <svg
-                       class="h-[18px] w-[18px]
-                     flex-shrink-0
-              <?= $isActive
-                    ? 'text-accent'
-                    : 'text-muted group-hover:text-ink2'
-                ?>"
+                   <svg class="h-[18px] w-[18px] flex-shrink-0 <?= $isActive
+                                                                    ? 'text-accent'
+                                                                    : 'text-muted group-hover:text-ink2'
+                                                                ?>"
                        fill="none"
                        viewBox="0 0 24 24"
                        stroke="currentColor"
                        stroke-width="1.75">
-
                        <path
                            stroke-linecap="round"
                            stroke-linejoin="round"
                            d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-
                    </svg>
-
                    Admin Users
-
                </a>
-
            </nav>
 
-
-           <!-- =================================================
-             CURRENT ADMIN
-             ================================================= -->
-
-           <div
-               class="px-3.5
-                 py-3.5
-                 border-t border-line
-                 flex-shrink-0">
-
-               <div
-                   class="flex
-                   items-center
-                   gap-2.5
-                   px-1.5
-                   py-2
-                   rounded-lg">
-
-                   <div
-                       class="w-8
-                     h-8
-                     rounded-full
-                     bg-accent
-                     flex
-                     items-center
-                     justify-center
-                     font-head
-                     text-[13px]
-                     font-bold
-                     text-white
-                     flex-shrink-0">
-
+           <!-- CURRENT ADMIN -->
+           <div class="px-3.5 py-3.5 border-t border-line flex-shrink-0">
+               <div class="flex items-center gap-2.5 px-1.5 py-2 rounded-lg">
+                   <div class="w-8 h-8 rounded-full bg-accent flex items-center justify-center font-head text-[13px] font-bold text-white flex-shrink-0">
                        <?= strtoupper(substr($currentAdmin['name'], 0, 1)) ?>
-
                    </div>
-
                    <div class="min-w-0 flex-1">
-
-                       <strong
-                           class="block
-                       text-[13px]
-                       text-ink
-                       font-semibold
-                       truncate">
-
+                       <strong class="block text-[13px] text-ink font-semibold truncate">
                            <?= e($currentAdmin['name']) ?>
-
                        </strong>
-
-                       <span
-                           class="block
-                       text-[11px]
-                       text-ink2
-                       capitalize
-                       truncate">
-
+                       <span class="block text-[11px] text-ink2 capitalize truncate">
                            <?= e($currentAdmin['role']) ?>
-
                        </span>
-
                    </div>
-                   <a href="<?= ADMIN_URL ?>/logout.php" title="Sign out" class="flex-shrink-0 p-1.5 rounded-md text-muted hover:text-danger hover:bg-danger/[.06] transition-colors">
-                       <svg
-                           class="h-[17px] w-[17px]"
-                           fill="none"
-                           viewBox="0 0 24 24"
-                           stroke="currentColor"
-                           stroke-width="1.75">
-                           <path
-                               stroke-linecap="round"
-                               stroke-linejoin="round"
-                               d="M8.25 9V5.25A2.25 2.25 0 0110.5 3h6a2.25 2.25 0 012.25 2.25v13.5A2.25 2.25 0 0116.5 21h-6a2.25 2.25 0 01-2.25-2.25V15m-3 0l-3-3m0 0l3-3m-3 3H15" />
-                       </svg>
-                   </a>
+                   <div class="tooltip" data-tip="Sign out">
+                       <a href="<?= ADMIN_URL ?>/logout.php" title="Sign out" class="flex-shrink-0 p-1.5 rounded-md text-muted hover:text-danger hover:bg-danger/[.06] transition-colors">
+                           <svg class="h-[17px] w-[17px]" fill="none"
+                               viewBox="0 0 24 24"
+                               stroke="currentColor"
+                               stroke-width="1.75">
+                               <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 9V5.25A2.25 2.25 0 0110.5 3h6a2.25 2.25 0 012.25 2.25v13.5A2.25 2.25 0 0116.5 21h-6a2.25 2.25 0 01-2.25-2.25V15m-3 0l-3-3m0 0l3-3m-3 3H15" />
+                           </svg>
+                       </a>
+                   </div>
                </div>
            </div>
        </aside>

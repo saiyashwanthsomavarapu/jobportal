@@ -1135,9 +1135,9 @@ include dirname(__DIR__) . "/includes/header.php";
 
             <!-- EXPERIENCE PREVIEW -->
             <div class="mt-4 flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/[.04] px-3.5 py-3">
-              <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <div class="<?= SVG_DIV ?>">
                 <svg
-                  class="h-4 w-4"
+                  class="<?= SVG_ICON ?>"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -1179,9 +1179,9 @@ include dirname(__DIR__) . "/includes/header.php";
       <!-- SECTION HEADER -->
       <div class="flex items-center justify-between gap-4 border-b border-base-300 px-6 py-5">
         <div class="flex items-center gap-3">
-          <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <div class="<?= SVG_DIV ?>">
             <svg
-              class="h-5 w-5"
+              class="<?= SVG_ICON ?>"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -1419,61 +1419,62 @@ include dirname(__DIR__) . "/includes/header.php";
               </select>
             </fieldset>
           </div>
-        </div>
 
-        <!--  LIVE PREVIEW -->
-        <div class=" mt-6 flex flex-col gap-2 rounded-xl border border-primary/20 bg-primary/[.04] px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
-          <div class="flex items-center gap-2">
-            <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <svg
-                class="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                stroke-width="1.75">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M13 16h-1v-4h-1m1-4h.01
+
+          <!--  LIVE PREVIEW -->
+          <div class=" mt-6 flex flex-col gap-2 rounded-xl border border-primary/20 bg-primary/[.04] px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex items-center gap-2">
+              <div class="<?= SVG_DIV ?>">
+                <svg
+                  class="<?= SVG_ICON ?>"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="1.75">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M13 16h-1v-4h-1m1-4h.01
                   M21 12a9 9 0 11-18 0
                   9 9 0 0118 0z" />
-              </svg>
+                </svg>
+              </div>
+              <span class="text-xs font-medium text-base-content/50">
+                Salary Preview
+              </span>
             </div>
-            <span class="text-xs font-medium text-base-content/50">
-              Salary Preview
-            </span>
-          </div>
-          <div
-            id="salaryPreview"
-            class="break-words text-sm font-bold text-primary sm:text-right">
-            <?php
-            if ($savedSalFrom !== '' || $savedSalTo !== '') {
-              $fromDisp = $savedSalFrom !== ''
-                ? $savedSalFrom . ($savedSalUnitFrom !== '' ? ' ' . $savedSalUnitFrom : '')
-                : '';
+            <div
+              id="salaryPreview"
+              class="break-words text-sm font-bold text-primary sm:text-right">
+              <?php
+              if ($savedSalFrom !== '' || $savedSalTo !== '') {
+                $fromDisp = $savedSalFrom !== ''
+                  ? $savedSalFrom . ($savedSalUnitFrom !== '' ? ' ' . $savedSalUnitFrom : '')
+                  : '';
 
-              $toDisp = $savedSalTo !== ''
-                ? $savedSalTo . ($savedSalUnitTo !== '' ? ' ' . $savedSalUnitTo : '')
-                : '';
+                $toDisp = $savedSalTo !== ''
+                  ? $savedSalTo . ($savedSalUnitTo !== '' ? ' ' . $savedSalUnitTo : '')
+                  : '';
 
-              $range = ($fromDisp !== '' && $toDisp !== '')
-                ? $fromDisp . ' – ' . $toDisp
-                : ($fromDisp ?: $toDisp);
+                $range = ($fromDisp !== '' && $toDisp !== '')
+                  ? $fromDisp . ' – ' . $toDisp
+                  : ($fromDisp ?: $toDisp);
 
-              echo e(
-                implode(
-                  ' | ',
-                  array_filter([
-                    $range,
-                    $savedSalCur,
-                    $savedSalType
-                  ])
-                )
-              );
-            } else {
-              echo '—';
-            }
-            ?>
+                echo e(
+                  implode(
+                    ' | ',
+                    array_filter([
+                      $range,
+                      $savedSalCur,
+                      $savedSalType
+                    ])
+                  )
+                );
+              } else {
+                echo '—';
+              }
+              ?>
+            </div>
           </div>
         </div>
       </div>
@@ -1535,18 +1536,6 @@ include dirname(__DIR__) . "/includes/header.php";
               Publish Job
             <?php endif; ?>
           </button>
-          <!-- <button type="submit" name="submit_action" value="publish" class="btn btn-primary gap-2">
-            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z" />
-            </svg>
-            <?php if ($isClone): ?>
-              Publish
-            <?php elseif ($isEdit): ?>
-              Update &amp; Publish
-            <?php else: ?>
-              Publish Job
-            <?php endif; ?>
-          </button> -->
 
           <button type="submit" name="submit_action" value="draft" class="btn btn-sm bg-base-100 border-base-300 hover:bg-base-200">
             <svg
@@ -1558,13 +1547,7 @@ include dirname(__DIR__) . "/includes/header.php";
             </svg>
             <?= $isClone ? 'Draft' : 'Save as Draft' ?>
           </button>
-          <!-- Save Draft -->
-          <!-- <button type="submit" name="submit_action" value="draft" class="btn bg-white text-black border-[#e5e5e5]">
-            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
-            </svg>
-            <?= $isClone ? 'Draft' : 'Save as Draft' ?>
-          </button> -->
+
 
           <!-- Cancel -->
           <button type="button" class="btn btn-sm bg-base-100 border-base-300 hover:bg-base-200" onclick="window.location.href='<?= ADMIN_URL ?>/pages/jobs.php' ">
@@ -1579,14 +1562,7 @@ include dirname(__DIR__) . "/includes/header.php";
             </svg>
             Cancel
           </button>
-          <!-- <a
-            href="<?= ADMIN_URL ?>/pages/jobs.php"
-            class="btn btn-ghost gap-2">
-            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
-            </svg>
-            Cancel
-          </a> -->
+
 
           <!-- Delete -->
           <?php if ($isEdit): ?>
@@ -2034,7 +2010,17 @@ include dirname(__DIR__) . "/includes/header.php";
       <li>Work–Life Balance — Flexible work arrangements and realistic workloads that support your well‑being.</li>
       <li>Healthy Work Culture — A collaborative, respectful, and growth‑oriented environment where people thrive.</li>
     </ul>
+
   `,
+    'Mexico': `
+    <p><strong>Accelon Consulting</strong> is a global workforce solutions partner and AI enablement leader, but above all, we are a people‑first organization. Our dual commitment is simple: advancing careers and enabling organizations to thrive in a connected, intelligent future. We know our professionals bring specialized expertise, strategic insight, and immediate impact to every engagement. You’re not just filling a seat - you’re solving problems, leading change, and driving results. Because of that, we treat every consultant like the professional they are. Our culture is built on respect, transparency, and long‑term growth, offering opportunities to work on high‑impact projects with leading global enterprises. At Accelon, people are supported, achievements are recognized, and careers are built with purpose. To learn more about our culture and what it’s like to be part of our team, visit the <a href="https://www.accelonconsulting.com/life-at-accelon/">Life at Accelon</a> section on our website.</p>
+    <ul>
+      <li>We offer healthcare plans, which you may opt into at your own expense.</li>
+      <li>Sick leave is provided under the province laws applicable to your residence.</li>
+      <li>Work–Life Balance — Flexible work arrangements and realistic workloads that support your well‑being.</li>
+      <li>Healthy Work Culture — A collaborative, respectful, and growth‑oriented environment where people thrive.</li>
+    </ul>`,
+
 
   }; // ← Add new countries above this line
 
@@ -2047,11 +2033,11 @@ include dirname(__DIR__) . "/includes/header.php";
     font_family_formats: "Lato=Lato,sans-serif;Tahoma=tahoma,arial,helvetica,sans-serif;Arial=arial,helvetica,sans-serif",
     font_size_formats: "8pt 9pt 10pt 11pt 12pt 14pt 16pt 18pt 24pt 36pt",
     content_style: `
-    body {
-      font-family: Lato, sans-serif;
-      font-size: 10pt;
-    }
-  `,
+      body {
+        font - family: Lato, sans - serif;
+        font - size: 10 pt;
+      }
+      `,
     setup: function(editor) {
       editor.on('change', function() {
         editor.save();

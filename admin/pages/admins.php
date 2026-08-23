@@ -373,49 +373,6 @@ function roleBadge(string $role): string
 include dirname(__DIR__) . "/includes/header.php";
 ?>
 
-<style>
-  /* Modal show/hide toggle + entrance animation — same mechanism as before, now light-themed */
-  .modal-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, .4);
-    z-index: 200;
-    align-items: center;
-    justify-content: center;
-    backdrop-filter: blur(3px);
-  }
-
-  .modal-overlay.open {
-    display: flex;
-  }
-
-  .modal-box {
-    animation: modalIn .18s ease;
-  }
-
-  @keyframes modalIn {
-    from {
-      transform: translateY(-14px);
-      opacity: 0;
-    }
-
-    to {
-      transform: translateY(0);
-      opacity: 1;
-    }
-  }
-
-  /* Toggle switch */
-  .toggle-track {
-    transition: background-color .18s ease;
-  }
-
-  .toggle-thumb {
-    transition: transform .18s ease;
-  }
-</style>
-
 <!-- ══════════════ LIGHT CANVAS ══════════════
     Breaks out of the light shell's padding (header.php's main body uses px-7 py-6 / max-md:px-4 py-4)
     so this page can render as a self-contained light panel while the sidebar/topbar stay light. -->
@@ -444,9 +401,9 @@ include dirname(__DIR__) . "/includes/header.php";
         </a>
       <?php endif; ?>
       <button type="submit" form="adminForm"
-        class="flex items-center gap-1.5 bg-[#2f6fc4] text-white text-[12.5px] font-bold rounded-lg px-4 py-2 hover:bg-[#3a7cd6] transition-colors shadow-[0_4px_16px_rgba(47,111,196,.25)]">
+        class="btn btn-sm btn-primary shadow-sm">
         <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M18 7.5v6m3-3h-6M6.75 21v-2.25a3.375 3.375 0 013.375-3.375h1.5m6.375-3.375a4.125 4.125 0 11-8.25 0 4.125 4.125 0 018.25 0zM3 21v-2.25a3.375 3.375 0 013.375-3.375h1.5" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
         </svg>
         <?= $isEditPage ? "Update User" : "Create User" ?>
       </button>
@@ -471,10 +428,10 @@ include dirname(__DIR__) . "/includes/header.php";
     <div class="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-5 items-start">
 
       <!-- ══ LEFT COLUMN ══ -->
-      <div class="space-y-5 min-w-0">
+      <div class="space-y-5 min-w-0 ">
 
         <!-- Profile card -->
-        <div class="rounded-2xl border border-base-300 bg-base-100 p-6">
+        <div class="rounded-2xl border border-base-300 bg-base-100 p-6 shadow-md">
           <div class="flex items-center gap-2.5 mb-5">
             <div class="<?= SVG_DIV ?>">
               <svg class="<?= SVG_ICON ?>" fill="none"
@@ -493,7 +450,6 @@ include dirname(__DIR__) . "/includes/header.php";
               <legend class="fieldset-legend text-sm font-medium">
                 Full name <span class="text-error">*</span>
               </legend>
-
               <input
                 type="text"
                 name="name"
@@ -512,23 +468,14 @@ include dirname(__DIR__) . "/includes/header.php";
                 Email <span class="text-error">*</span>
               </legend>
 
-              <input
-                type="email"
-                name="email"
-                class="<?= INPUT_CLASS ?>"
-                placeholder="john@acceloninc.com"
-                value="<?= e($editUser["email"] ?? ($_POST["email"] ?? "")) ?>"
-                required />
+              <input class="<?= INPUT_CLASS ?> . validator" type="email" required placeholder="john@acceloninc.com" value="<?= e($editUser["email"] ?? ($_POST["email"] ?? "")) ?>" />
 
               <p class="label w-full max-w-full whitespace-normal break-words text-xs leading-5 text-base-content/50">
                 Only <strong class="text-slate-700">@acceloninc.com</strong> addresses are allowed.
               </p>
             </fieldset>
           </div>
-        </div>
 
-        <!-- Access card -->
-        <div class="rounded-2xl border border-base-300 bg-base-100 p-4 sm:p-5 lg:p-6">
 
           <!-- Section Header -->
           <div class="mb-4 sm:mb-5 flex items-center gap-2.5">
@@ -781,22 +728,24 @@ include dirname(__DIR__) . "/includes/header.php";
   </form>
 
   <!-- ══ USERS TABLE ══ -->
-  <div class=" border border-slate-200 rounded-2xl overflow-hidden mt-5">
+  <div class=" border border-slate-200 rounded-2xl overflow-hidden mt-5 shadow-md">
     <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-      <span class="font-head text-[15px] font-bold text-slate-900">All Admin Users</span>
-      <span class="text-[12px] text-slate-500"><?= count($admins) ?> total</span>
+      <h2 class="font-head text-[15px] font-bold text-base-content">All Admin Users</h2>
+      <span class="badge badge-ghost badge-sm font-medium">
+        <?= count($admins) ?> total
+      </span>
     </div>
 
     <div class="overflow-x-auto">
-      <table class="w-full text-[13px]">
-        <thead class="bg-slate-100">
+      <table class="<?= TABLE_CLASS ?>">
+        <thead class="<?= TABLE_HEAD_CLASS ?>">
           <tr>
-            <th class="text-left px-6 py-3 text-[11px] font-semibold text-slate-600 uppercase tracking-wide whitespace-nowrap">User</th>
-            <th class="text-left px-6 py-3 text-[11px] font-semibold text-slate-600 uppercase tracking-wide whitespace-nowrap">Email</th>
-            <th class="text-left px-6 py-3 text-[11px] font-semibold text-slate-600 uppercase tracking-wide whitespace-nowrap">Role</th>
-            <th class="text-left px-6 py-3 text-[11px] font-semibold text-slate-600 uppercase tracking-wide whitespace-nowrap">Status</th>
-            <th class="text-left px-6 py-3 text-[11px] font-semibold text-slate-600 uppercase tracking-wide whitespace-nowrap">Last login</th>
-            <th class="text-left px-6 py-3 text-[11px] font-semibold text-slate-600 uppercase tracking-wide whitespace-nowrap">Actions</th>
+            <th class="<?= TABLE_HEAD_ROW_CLASS ?>">User</th>
+            <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Email</th>
+            <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Role</th>
+            <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Status</th>
+            <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Last login</th>
+            <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -873,53 +822,73 @@ include dirname(__DIR__) . "/includes/header.php";
 
                 <td class="px-6 py-3.5 align-middle">
                   <div class="flex items-center gap-1.5 flex-wrap">
+                    <div class="tooltip" data-tip="Edit">
+                      <a href="<?= ADMIN_URL ?>/pages/admins.php?edit=<?= $u["id"] ?>" title="Edit"
+                        class="btn btn-sm btn-square h-8 min-h-8 w-8 rounded-lg btn-outline border-base-300 bg-base-100 text-base-content/60 hover:border-secondary hover:bg-secondary hover:text-secondary-content">
+                        <svg class="h-[15px] w-[15px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                        </svg>
+                      </a>
+                    </div>
 
-                    <a href="<?= ADMIN_URL ?>/pages/admins.php?edit=<?= $u["id"] ?>" title="Edit"
-                      class="flex items-center justify-center w-8 h-8 rounded-lg border border-slate-300 text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors">
-                      <svg class="h-[15px] w-[15px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
-                      </svg>
-                    </a>
-
-                    <button type="button" title="Reset Password"
-                      onclick="openResetModal(<?= $u["id"] ?>, '<?= e(addslashes($u["name"])) ?>')"
-                      class="flex items-center justify-center w-8 h-8 rounded-lg border border-slate-300 text-slate-500 hover:text-[#2f6fc4] hover:bg-blue-50 transition-colors">
-                      <svg class="h-[15px] w-[15px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
-                      </svg>
-                    </button>
+                    <div class="tooltip" data-tip="Rest password">
+                      <button type="button" onclick="openResetModal(<?= $u["id"] ?>, '<?= e(addslashes($u["name"])) ?>')"
+                        class="btn btn-sm btn-square h-8 min-h-8 w-8 rounded-lg btn-outline border-base-300 bg-base-100 text-base-content/60 hover:border-secondary hover:bg-secondary hover:text-secondary-content">
+                        <svg class="h-[15px] w-[15px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
+                        </svg>
+                      </button>
+                    </div>
 
                     <?php if (!$isSelf): ?>
                       <form method="POST" class="inline">
                         <input type="hidden" name="action" value="toggle_active">
                         <input type="hidden" name="user_id" value="<?= $u["id"] ?>">
-                        <button type="submit" title="<?= $u["is_active"]
-                                                        ? "Deactivate"
-                                                        : "Activate" ?>"
-                          onclick="return confirm('<?= $u["is_active"] ? "Deactivate" : "Activate" ?> this user?')"
-                          class="flex items-center justify-center w-8 h-8 rounded-lg border border-slate-300 text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors">
-                          <?php if ($u["is_active"]): ?>
-                            <svg class="h-[15px] w-[15px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                              <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" />
-                            </svg>
-                          <?php else: ?>
-                            <svg class="h-[15px] w-[15px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                              <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z" />
-                            </svg>
-                          <?php endif; ?>
-                        </button>
+                        <div class="tooltip" data-tip="<?= $u["is_active"] ? "Deactivate" : "Activate" ?>">
+                          <button
+                            type="submit"
+                            onclick="openDeleteModal(
+                            <?= (int)$u['id'] ?>,
+                            <?= htmlspecialchars(json_encode($u['name']), ENT_QUOTES, 'UTF-8') ?>
+                          )"
+                            class="btn btn-sm btn-square h-8 min-h-8 w-8 rounded-lg btn-outline border-base-300 bg-base-100 text-base-content/60 hover:border-secondary hover:bg-secondary hover:text-secondary-content">
+                            <?php if ($u["is_active"]): ?>
+                              <svg class="h-[15px] w-[15px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" />
+                              </svg>
+                            <?php else: ?>
+                              <svg class="h-[15px] w-[15px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z" />
+                              </svg>
+                            <?php endif; ?>
+                          </button>
+                        </div>
                       </form>
 
-                      <form method="POST" class="inline"
-                        onsubmit="return confirm('Permanently delete <?= e(addslashes($u["name"])) ?>? This cannot be undone.')">
+                      <form method="POST" class="inline">
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="user_id" value="<?= $u["id"] ?>">
-                        <button type="submit" title="Delete"
-                          class="flex items-center justify-center w-8 h-8 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors">
-                          <svg class="h-[15px] w-[15px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                          </svg>
-                        </button>
+                        <div class="tooltip" data-tip="Delete">
+                          <button type="button"
+                            onclick="openDeleteModal(
+                            <?= (int)$u['id'] ?>,
+                            <?= htmlspecialchars(json_encode($u['name']), ENT_QUOTES, 'UTF-8') ?>
+                          )"
+                            class="btn btn-sm btn-square h-8 min-h-8 w-8 rounded-lg btn-outline btn-error">
+                            <svg
+                              class="h-[15px] w-[15px]"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              stroke-width="1.75"
+                              aria-hidden="true">
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                            </svg>
+                          </button>
+                        </div>
                       </form>
                     <?php else: ?>
                       <span class="text-[11px] text-slate-400 px-1">—</span>
@@ -940,101 +909,267 @@ include dirname(__DIR__) . "/includes/header.php";
 
 <!-- RESET PASSWORD MODAL (light) -->
 <dialog id="resetModal" class="modal">
-  <div class="modal-box bg-surface border border-line rounded-2xl shadow-pop p-7 w-full max-w-[440px] text-ink">
-    <!-- Close button -->
-    <button type="button" onclick="closeResetModal()" aria-label="Close reset password modal"
-      class="absolute top-4 right-4 w-7 h-7 flex items-center justify-center rounded-md border border-line text-muted hover:text-danger hover:border-danger/30 transition-colors">
-      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-      </svg>
-    </button>
-
+  <div class="modal-box w-[calc(100%-2rem)] max-w-lg rounded-box border border-base-300 bg-base-100 p-0 shadow-xl">
     <!-- Header -->
-    <div class="font-head text-[15px] font-bold mb-5 flex items-center gap-2 text-ink">
-      <svg class="h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
-      </svg>
-      Reset Password
+    <div class="flex items-center gap-4 border-b border-base-200 px-5 py-5 sm:px-6">
+      <!-- Icon -->
+      <div class="<?= SVG_DIV ?>">
+        <svg
+          class="<?= SVG_ICON ?>"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="1.75"
+          aria-hidden="true">
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
+        </svg>
+      </div>
+
+      <!-- Title -->
+      <div class="min-w-0 flex-1">
+        <h3 class="text-lg font-semibold leading-6 text-base-content">
+          Reset password of <span
+            id="resetUserName">
+          </span>
+        </h3>
+      </div>
+
+      <!-- Close -->
+      <button
+        type="button"
+        onclick="resetModal.close()"
+        class="btn btn-sm btn-circle btn-ghost size-8 min-h-8 shrink-0 text-base-content/50 hover:bg-base-200 hover:text-base-content"
+        aria-label="Close">
+
+        <svg
+          class="size-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="2"
+          aria-hidden="true">
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
     </div>
 
-    <!-- Description -->
-    <p class="text-[13px] text-ink2 mb-4">
-      Setting new password for:
-      <strong id="resetUserName" class="text-ink"></strong>
-    </p>
+    <!-- Body -->
+    <div class="space-y-5 px-5 py-5 sm:px-6">
+      <!-- Form -->
+      <form method="POST" id="resetForm" class="space-y-4">
 
-    <!-- Form -->
-    <form method="POST" id="resetForm" class="space-y-3.5">
-      <input type="hidden" name="action" value="reset_password">
-      <input type="hidden" name="user_id" id="resetUserId" value="">
+        <input type="hidden" name="action" value="reset_password">
+        <input type="hidden" name="user_id" id="resetUserId" value="">
 
-      <!-- New Password -->
-      <div>
-        <label for="resetPw" class="block text-[12px] text-ink2 mb-1.5">
-          New Password
-          <span class="text-primary">*</span>
-        </label>
-        <input type="password" name="new_password" id="resetPw"
-          class="input w-full h-auto min-h-0 bg-surface border-line rounded-lg px-3.5 py-2.5 text-[13.5px] text-ink placeholder:text-muted outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition"
-          placeholder="Min. 8 characters"
-          required
-          oninput="checkResetStrength(this.value)">
-        <!-- Password strength -->
-        <div class="h-1 rounded-full bg-line overflow-hidden mt-1.5">
+
+        <!-- New Password -->
+        <div>
+          <label
+            for="resetPw"
+            class="mb-1.5 block text-xs font-semibold text-base-content/70">
+            New Password
+            <span class="text-primary">*</span>
+          </label>
+
+          <input
+            type="password"
+            name="new_password"
+            id="resetPw"
+            class="input h-auto min-h-0 w-full rounded-lg border border-base-300 bg-base-100 px-3.5 py-2.5 text-[13.5px] text-base-content outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+            placeholder="Min. 8 characters"
+            required
+            oninput="checkResetStrength(this.value)">
+
+          <!-- Password strength -->
+          <div class="mt-2 h-1 overflow-hidden rounded-full bg-base-300">
+            <div
+              id="resetPwBar"
+              class="h-full w-0 rounded-full bg-primary transition-all">
+            </div>
+          </div>
+
           <div
-            id="resetPwBar"
-            class="h-full w-0 rounded-full transition-all bg-primary"></div>
+            id="resetPwHint"
+            class="mt-1 text-[11px] text-base-content/50">
+          </div>
         </div>
-        <div
-          id="resetPwHint"
-          class="text-[11px] text-muted mt-1"></div>
+
+
+        <!-- Confirm Password -->
+        <div>
+          <label
+            for="resetPwConf"
+            class="mb-1.5 block text-xs font-semibold text-base-content/70">
+            Confirm New Password
+            <span class="text-primary">*</span>
+          </label>
+
+          <input
+            type="password"
+            name="confirm_password"
+            id="resetPwConf"
+            class="input h-auto min-h-0 w-full rounded-lg border border-base-300 bg-base-100 px-3.5 py-2.5 text-[13.5px] text-base-content outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+            placeholder="Re-enter new password"
+            required
+            oninput="checkResetMatch()">
+
+          <div
+            id="resetMatchHint"
+            class="mt-1 text-[11px]">
+          </div>
+        </div>
+
+      </form>
+    </div>
+
+
+    <!-- Actions -->
+    <div
+      class="modal-action m-0 flex flex-col-reverse gap-2 border-t border-base-200 bg-base-200/30 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+
+      <!-- Cancel -->
+      <button
+        type="button"
+        onclick="resetModal.close()"
+        class="btn btn-ghost h-10 min-h-10 w-full rounded-lg px-5 text-sm font-semibold text-base-content/70 hover:bg-base-200 hover:text-base-content sm:w-auto">
+        Cancel
+      </button>
+
+      <!-- Reset -->
+      <button
+        type="submit"
+        form="resetForm"
+        class="btn btn-primary h-10 min-h-10 w-full rounded-lg px-5 text-sm font-semibold sm:w-auto">
+
+        <svg
+          class="size-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="1.75"
+          aria-hidden="true">
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
+        </svg>
+
+        Reset Password
+      </button>
+
+    </div>
+  </div>
+
+
+  <!-- Click outside to close -->
+  <form
+    method="dialog"
+    class="modal-backdrop bg-black/40 backdrop-blur-[2px]">
+    <button type="submit">close</button>
+  </form>
+
+</dialog>
+
+<dialog id="deleteModal" class="modal">
+  <div class="modal-box w-[calc(100%-2rem)] max-w-lg rounded-box border border-base-300 bg-base-100 p-0 shadow-xl">
+    <!-- Close button -->
+    <div class="flex items-center gap-4 border-b border-base-200 px-5 py-5 sm:px-6">
+
+      <div class="flex size-10 shrink-0 items-center justify-center rounded-full bg-error/10 text-error">
+        <svg
+          class="size-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="1.75">
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+        </svg>
       </div>
 
-      <!-- Confirm Password -->
-      <div>
-        <label
-          for="resetPwConf"
-          class="block text-[12px] text-ink2 mb-1.5">
-          Confirm New Password
-          <span class="text-primary">*</span>
-        </label>
-        <input
-          type="password"
-          name="confirm_password"
-          id="resetPwConf"
-          class="<?= INPUT_CLASS ?>"
-          placeholder="Re-enter new password"
-          required
-          oninput="checkResetMatch()">
-        <div
-          id="resetMatchHint"
-          class="text-[11px] mt-1"></div>
+      <div class="min-w-0 flex-1">
+        <h3 class="text-lg font-semibold leading-6 text-base-content">
+          Delete user
+        </h3>
       </div>
 
-      <!-- Actions -->
-      <div class="flex flex-col-reverse sm:flex-row gap-2.5 pt-1">
+      <button
+        type="button"
+        onclick="deleteClientModal.close()"
+        class="btn btn-sm btn-circle btn-ghost size-8 min-h-8 shrink-0 text-base-content/50"
+        aria-label="Close">
+
+        <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+
+      </button>
+    </div>
+
+    <!-- Body -->
+    <div class="space-y-4 px-5 py-5 sm:px-6">
+      The user <span
+        id="deleteUserName"
+        class="mt-1 truncate text-sm font-semibold text-base-content">
+      </span> will be permanently deleted.
+      <!-- <p
+        id="deleteUserName"
+        class="mt-1 truncate text-sm font-semibold text-base-content">
+      </p> -->
+    </div>
+    <!-- Actions -->
+    <div class="modal-action m-0 flex flex-col-reverse gap-2 border-t border-base-200 bg-base-200/30 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+      <!-- <button
+        type="submit"
+        class="flex-1 flex items-center justify-center gap-2 btn btn-primary min-h-0 h-auto rounded-lg font-head text-[13px] font-bold tracking-wide py-2.5 shadow-pop">
+        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
+        </svg>
+        Delete
+      </button> -->
+      <button
+        type="button"
+        onclick="deleteModal.close()"
+        class="btn btn-ghost px-4 py-2.5 min-h-0 h-auto rounded-lg border border-line text-ink2 text-[13px] font-semibold hover:bg-card2 hover:text-ink">
+        Cancel
+      </button>
+
+      <form method="POST" id="confirmDeleteUserForm" class="w-full sm:w-auto">
+        <input type="hidden" name="action" value="delete">
+        <input type="hidden" name="user_id" id="deleteUserId">
         <button
           type="submit"
-          class="flex-1 flex items-center justify-center gap-2 btn btn-primary min-h-0 h-auto rounded-lg font-head text-[13px] font-bold tracking-wide py-2.5 shadow-pop">
-          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
+          class="btn btn-error h-10 min-h-10 w-full rounded-lg px-5 text-sm font-semibold text-error-content sm:w-auto">
+          <svg
+            class="size-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3m-9 0h14" />
           </svg>
-          Reset Password
+
+          Delete permanently
         </button>
-        <button
-          type="button"
-          onclick="closeResetModal()"
-          class="btn btn-ghost px-4 py-2.5 min-h-0 h-auto rounded-lg border border-line text-ink2 text-[13px] font-semibold hover:bg-card2 hover:text-ink">
-          Cancel
-        </button>
-      </div>
-    </form>
+      </form>
+    </div>
   </div>
 
   <!-- Click outside modal to close -->
   <form
     method="dialog"
-    class="modal-backdrop">
+    class="modal-backdrop bg-black/40 backdrop-blur-[2px]">
     <button type="submit">close</button>
   </form>
 </dialog>
@@ -1141,39 +1276,46 @@ include dirname(__DIR__) . "/includes/header.php";
     }
   }
 
-  function openResetModal(id, name) {
-    const resetModal = document.getElementById('resetModal');
-    const resetUserId = document.getElementById('resetUserId');
-    const resetUserName = document.getElementById('resetUserName');
-    const resetPw = document.getElementById('resetPw');
-    const resetPwConf = document.getElementById('resetPwConf');
-    const resetPwBar = document.getElementById('resetPwBar');
-    const resetPwHint = document.getElementById('resetPwHint');
-    const resetMatchHint = document.getElementById('resetMatchHint');
+  // function openResetModal(id, name) {
+  //   const resetModal = document.getElementById('resetModal');
+  //   const resetUserId = document.getElementById('resetUserId');
+  //   const resetUserName = document.getElementById('resetUserName');
+  //   const resetPw = document.getElementById('resetPw');
+  //   const resetPwConf = document.getElementById('resetPwConf');
+  //   const resetPwBar = document.getElementById('resetPwBar');
+  //   const resetPwHint = document.getElementById('resetPwHint');
+  //   const resetMatchHint = document.getElementById('resetMatchHint');
 
-    if (resetModal && resetUserId && resetUserName) {
-      resetUserId.value = id;
-      resetUserName.textContent = name;
+  //   if (resetModal && resetUserId && resetUserName) {
+  //     resetUserId.value = id;
+  //     resetUserName.textContent = name;
 
-      if (resetPw) resetPw.value = '';
-      if (resetPwConf) resetPwConf.value = '';
-      if (resetPwBar) resetPwBar.style.cssText = 'width:0';
-      if (resetPwHint) resetPwHint.textContent = '';
-      if (resetMatchHint) resetMatchHint.textContent = '';
+  //     if (resetPw) resetPw.value = '';
+  //     if (resetPwConf) resetPwConf.value = '';
+  //     if (resetPwBar) resetPwBar.style.cssText = 'width:0';
+  //     if (resetPwHint) resetPwHint.textContent = '';
+  //     if (resetMatchHint) resetMatchHint.textContent = '';
 
-      resetModal.classList.add('open');
+  //     resetModal.classList.add('open');
 
-      if (resetPw) {
-        setTimeout(() => resetPw.focus(), 100);
-      }
-    }
-  }
+  //     if (resetPw) {
+  //       setTimeout(() => resetPw.focus(), 100);
+  //     }
+  //   }
+  // }
 
   function closeResetModal() {
     const modal = document.getElementById('resetModal');
     if (modal) {
       modal.classList.remove('open');
     }
+  }
+
+  function openDeleteModal(clientId, clientName) {
+    document.getElementById('deleteUserId').value = clientId;
+    document.getElementById('deleteUserName').textContent = clientName;
+
+    document.getElementById('deleteModal').showModal();
   }
 
   // Initialize event listeners when DOM is ready

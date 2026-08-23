@@ -27,7 +27,7 @@ $job = $stmt->fetch();
 
 if (!$job) {
   http_response_code(404);
-  echo '<h1>Job not found</h1>';
+  echo require_once __DIR__ . '/404.php';
   exit;
 }
 
@@ -66,7 +66,7 @@ $pdo->prepare("UPDATE jobs SET views = views + 1 WHERE id = ?")->execute([$job['
 $similarStmt = $pdo->prepare("
     SELECT id, job_title, slug, client_code, city, state_province, country, workplace_type, job_type, experience, salary_rate, salary_boe
     FROM jobs
-    WHERE id != ?
+    WHERE id != ? && status = 'published'
       AND (
           country = ?
           OR workplace_type = ?
@@ -81,6 +81,7 @@ $similarStmt->execute([
   $job['workplace_type'],
   $job['job_type'],
 ]);
+
 $similarJobs = $similarStmt->fetchAll();
 
 // Helper: escape
@@ -91,7 +92,7 @@ if (!function_exists('e')) {
   }
 }
 
-// Flag image helper
+// Flag image helper — returns a Tailwind-styled <img>, no bespoke CSS class needed
 function countryFlag(string $country): string
 {
   $map = [
@@ -103,16 +104,21 @@ function countryFlag(string $country): string
   ];
   $file = $map[strtolower(trim($country))] ?? null;
   if ($file) {
-    return '<img src="/flags/' . $file . '" alt="' . htmlspecialchars($country) . '" class="flag-img">';
+    return '<img src="/flags/' . $file . '" alt="' . htmlspecialchars($country, ENT_QUOTES, 'UTF-8') . '" class="inline-block w-5 h-3.5 object-cover rounded-sm align-middle mr-1.5">';
   }
-  return '<span style="font-size:18px">🌐</span>';
+  return '<span class="align-middle mr-1">🌐</span>';
 }
 
-// Workplace badge class
-function wpClass(string $wp): string
+// Workplace type → daisyUI semantic badge color
+function wpBadgeClass(?string $wp): string
 {
-  $w = strtolower($wp);
-  return in_array($w, ['remote', 'hybrid', 'onsite']) ? $w : '';
+  $w = strtolower(trim((string) $wp));
+  return match ($w) {
+    'remote' => 'badge-info',
+    'hybrid' => 'badge-warning',
+    'onsite' => 'badge-success',
+    default  => 'badge-neutral',
+  };
 }
 
 // Format date
@@ -131,295 +137,74 @@ function daysLeft($close)
 }
 
 $days = daysLeft($job['close_date']);
-$wp   = strtolower($job['workplace_type']);
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="accelon">
 
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><?= e($job['job_title']) ?> — <?= e($job['job_code']) ?></title>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <!-- Tailwind CSS + DaisyUI -->
-  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- <script>
-  tailwind.config = {
-    theme: {
-      extend: {
-        colors: {
-          primary: '#1A4C8F',
-          secondary: '#5b6a87',
-          accent: '#1A4C8F',
-          background: '#eef0f5',
-          surface: '#ffffff',
-        }
-      }
-    }
-  }
-</script> -->
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS v4 + daisyUI v5 (accelon theme lives in includes/theme.php) -->
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
+
   <link rel="stylesheet" href="mobified.css">
+  <?php include __DIR__ . "/theme.php"; ?>
 
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap');
-
-    *,
-    *::before,
-    *::after {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    :root {
-      --bg: #f0f2f7;
-      --surface: #ffffff;
-      --text-primary: #0d1117;
-      --text-muted: #4a5568;
-      --accent: #1A4C8F;
-      --accent-light: #e8eef8;
-      --accent-hover: #163d72;
-      --border: #dde3ed;
-      --row-hover: #f4f7fc;
-      --font: 'Sora', "Helvetica Neue", Arial, sans-serif;
-      --radius-card: 18px;
-      --shadow-card: 0 2px 12px rgba(26, 76, 143, .07);
-    }
-
     body {
-      font-family: var(--font);
-      background: var(--bg);
-      color: var(--text-primary);
-      min-height: 100vh;
+      font-family: var(--font-sans, "DM Sans", sans-serif);
     }
 
-    .nav-brand img {
-      max-width: 150px;
-      padding: 22px 20px 18px;
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
+    .font-head {
+      font-family: var(--font-head, "Syne", sans-serif);
     }
 
-    .txt-centre {
-      text-align: center;
+    /* Typography for CMS-authored rich text (job description / requirements / perks) */
+    .rich-content :where(p) {
+      margin-bottom: 1rem;
     }
 
-    .nav {
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      padding: 0 32px;
-      height: 58px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      box-shadow: 0 1px 6px rgba(0, 0, 0, .06);
-    }
-
-    .nav-brand {
-      font-size: 15px;
-      font-weight: 700;
-      color: var(--accent);
-      text-decoration: none;
-      letter-spacing: -0.02em;
-    }
-
-    .nav-sep {
-      color: var(--border);
-      font-size: 18px;
-    }
-
-    .nav-crumb {
-      font-size: 13px;
-      color: var(--text-muted);
-      text-decoration: none;
-      transition: color .15s;
-    }
-
-    .nav-crumb:hover {
-      color: var(--accent);
-    }
-
-    .nav-crumb.active {
-      color: var(--text-primary);
-      font-weight: 600;
-    }
-
-    .nav-actions {
-      margin-left: auto;
-      display: flex;
-      gap: 10px;
-      align-items: center;
-    }
-
-    .page {
-      max-width: 1080px;
-      margin: 0 auto;
-      padding: 40px 28px 90px;
-      display: grid;
-      grid-template-columns: 1fr 308px;
-      gap: 28px;
-      align-items: start;
-    }
-
-    .main-col {
-      min-width: 0;
-    }
-
-    .job-header {
-      padding: 0;
-      margin-bottom: 20px;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .job-header::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 4px;
-      background: linear-gradient(90deg, var(--accent) 0%, #3a7bd5 100%);
-      border-radius: var(--radius-card) var(--radius-card) 0 0;
-    }
-
-    .job-header h1 {
-      font-size: clamp(22px, 3.2vw, 32px);
-      font-weight: 700;
-      line-height: 1.18;
-      letter-spacing: -0.025em;
-      color: var(--text-primary);
-      margin-bottom: 6px;
-    }
-
-    .job-dept-label {
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: .1em;
-      color: var(--accent);
-      text-transform: uppercase;
-      margin-bottom: 10px;
-    }
-
-    .meta-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 18px;
-    }
-
-    .meta-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12.5px;
-      font-weight: 500;
-      color: var(--text-primary);
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 6px 13px;
-      white-space: nowrap;
-    }
-
-    .meta-chip svg {
-      width: 13px;
-      height: 13px;
-      flex-shrink: 0;
-    }
-
-    .meta-chip .flag-img {
-      width: 20px;
-      height: 14px;
-      object-fit: cover;
-      border-radius: 2px;
-      flex-shrink: 0;
-    }
-
-    .type-badge {
-      display: inline-block;
-      font-size: 12px;
-      font-weight: 600;
-      padding: 5px 12px;
-      border-radius: 20px;
-      background: var(--accent-light);
-      color: var(--accent);
-    }
-
-    .workplace-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      font-weight: 600;
-      padding: 4px 11px;
-      border-radius: 20px;
-      color: #1a8a5a;
-      background: #e6f7f1;
-    }
-
-    .workplace-badge.remote {
-      color: #1a5fa8;
-      background: #e6f0fb;
-    }
-
-    .workplace-badge.hybrid {
-      color: #7a4f00;
-      background: #fdf3dc;
-    }
-
-    .workplace-badge.onsite {
-      color: #1a8a5a;
-      background: #e6f7f1;
-    }
-
-    .content-section {
-      margin-bottom: 20px;
-    }
-
-    .section-title {
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: .10em;
-      color: var(--accent);
-      text-transform: uppercase;
-      margin-bottom: 18px;
-      padding-bottom: 12px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .rich-content {
-      font-size: 14.5px;
-      line-height: 1.78;
-      color: var(--text-primary);
-    }
-
-    .rich-content p {
-      margin-bottom: 14px;
-    }
-
-    .rich-content p:last-child {
+    .rich-content :where(p:last-child) {
       margin-bottom: 0;
     }
 
-    .rich-content ul,
-    .rich-content ol {
-      padding-left: 22px;
-      margin-bottom: 14px;
+    .rich-content :where(ul) {
+      list-style: disc;
+      padding-left: 1.25rem;
+      margin: .3rem 0 1.1rem;
     }
 
-    .rich-content li {
-      margin-bottom: 7px;
-      line-height: 1.65;
+    .rich-content :where(ol) {
+      list-style: decimal;
+      padding-left: 1.25rem;
+      margin: .3rem 0 1.1rem;
     }
 
-    .rich-content strong {
-      font-weight: 600;
+    .rich-content :where(ul, ol) :where(ul, ol) {
+      margin: .3rem 0 .3rem;
+    }
+
+    .rich-content :where(li) {
+      display: list-item;
+      margin-bottom: .5rem;
+      line-height: 1.7;
+      padding-left: .15rem;
+    }
+
+    .rich-content :where(li)::marker {
+      color: var(--color-primary);
+    }
+
+    .rich-content :where(strong) {
+      font-weight: 700;
+      color: var(--color-ink);
     }
 
     .rich-content li[class*="MsoList"] {
@@ -432,577 +217,504 @@ $wp   = strtolower($job['workplace_type']);
     .rich-content span[style*="mso-"] {
       display: none;
     }
-
-    .skills-grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 4px;
-    }
-
-    .skill-tag {
-      display: inline-block;
-      font-size: 12.5px;
-      font-weight: 500;
-      padding: 5px 13px;
-      border-radius: 20px;
-      background: var(--accent-light);
-      color: var(--accent);
-      border: 1px solid #c8d9f0;
-    }
-
-    .sidebar {
-      position: sticky;
-      top: 74px;
-    }
-
-    .sidebar-card {
-      margin-bottom: 16px;
-    }
-
-    /* Tailwind + DaisyUI overrides */
-    .card {
-      border-radius: var(--radius-card);
-      border: 1px solid var(--border);
-      box-shadow: var(--shadow-card);
-    }
-
-    .card-content {
-      padding: 32px 36px;
-    }
-
-    .apply-btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      width: 100%;
-      background: var(--accent);
-      color: #fff;
-      font-family: var(--font);
-      font-size: 14.5px;
-      font-weight: 700;
-      padding: 15px 24px;
-      border-radius: 10px;
-      border: none;
-      cursor: pointer;
-      text-decoration: none;
-      transition: background 0.2s, transform 0.1s;
-      margin-bottom: 12px;
-      letter-spacing: .01em;
-    }
-
-    .apply-btn:hover {
-      background: var(--accent-hover);
-    }
-
-    .apply-btn:active {
-      transform: scale(0.98);
-    }
-
-    .apply-btn svg {
-      width: 16px;
-      height: 16px;
-      flex-shrink: 0;
-    }
-
-    /* DaisyUI button overrides */
-    .btn {
-      border-radius: 10px;
-      font-weight: 700;
-      letter-spacing: .01em;
-    }
-
-    .deadline-note {
-      text-align: center;
-      font-size: 12px;
-      color: var(--text-muted);
-      margin-bottom: 0;
-      padding-top: 5%;
-    }
-
-    .deadline-note strong {
-      color: #c0392b;
-    }
-
-    .sidebar-divider {
-      border: none;
-      border-top: 1px solid var(--border);
-      margin: 18px 0;
-    }
-
-    .detail-row {
-      display: flex;
-      align-items: flex-start;
-      gap: 12px;
-      padding: 10px 0;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .detail-row:last-child {
-      border-bottom: none;
-    }
-
-    .detail-icon {
-      width: 30px;
-      height: 30px;
-      border-radius: 8px;
-      background: var(--accent-light);
-      border: 1px solid #c8d9f0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
-
-    .detail-icon svg {
-      width: 13px;
-      height: 13px;
-      color: var(--accent);
-    }
-
-    .detail-info {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .detail-label {
-      font-size: 10.5px;
-      font-weight: 700;
-      letter-spacing: .07em;
-      color: var(--text-muted);
-      margin-bottom: 2px;
-    }
-
-    .detail-value {
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--text-primary);
-      line-height: 1.4;
-    }
-
-    .detail-value .flag-img {
-      width: 18px;
-      height: 12px;
-      object-fit: cover;
-      border-radius: 2px;
-      vertical-align: middle;
-      margin-right: 5px;
-    }
-
-    .days-pill {
-      display: inline-block;
-      font-size: 11px;
-      font-weight: 700;
-      padding: 2px 8px;
-      border-radius: 12px;
-      background: #fdf3dc;
-      color: #7a4f00;
-      margin-left: 6px;
-      vertical-align: middle;
-    }
-
-    .days-pill.urgent {
-      background: #fee2e2;
-      color: #b91c1c;
-    }
-
-    .back-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 13.5px;
-      font-weight: 500;
-      color: var(--text-muted);
-      text-decoration: none;
-      margin-bottom: 24px;
-      transition: color 0.2s;
-    }
-
-    .back-link:hover {
-      color: var(--accent);
-    }
-
-    .back-link svg {
-      width: 16px;
-      height: 16px;
-    }
-
-    .salary-highlight {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      background: linear-gradient(135deg, var(--accent-light) 0%, #edfaf4 100%);
-      border: 1px solid #c8d9f0;
-      border-radius: 12px;
-      padding: 15px 18px;
-      margin-bottom: 20px;
-    }
-
-    .salary-highlight svg {
-      width: 18px;
-      height: 18px;
-      color: var(--accent);
-      flex-shrink: 0;
-    }
-
-    .salary-label {
-      font-size: 10.5px;
-      font-weight: 700;
-      letter-spacing: .07em;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      margin-bottom: 2px;
-    }
-
-    .salary-value {
-      font-size: 16px;
-      font-weight: 700;
-      color: var(--text-primary);
-    }
-
-    .similar-jobs-header {
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: .10em;
-      color: var(--accent);
-      text-transform: uppercase;
-      margin-bottom: 14px;
-      padding-bottom: 10px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .similar-job-item {
-      display: block;
-      text-decoration: none;
-      padding: 12px 0;
-      border-bottom: 1px solid var(--border);
-      transition: background .15s;
-    }
-
-    .similar-job-item:last-child {
-      border-bottom: none;
-      padding-bottom: 0;
-    }
-
-    .similar-job-item:hover .sjob-title {
-      color: var(--accent);
-    }
-
-    .sjob-title {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-primary);
-      line-height: 1.35;
-      margin-bottom: 5px;
-      transition: color .15s;
-    }
-
-    .sjob-meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 5px;
-    }
-
-    .sjob-chip {
-      font-size: 8px;
-      font-weight: 500;
-      padding: 2px 8px;
-      border-radius: 12px;
-      background: var(--bg);
-      color: var(--text-muted);
-      border: 1px solid var(--border);
-      white-space: nowrap;
-    }
-
-    .sjob-chip.wp-remote {
-      color: #1a5fa8;
-      background: #e6f0fb;
-      border-color: #c8d9f0;
-    }
-
-    .sjob-chip.wp-hybrid {
-      color: #7a4f00;
-      background: #fdf3dc;
-      border-color: #f0d9a0;
-    }
-
-    .sjob-chip.wp-onsite {
-      color: #1a8a5a;
-      background: #e6f7f1;
-      border-color: #a8dfc8;
-    }
-
-    .sjob-arrow {
-      font-size: 12px;
-      color: var(--accent);
-      margin-left: auto;
-      flex-shrink: 0;
-      align-self: center;
-      opacity: 0.6;
-    }
-
-    .no-similar {
-      font-size: 13px;
-      color: var(--text-muted);
-      text-align: center;
-      padding: 10px 0;
-    }
-
-    @media (max-width: 820px) {
-      .hidden-xs {
-        display: none;
-      }
-
-      .page {
-        grid-template-columns: 1fr;
-      }
-
-      .sidebar {
-        position: static;
-      }
-
-      .job-header,
-      .content-section {
-        padding: 24px 20px;
-      }
-
-      .job-header {
-        padding-left: 24px;
-        padding-right: 24px;
-      }
-    }
   </style>
 </head>
 
-<body>
+<body class="bg-bg text-base-content min-h-screen">
 
-  <nav class="nav">
-    <a href="https://accelonconsulting.com" class="nav-brand"><img src="https://www.accelonconsulting.com/wp-content/uploads/2025/07/Accelon-logo.webp"></a>
-    <span class="nav-sep">/</span>
-    <a href="https://accelonconsulting.com/careers" class="nav-crumb">All Jobs</a>
-    <span class="nav-sep">/</span>
-    <span class="nav-crumb active"><?= e($job['job_title']) ?></span>
-    <div class="nav-actions">
-      <a href="https://accelonconsulting.com/careers" style="font-size:13px;color:#000;text-decoration:none;font-weight:500;">← View all roles</a>
+  <div class="navbar bg-base-100 border-b border-base-300 sticky top-0 z-50 px-4 lg:px-8 print:hidden">
+    <div class="navbar-start gap-3">
+      <a href="https://accelonconsulting.com">
+        <img src="https://www.accelonconsulting.com/wp-content/uploads/2025/07/Accelon-logo.webp" class="h-7 w-auto" alt="Accelon Consulting">
+      </a>
+      <div class="breadcrumbs hidden md:block text-sm">
+        <ul>
+          <li><a href="https://accelonconsulting.com/careers" class="text-ink2 hover:text-primary">All Jobs</a></li>
+          <li><span class="text-ink font-semibold"><?= e($job['job_title']) ?></span></li>
+        </ul>
+      </div>
     </div>
-  </nav>
+    <div class="navbar-end">
+      <a href="https://accelonconsulting.com/careers" class="btn btn-ghost btn-sm text-ink2">← View all roles</a>
+    </div>
+  </div>
 
-  <div class="page">
+  <!-- Main content -->
+  <div class="max-w-6xl mx-auto px-4 lg:px-8 py-8 lg:py-10 grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
-    <div class="main-col">
+    <div class="lg:col-span-2 min-w-0 flex flex-col gap-5">
 
-      <div class="card job-header">
-        <div class="card-content">
+      <div class="card bg-surface border border-line shadow-[var(--shadow-card)] overflow-hidden">
+        <div class="h-1 bg-gradient-to-r from-primary to-secondary"></div>
+        <div class="card-body p-6 md:p-9">
+
           <?php if ($job['industry'] || $job['job_type']): ?>
-            <div class="job-dept-label">
+            <div class="font-head text-[11px] font-bold tracking-[.1em] text-primary uppercase mb-2">
               <?= e($job['industry'] ?: '') ?><?= $job['industry'] && $job['job_type'] ? ' · ' : '' ?><?= e($job['job_type'] ?: '') ?>
             </div>
           <?php endif; ?>
 
-          <h1><?= e($job['job_title']) ?></h1>
+          <h1 class="font-head text-2xl md:text-[32px] font-bold leading-tight tracking-tight text-ink">
+            <?= e($job['job_title']) ?>
+          </h1>
 
-          <div class="meta-row">
+          <div class="flex flex-wrap gap-2 mt-4">
 
             <?php if ($job['country']): ?>
-              <div class="meta-chip" style="background:#245699;color:#fff;">
-                <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <span class="badge badge-lg bg-primary border-primary/15 text-[#fff] gap-1.5 font-medium">
+                <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.5" />
                   <path d="M2 10h16M10 2c-2 2-3 5-3 8s1 6 3 8M10 2c2 2 3 5 3 8s-1 6-3 8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" />
                 </svg>
                 <?= e($job['city']) ?><?= $job['city'] && $job['state_province'] ? ', ' : '' ?><?= e($job['state_province']) ?><?php if ($job['state_province'] != '') { ?>,<?php } ?> <?= e($job['country']) ?>
-              </div>
+              </span>
             <?php endif; ?>
 
-            <div class="meta-chip" style="background:#245699;color:#fff;">
-              <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <span class="badge badge-lg bg-primary  <?= wpBadgeClass($job['workplace_type']) ?> gap-1.5 font-medium capitalize">
+              <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M10 2C6.686 2 4 4.686 4 8c0 4.418 6 10 6 10s6-5.582 6-10c0-3.314-2.686-6-6-6z" stroke="currentColor" stroke-width="1.5" />
                 <circle cx="10" cy="8" r="2" stroke="currentColor" stroke-width="1.4" />
               </svg>
-              <span><?= e($job['workplace_type']) ?></span>
-            </div>
+              <?= e($job['workplace_type']) ?>
+            </span>
 
             <?php if ($job['client_code']): ?>
-              <div class="meta-chip" style="background:#245699;color:#fff;">
-                Job Code: <?= htmlspecialchars(explode('-', $job['client_code'])[1] ?? '', ENT_QUOTES, 'UTF-8') ?>
-              </div>
+              <span class="badge badge-lg badge-ghost text-ink2 font-medium">
+                <svg
+                  class="size-4 shrink-0 text-primary"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="1.7">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M8 6h8M8 10h8M8 14h5M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
+                </svg>
+
+                <span class="text-xs text-base-content/50">
+                  Job Code:
+                </span><span class="text-ink font-semibold"><?= e(explode('-', $job['client_code'])[1] ?? '') ?></span>
+              </span>
             <?php endif; ?>
 
           </div>
         </div>
       </div>
 
+
+      <section class="rounded-2xl border border-base-300 bg-base-100">
+        <div class="grid grid-cols-2 divide-x divide-y divide-[#dbe3ef] sm:grid-cols-4 sm:divide-y-0">
+          <?php if ($job['experience']): ?>
+            <div class="px-4 py-4 sm:px-5">
+              <div class="flex text-[10px] font-bold uppercase tracking-wider text-base-content/40">
+                <svg class="me-2 w-3.5 h-3.5" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="3" y="6.5" width="14" height="9" rx="1.5" stroke="currentColor" stroke-width="1.4" />
+                  <path d="M7 6.5V5a2 2 0 012-2h2a2 2 0 012 2v1.5M3 10.5h14" stroke="currentColor" stroke-width="1.4" />
+                </svg>
+                Experience
+              </div>
+              <div class="mt-1.5 text-sm font-semibold">
+                <?= e($job['experience']) ?>
+              </div>
+            </div>
+          <?php endif; ?>
+
+          <?php if ($job['salary_rate'] || !empty($job['salary_boe'])): ?>
+            <div class="px-4 py-4 sm:px-5">
+              <div class=" flex text-[10px] font-bold uppercase tracking-wider text-base-content/40">
+                <svg
+                  class="me-2 h-3.5 w-3.5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg">
+                  <path
+                    d="M12 2v20M17 6.5C17 4.8 14.8 3.5 12 3.5S7 4.8 7 6.5 9.2 9.5 12 9.5s5 1.3 5 3-2.2 3-5 3-5-1.3-5-3"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round" />
+                </svg>
+                Salary
+              </div>
+              <div class="mt-1.5 text-sm font-semibold">
+                <?= !empty($job['salary_boe'])
+                  ? 'Based on Experience'
+                  : e($job['salary_rate']) ?>
+              </div>
+            </div>
+          <?php endif; ?>
+
+          <?php if ($job['job_type']): ?>
+            <div class="px-4 py-4 sm:px-5">
+              <div class="flex text-[10px] font-bold uppercase tracking-wider text-base-content/40">
+                <svg class="me-2 w-3.5 h-3.5" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="3" y="4" width="14" height="13" rx="1.5" stroke="currentColor" stroke-width="1.4" />
+                  <path d="M3 8h14M7 2.5v3M13 2.5v3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+                </svg>
+                Job Type
+              </div>
+              <div class="mt-1.5 text-sm font-semibold">
+                <?= e($job['job_type']) ?>
+              </div>
+            </div>
+          <?php endif; ?>
+
+          <?php if ($job['timezone']): ?>
+            <div class="px-4 py-4 sm:px-5">
+              <div class="flex text-[10px] font-bold uppercase tracking-wider text-base-content/40">
+                <svg class="me-2 w-3.5 h-3.5" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="10" cy="10" r="7.25" stroke="currentColor" stroke-width="1.4" />
+                  <path d="M10 5.5V10l3 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+                </svg>
+                Timezone
+              </div>
+              <div class="mt-1.5 text-sm font-semibold">
+                <?= e($job['timezone']) ?>
+              </div>
+            </div>
+          <?php endif; ?>
+        </div>
+      </section>
+
+      <!-- Job Description -->
       <?php if ($job['job_description']): ?>
-        <div class="card content-section">
-          <div class="card-content">
-            <div class="section-title">Job Description</div>
-            <div class="rich-content">
-              <?= $job['job_description'] ?>
+        <div class="card bg-surface border border-line shadow-[var(--shadow-card)]">
+          <div class="card-body p-6 md:p-9">
+            <div class="flex items-center gap-2 pb-3 mb-4 border-b border-line">
+              <span class="w-1 h-3.5 rounded-full bg-primary"></span>
+              <span class="font-head text-[11px] font-bold tracking-[.1em] text-primary uppercase">Job Description</span>
             </div>
+            <div class="rich-content text-[14.5px] leading-[1.78] text-ink"><?= $job['job_description'] ?></div>
           </div>
         </div>
       <?php endif; ?>
 
+      <!-- Requirements -->
       <?php if ($job['key_skills']): ?>
-        <div class="card content-section">
-          <div class="card-content">
-            <div class="section-title">Requirements</div>
-            <div class="rich-content">
-              <?= $job['key_skills'] ?>
+        <div class="card bg-surface border border-line shadow-[var(--shadow-card)]">
+          <div class="card-body p-6 md:p-9">
+            <div class="flex items-center gap-2 pb-3 mb-4 border-b border-line">
+              <span class="w-1 h-3.5 rounded-full bg-primary"></span>
+              <span class="font-head text-[11px] font-bold tracking-[.1em] text-primary uppercase">Requirements</span>
             </div>
+            <div class="rich-content text-[14.5px] leading-[1.78] text-ink"><?= $job['key_skills'] ?></div>
           </div>
         </div>
       <?php endif; ?>
 
+      <!-- Why Join Us -->
       <?php if ($job['our_terms']): ?>
-        <div class="card content-section">
-          <div class="card-content">
-            <div class="section-title">Why Join Us</div>
-            <div class="rich-content">
-              <?= $job['our_terms'] ?>
+        <div class="card bg-surface border border-line shadow-[var(--shadow-card)]">
+          <div class="card-body p-6 md:p-9">
+            <div class="flex items-center gap-2 pb-3 mb-4 border-b border-line">
+              <span class="w-1 h-3.5 rounded-full bg-primary"></span>
+              <span class="font-head text-[11px] font-bold tracking-[.1em] text-primary uppercase">Why Join Us</span>
             </div>
+            <div class="rich-content text-[14.5px] leading-[1.78] text-ink"><?= $job['our_terms'] ?></div>
           </div>
         </div>
       <?php endif; ?>
 
-      <div class="card content-section hidden-xs" style="text-align:center; padding: 36px;">
-        <p style="font-size:18px;font-weight:700;margin-bottom:8px;color:var(--text-primary);">We look forward to hearing from you</p>
-        <p style="font-size:14px;color:#000;margin-bottom:24px;">If this role excites you, we're ready to review your application.</p>
-
-        <div class="txt-centre">
-          <?php if ($job['country'] == 'India') { ?>
-            <div data-fillout-id="1sLDbgFUV2us" data-fillout-embed-type="popup" data-fillout-button-text="Apply Now !" data-fillout-dynamic-resize data-fillout-button-color="#1A4C8F" data-fillout-inherit-parameters data-fillout-popup-size="medium"></div>
-            <script src="https://server.fillout.com/embed/v1/"></script>
-          <?php } else { ?>
-            <div
-              data-fillout-id="tJm6TzPEVeus"
-              data-fillout-embed-type="popup"
-              data-fillout-button-text="Apply Now !"
-              data-fillout-dynamic-resize
-              data-fillout-button-color="#1A4C8F"
-              data-fillout-inherit-parameters
-              data-fillout-popup-size="medium">
-            </div>
-            <script src="https://server.fillout.com/embed/v1/"></script>
-          <?php } ?>
+      <!-- Apply Body -->
+      <section class="hidden rounded-2xl border border-base-300 bg-base-100 px-6 py-10 text-center lg:block">
+        <div class="mx-auto max-w-lg">
+          <div class="mx-auto flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <svg
+              class="size-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="1.8">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M12 21a9 9 0 100-18 9 9 0 000 18zm0 0c2.2-2.4 3.5-5.5 3.5-9S14.2 5.4 12 3m0 18c-2.2-2.4-3.5-5.5-3.5-9S9.8 5.4 12 3M3 12h18" />
+            </svg>
+          </div>
+          <h2 class="mt-3 text-lg font-bold">
+            We look forward to hearing from you
+          </h2>
+          <p class="mt-1 text-sm text-base-content/55">
+            If this role excites you, we're ready to review your application.
+          </p>
         </div>
-      </div>
+      </section>
 
-    </div>
-
-    <aside class="sidebar">
-
-      <div class="card sidebar-card">
-        <div class="card-content">
-          <div class="txt-centre">
-            <?php if ($job['country'] == 'India') { ?>
-              <div data-fillout-id="1sLDbgFUV2us" data-fillout-embed-type="popup" data-fillout-button-text="Apply Now !" data-fillout-dynamic-resize data-fillout-button-color="#1A4C8F" data-fillout-inherit-parameters data-fillout-popup-size="medium"></div>
-              <script src="https://server.fillout.com/embed/v1/"></script>
-            <?php } else { ?>
+      <!-- Mobile section -->
+      <section class="rounded-2xl bg-primary p-6 text-primary-content shadow-lg lg:hidden">
+        <div class="text-center">
+          <div class="mx-auto flex size-11 items-center justify-center rounded-xl bg-white/10">
+            <svg
+              class="size-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="1.8">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2zm4 4h6m-6 4h6m-6 4h3" />
+            </svg>
+          </div>
+          <h2 class="mt-4 text-lg font-bold">
+            Ready to apply?
+          </h2>
+          <p class="mx-auto mt-1 max-w-sm text-sm text-primary-content/70">
+            Submit your application and take the next step in your career.
+          </p>
+          <div class="mt-5">
+            <?php if ($job['country'] == 'India'): ?>
               <div
-                data-fillout-id="tJm6TzPEVeus"
+                data-fillout-id="1sLDbgFUV2us"
                 data-fillout-embed-type="popup"
-                data-fillout-button-text="Apply Now !"
+                data-fillout-button-text="Apply Now"
                 data-fillout-dynamic-resize
                 data-fillout-button-color="#1A4C8F"
                 data-fillout-inherit-parameters
                 data-fillout-popup-size="medium">
               </div>
               <script src="https://server.fillout.com/embed/v1/"></script>
-            <?php } ?>
-            <?php if ($days !== null): ?>
-              <p class="deadline-note">
-                Closes <?= fmtDate($job['close_date']) ?>
-                <?php if ($days <= 5): ?>
-                  — <strong><?= $days ?> day<?= $days != 1 ? 's' : '' ?> left!</strong>
-                <?php else: ?>
-                  &nbsp;(<?= $days ?> days left)
-                <?php endif; ?>
+            <?php else: ?>
+              <div
+                data-fillout-id="tJm6TzPEVeus"
+                data-fillout-embed-type="popup"
+                data-fillout-button-text="Apply Now"
+                data-fillout-dynamic-resize
+                data-fillout-button-color="#1A4C8F"
+                data-fillout-inherit-parameters
+                data-fillout-popup-size="medium">
+              </div>
+              <script src="https://server.fillout.com/embed/v1/"></script>
+            <?php endif; ?>
+          </div>
+        </div>
+      </section>
+
+
+    </div>
+
+    <aside class="lg:sticky lg:top-20 flex flex-col gap-4">
+      <div class="card border border-primary/20 bg-base-100 shadow-md overflow-hidden">
+        <!-- Apply Header -->
+        <div class="bg-primary px-5 py-5 text-primary-content sm:px-6">
+          <div class="flex items-center gap-3">
+            <div class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white/15">
+              <svg
+                class="size-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="1.8">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2zm4 4h6m-6 4h6m-6 4h3" />
+              </svg>
+            </div>
+            <div>
+              <h2 class="font-bold text-base">
+                Ready to apply?
+              </h2>
+              <p class="mt-0.5 text-xs text-primary-content/70">
+                Take the next step in your career.
               </p>
-            <?php endif; ?>
+            </div>
           </div>
         </div>
-
-        <div class="card sidebar-card" style="margin-top:5%;">
-          <div class="card-content">
-
-            <?php if ($job['experience']): ?>
-              <div class="detail-row">
-                <div class="detail-info">
-                  <div class="detail-label">Work Experience</div>
-                  <div class="detail-value"><?= e($job['experience']) ?></div>
-                </div>
+        <!-- Apply Body -->
+        <div class="p-5 sm:p-6 flex flex-col items-center">
+          <p class="mb-5 text-center text-sm leading-6 text-base-content/60">
+            Submit your application and our recruitment team will review your profile.
+          </p>
+          <div class="apply-area">
+            <?php if ($job['country'] == 'India'): ?>
+              <div
+                data-fillout-id="1sLDbgFUV2us"
+                data-fillout-embed-type="popup"
+                data-fillout-button-text="Apply Now"
+                data-fillout-dynamic-resize
+                data-fillout-button-color="#1A4C8F"
+                data-fillout-inherit-parameters
+                data-fillout-popup-size="medium">
               </div>
+              <script src="https://server.fillout.com/embed/v1/"></script>
+            <?php else: ?>
+              <div
+                data-fillout-id="tJm6TzPEVeus"
+                data-fillout-embed-type="popup"
+                data-fillout-button-text="Apply Now"
+                data-fillout-dynamic-resize
+                data-fillout-button-color="#1A4C8F"
+                data-fillout-inherit-parameters
+                data-fillout-popup-size="medium">
+              </div>
+              <script src="https://server.fillout.com/embed/v1/"></script>
             <?php endif; ?>
-
-            <?php if ($job['salary_rate'] || !empty($job['salary_boe'])): ?>
-              <div class="detail-row">
-                <div class="detail-info">
-                  <div class="detail-label">Salary / Rate</div>
-                  <div class="detail-value"><?= !empty($job['salary_boe']) ? 'DOE' : e($job['salary_rate']) ?></div>
-                </div>
-              </div>
-            <?php endif; ?>
-
-            <div class="detail-row">
-              <div class="detail-info">
-                <div class="detail-label">Location</div>
-                <div class="detail-value">
-                  <?= countryFlag($job['country']) ?>
-                  <?= e($job['city']) ?><?= $job['city'] && $job['state_province'] ? ', ' : '' ?><?= e($job['state_province']) ?> <?php if ($job['state_province'] != '') { ?>, <?php } ?> <span style="font-size:12px;color:#000"><?= e($job['country']) ?></span>
-                </div>
-              </div>
-            </div>
-
-            <div class="detail-row">
-              <div class="detail-info">
-                <div class="detail-label">Job Type</div>
-                <div class="detail-value"><?= e($job['job_type']) ?></div>
-              </div>
-            </div>
-
-            <?php if ($job['timezone']): ?>
-              <div class="detail-row">
-                <div class="detail-info">
-                  <div class="detail-label">Timezone</div>
-                  <div class="detail-value"><?= e($job['timezone']) ?></div>
-                </div>
-              </div>
-            <?php endif; ?>
-
           </div>
+          <?php if ($days !== null): ?>
+            <div class="mt-5 flex items-center justify-center gap-2 border-t border-base-200 pt-4 text-xs">
+              <svg
+                class="size-4 text-base-content/40"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="1.8">
+                <circle cx="12" cy="12" r="9" />
+                <path
+                  stroke-linecap="round"
+                  d="M12 7v5l3 2" />
+              </svg>
+              <span class="text-base-content/55">
+                Applications close <?= fmtDate($job['close_date']) ?>
+              </span>
+              <?php if ($days <= 5): ?>
+                <span class="badge badge-error badge-sm">
+                  <?= $days ?> day<?= $days != 1 ? 's' : '' ?> left
+                </span>
+              <?php else: ?>
+                <span class="badge badge-ghost badge-sm">
+                  <?= $days ?> days left
+                </span>
+              <?php endif; ?>
+            </div>
+          <?php endif; ?>
         </div>
+      </div>
 
-        <div class="card sidebar-card" style="background:#245699;">
-          <div class="card-content">
-            <div class="action-btns" style="text-align:center;">
+      <!-- <div class="card bg-surface border border-line shadow-[var(--shadow-card)]">
+        <div class="card-body p-5 divide-y divide-line">
 
-              <button class="meta-chip" onclick="navigator.clipboard.writeText(window.location.href).then(()=>this.textContent='Copied!')"
-                style="min-width:120px;max-width:120px;font-family:sora;"
-                onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
-                onmouseout="this.style.borderColor='var(--border)';this.style.color='#000'">
-                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <rect x="7" y="7" width="10" height="10" rx="2" stroke="currentColor" stroke-width="1.5" />
-                  <path d="M13 7V5a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+          <?php if ($job['experience']): ?>
+            <div class="py-3 first:pt-0 last:pb-0 flex items-center gap-3">
+              <span class="w-8 h-8 shrink-0 rounded-lg bg-primary/8 text-primary flex items-center justify-center">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="3" y="6.5" width="14" height="9" rx="1.5" stroke="currentColor" stroke-width="1.4" />
+                  <path d="M7 6.5V5a2 2 0 012-2h2a2 2 0 012 2v1.5M3 10.5h14" stroke="currentColor" stroke-width="1.4" />
                 </svg>
-                Share Link
-              </button>
+              </span>
+              <div class="min-w-0">
+                <div class="text-[10.5px] font-bold tracking-[.07em] text-muted uppercase mb-0.5">Work Experience</div>
+                <div class="text-[13px] font-semibold text-ink"><?= e($job['experience']) ?></div>
+              </div>
+            </div>
+          <?php endif; ?>
 
-              <button class="meta-chip" onclick="window.print()"
-                style="margin-top:5%;min-width:120px;max-width:120px;font-family:sora;"
-                onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
-                onmouseout="this.style.borderColor='var(--border)';this.style.color='#000'">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M6 9V4H18V9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
-                  <rect x="6" y="14" width="12" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5" />
-                  <path d="M6 17H4V11C4 9.89543 4.89543 9 6 9H18C19.1046 9 20 9.89543 20 11V17H18" stroke="currentColor" stroke-width="1.5" />
+          <?php if ($job['salary_rate'] || !empty($job['salary_boe'])): ?>
+            <div class="py-3 first:pt-0 last:pb-0 flex items-center gap-3">
+              <span class="w-8 h-8 shrink-0 rounded-lg bg-primary/8 text-primary flex items-center justify-center">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M10 2.5v15M13.5 5.5c0-1.1-1.57-2-3.5-2s-3.5.9-3.5 2 1.57 1.5 3.5 1.5 3.5 .5 3.5 2-1.57 2-3.5 2-3.5-.9-3.5-2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
                 </svg>
-                Save as PDF
-              </button>
-
+              </span>
+              <div class="min-w-0">
+                <div class="text-[10.5px] font-bold tracking-[.07em] text-muted uppercase mb-0.5">Salary / Rate</div>
+                <div class="text-[13px] font-semibold text-ink"><?= !empty($job['salary_boe']) ? 'DOE' : e($job['salary_rate']) ?></div>
+              </div>
+            </div>
+          <?php endif; ?>
+          
+          <div class="py-3 first:pt-0 last:pb-0 flex items-center gap-3">
+            <span class="w-8 h-8 shrink-0 rounded-lg bg-primary/8 text-primary flex items-center justify-center">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M10 2C6.686 2 4 4.686 4 8c0 4.418 6 10 6 10s6-5.582 6-10c0-3.314-2.686-6-6-6z" stroke="currentColor" stroke-width="1.4" />
+                <circle cx="10" cy="8" r="2" stroke="currentColor" stroke-width="1.3" />
+              </svg>
+            </span>
+            <div class="min-w-0">
+              <div class="text-[10.5px] font-bold tracking-[.07em] text-muted uppercase mb-0.5">Location</div>
+              <div class="text-[13px] font-semibold text-ink">
+                <?= countryFlag($job['country']) ?><?= e($job['city']) ?><?= $job['city'] && $job['state_province'] ? ', ' : '' ?><?= e($job['state_province']) ?><?php if ($job['state_province'] != '') { ?>, <?php } ?><span class="text-muted font-medium"><?= e($job['country']) ?></span>
+              </div>
             </div>
           </div>
+
+          <div class="py-3 first:pt-0 last:pb-0 flex items-center gap-3">
+            <span class="w-8 h-8 shrink-0 rounded-lg bg-primary/8 text-primary flex items-center justify-center">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="3" y="4" width="14" height="13" rx="1.5" stroke="currentColor" stroke-width="1.4" />
+                <path d="M3 8h14M7 2.5v3M13 2.5v3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+              </svg>
+            </span>
+            <div class="min-w-0">
+              <div class="text-[10.5px] font-bold tracking-[.07em] text-muted uppercase mb-0.5">Job Type</div>
+              <div class="text-[13px] font-semibold text-ink"><?= e($job['job_type']) ?></div>
+            </div>
+          </div>
+
+          <?php if ($job['timezone']): ?>
+            <div class="py-3 first:pt-0 last:pb-0 flex items-center gap-3">
+              <span class="w-8 h-8 shrink-0 rounded-lg bg-primary/8 text-primary flex items-center justify-center">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="10" cy="10" r="7.25" stroke="currentColor" stroke-width="1.4" />
+                  <path d="M10 5.5V10l3 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+                </svg>
+              </span>
+              <div class="min-w-0">
+                <div class="text-[10.5px] font-bold tracking-[.07em] text-muted uppercase mb-0.5">Timezone</div>
+                <div class="text-[13px] font-semibold text-ink"><?= e($job['timezone']) ?></div>
+              </div>
+            </div>
+          <?php endif; ?>
+
         </div>
+      </div> -->
+
+      <?php if ($similarJobs): ?>
+        <div class="card bg-surface border border-line shadow-[var(--shadow-card)]">
+          <div class="card-body p-5">
+            <div class="flex items-center gap-2 pb-3 mb-3 border-b border-line">
+              <span class="w-1 h-3.5 rounded-full bg-primary"></span>
+              <span class="font-head text-[11px] font-bold tracking-[.1em] text-primary uppercase">Similar Roles</span>
+            </div>
+            <ul class="flex flex-col gap-2">
+              <?php foreach ($similarJobs as $sj): ?>
+                <li>
+                  <a href="/job-detail.php?form_jobcode=<?= urlencode(preg_replace('/^[^-]+-/', '', $sj['client_code'])) ?>&slug=<?= urlencode($sj['slug']) ?>"
+                    class="group flex items-center gap-2 rounded-xl border border-line p-3 transition-colors hover:border-primary/30 hover:bg-primary/5">
+                    <div class="flex-1 min-w-0">
+                      <div class="text-[13px] font-semibold text-ink group-hover:text-primary leading-snug mb-1.5"><?= e($sj['job_title']) ?></div>
+                      <div class="flex flex-wrap gap-1">
+                        <span class="badge badge-soft badge-xs <?= wpBadgeClass($sj['workplace_type']) ?> capitalize"><?= e($sj['workplace_type']) ?></span>
+                        <?php if ($sj['city'] || $sj['country']): ?>
+                          <span class="badge badge-xs badge-ghost text-muted"><?= e($sj['city'] ?: $sj['country']) ?></span>
+                        <?php endif; ?>
+                      </div>
+                    </div>
+                    <span class="text-primary/40 group-hover:text-primary group-hover:translate-x-0.5 transition-all self-center shrink-0">→</span>
+                  </a>
+                </li>
+              <?php endforeach; ?>
+            </ul>
+          </div>
+        </div>
+      <?php endif; ?>
+
+      <div class="card bg-primary shadow-[var(--shadow-pop)] print:hidden">
+        <div class="card-body flex-row justify-center gap-3 p-5">
+
+          <button
+            class="btn btn-sm border-none bg-primary-content/10 text-primary-content hover:bg-primary-content/20"
+            onclick="navigator.clipboard.writeText(window.location.href).then(()=>{this.querySelector('span').textContent='Copied!'})">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="7" y="7" width="10" height="10" rx="2" stroke="currentColor" stroke-width="1.5" />
+              <path d="M13 7V5a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+            </svg>
+            <span>Share Link</span>
+          </button>
+
+          <button
+            class="btn btn-sm border-none bg-primary-content/10 text-primary-content hover:bg-primary-content/20"
+            onclick="window.print()">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M6 9V4H18V9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+              <rect x="6" y="14" width="12" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5" />
+              <path d="M6 17H4V11C4 9.89543 4.89543 9 6 9H18C19.1046 9 20 9.89543 20 11V17H18" stroke="currentColor" stroke-width="1.5" />
+            </svg>
+            <span>Save as PDF</span>
+          </button>
+
+        </div>
+      </div>
 
     </aside>
   </div>

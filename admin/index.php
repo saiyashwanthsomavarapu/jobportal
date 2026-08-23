@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . "/auth.php";
+require_once __DIR__ . "/utils/classes.php";
 
 $pageTitle = "Dashboard";
 
@@ -76,6 +77,7 @@ try {
       "
         SELECT
             j.*,
+            REGEXP_REPLACE(j.client_code, '[^0-9]', '') AS client_code,
             a.name AS posted_by
         FROM jobs j
         LEFT JOIN admin_users a
@@ -224,21 +226,13 @@ include __DIR__ . "/includes/header.php";
 
 <div class="min-w-0 space-y-6">
   <!-- HEADER -->
-  <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+  <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
     <div>
-      <div class="mb-2 flex items-center gap-2">
-        <!-- <span class="rounded-full bg-blue-600/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-blue-600">
-          Dashboard
-        </span> -->
-        <!-- <span class="text-[11px] text-gray-400">
-          <?= date("l, j F Y") ?>
-        </span> -->
-      </div>
-      <h1 class="font-head text-[24px] font-bold tracking-tight text-gray-900 sm:text-[26px]">
-        <?= e($greeting) ?>,
-        <?= e($firstName) ?>
+      <h1 class="mt-2 font-head text-2xl font-bold tracking-tight text-base-content sm:text-[26px]">
+        <?= e($greeting) ?>, <?= e($firstName) ?>
       </h1>
-      <p class="mt-1 text-[13px] text-gray-500">
+
+      <p class="mt-1 text-sm text-base-content/55">
         Here's a quick overview of your job postings.
       </p>
     </div>
@@ -299,7 +293,7 @@ include __DIR__ . "/includes/header.php";
     <!-- PUBLISHED -->
     <a
       href="<?= ADMIN_URL ?>/pages/jobs.php?status=published"
-      class="group relative overflow-hidden rounded-2xl border border-gray-200 p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-200">
+      class="group relative overflow-hidden rounded-2xl border border-gray-200 p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md">
       <div class="absolute inset-x-0 top-0 h-[3px] bg-emerald-500"></div>
       <div class="flex items-start justify-between gap-4">
         <div>
@@ -344,7 +338,7 @@ include __DIR__ . "/includes/header.php";
     <!-- DRAFT -->
     <a
       href="<?= ADMIN_URL ?>/pages/jobs.php?status=draft"
-      class="group relative overflow-hidden rounded-2xl border border-gray-200 p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-amber-200">
+      class="group relative overflow-hidden rounded-2xl border border-gray-200 p-5  shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-amber-200 hover:shadow-md">
       <div class="absolute inset-x-0 top-0 h-[3px] bg-amber-500"></div>
       <div class="flex items-start justify-between gap-4">
         <div>
@@ -388,7 +382,7 @@ include __DIR__ . "/includes/header.php";
     <!-- CLOSED -->
     <a
       href="<?= ADMIN_URL ?>/pages/jobs.php?status=closed"
-      class="group relative overflow-hidden rounded-2xl border border-gray-200 p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-gray-300">
+      class="group relative overflow-hidden rounded-2xl border border-gray-200 p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md">
       <div class="absolute inset-x-0 top-0 h-[3px] bg-gray-200"></div>
       <div class="flex items-start justify-between gap-4">
         <div>
@@ -467,10 +461,10 @@ include __DIR__ . "/includes/header.php";
       <?php if (empty($recent)): ?>
         <div class="flex min-h-[320px] items-center justify-center px-6 py-12">
           <div class="text-center">
-            <div class="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-gray-50">
+            <div class="<?= SVG_DIV ?>">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5 text-gray-400"
+                class="<?= SVG_ICON ?>"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -508,10 +502,10 @@ include __DIR__ . "/includes/header.php";
               class="group block px-5 py-4 transition hover:bg-gray-50 sm:px-6">
               <div class="flex items-start gap-3.5">
                 <!-- Icon -->
-                <div class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-600/10 text-blue-600">
+                <div class="<?= SVG_DIV ?>">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    class="h-4 w-4"
+                    class="<?= SVG_ICON ?>"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -526,7 +520,7 @@ include __DIR__ . "/includes/header.php";
                 <div class="min-w-0 flex-1">
                   <div class="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
                     <div class="flex min-w-0 items-center gap-2">
-                      <h3 class="truncate text-[13px] font-semibold text-gray-800 transition group-hover:text-blue-600">
+                      <h3 class="truncate text-[13px] font-semibold text-gray-800 transition">
                         <?= e($job["job_title"]) ?>
                       </h3>
                     </div>
@@ -535,8 +529,8 @@ include __DIR__ . "/includes/header.php";
                     </span>
                   </div>
                   <div class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-gray-500">
-                    <code class="rounded bg-blue-50 px-1.5 py-0.5 font-mono font-semibold text-blue-700">
-                      <?= e($job["job_code"]) ?>
+                    <code class="badge badge-soft badge-primary rounded-md font-mono text-[11px] font-semibold">
+                      <?= e($job['job_code']) ?>
                     </code>
 
                     <?php if (!empty($job["client_code"])): ?>
@@ -544,7 +538,7 @@ include __DIR__ . "/includes/header.php";
                         •
                       </span>
                       <span>
-                        <?= e($job["client_code"]) ?>
+                        Job code: <?= e($job["client_code"]) ?>
                       </span>
                     <?php endif; ?>
 
@@ -605,10 +599,10 @@ include __DIR__ . "/includes/header.php";
           </div>
         </div>
 
-        <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-50 text-gray-500">
+        <div class="<?= SVG_DIV ?>">
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            class="h-4 w-4"
+            class="<?= SVG_ICON ?>"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"

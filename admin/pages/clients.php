@@ -14,68 +14,37 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   $action = $_POST["action"] ?? "";
   $clientId = (int) ($_POST["client_id"] ?? 0);
   $clientName = trim($_POST["client_name"] ?? "");
-  $clientCode = strtoupper(trim($_POST["client_code"] ?? ""));
 
-  // Validate code: 2-6 uppercase alphanumeric characters
-  $clientCode = preg_replace("/[^A-Z0-9]/", "", $clientCode);
 
   if ($action === "save") {
     if (!$clientName) {
       $errors[] = "Client Name is required.";
     }
-    if (!$clientCode) {
-      $errors[] = "Client Code is required.";
-    }
-    if (strlen($clientCode) < 2 || strlen($clientCode) > 6) {
-      $errors[] = "Client Code must be 2–6 characters.";
-    }
 
     if (empty($errors)) {
       try {
         if ($clientId > 0) {
-          // Check duplicate code (excluding self)
-          $dup = db()->prepare(
-            "SELECT id FROM clients WHERE client_code = ? AND id != ?"
-          );
-          $dup->execute([$clientCode, $clientId]);
+          $dup = db()->prepare("SELECT id FROM clients WHERE client_name = ? AND id != ?");
+          $dup->execute([strtolower($clientName), $clientId]);
           if ($dup->fetch()) {
-            $errors[] =
-              'Client Code "' . $clientCode . '" already exists.';
+            $errors[] = 'Client name "' . $clientName . '" already exists.';
           } else {
-            db()
-              ->prepare(
-                "UPDATE clients SET client_name=?, client_code=?, updated_at=NOW() WHERE id=?"
-              )
-              ->execute([$clientName, $clientCode, $clientId]);
-            flash("success", "Client updated.");
-            redirect(ADMIN_URL . "/pages/clients.php");
+            db()->prepare("UPDATE clients SET client_name=?, updated_at=NOW() WHERE id=?")
+              ->execute([strtolower($clientName), $clientId]);
+            flash('success', 'Client updated.');
+            redirect(ADMIN_URL . '/pages/clients.php');
           }
         } else {
           // Check duplicate
-          $dup = db()->prepare(
-            "SELECT id FROM clients WHERE client_code = ?"
-          );
-          $dup->execute([$clientCode]);
+          $dup = db()->prepare("SELECT id FROM clients WHERE client_name = ?");
+          $dup->execute([strtolower($clientName)]);
           if ($dup->fetch()) {
-            $errors[] =
-              'Client Code "' . $clientCode . '" already exists.';
+            $errors[] = 'Client name "' . $clientName . '" already exists.';
           } else {
-            db()
-              ->prepare(
-                "INSERT INTO clients (client_name, client_code, created_by) VALUES (?,?,?)"
-              )
-              ->execute([
-                $clientName,
-                $clientCode,
-                $_SESSION["admin_id"],
-              ]);
-            flash(
-              "success",
-              "Client <strong>" .
-                $clientCode .
-                "</strong> created."
-            );
-            redirect(ADMIN_URL . "/pages/clients.php");
+            db()->prepare("INSERT INTO clients (client_name, created_by) VALUES (?,?,?)")
+              ->execute([strtolower($clientName), $_SESSION['admin_id']]);
+            flash('success', 'Client <strong>' . $clientName . '</strong> created.');
+            redirect(ADMIN_URL . '/pages/clients.php');
           }
         }
       } catch (Exception $e) {
@@ -148,7 +117,7 @@ include dirname(__DIR__) . "/includes/header.php";
           Cancel
         </a>
       <?php endif; ?>
-      <button ype="submit" form="clientForm" class="btn btn-sm btn-primary shadow-sm">
+      <button type="submit" form="clientForm" class="btn btn-sm btn-primary shadow-sm">
         <?php if ($isEditPage): ?>
           <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
@@ -184,12 +153,12 @@ include dirname(__DIR__) . "/includes/header.php";
       <!-- ══ LEFT: Client Details ══ -->
       <div class="rounded-2xl p-6 border border-gray-200" style="background-color:#ffffff !important">
         <div class="flex items-center gap-2.5 mb-5">
-          <div class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-            <svg class="h-4 w-4 text-gray-900/80" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+          <div class="<?= SVG_DIV ?>">
+            <svg class="<?= SVG_ICON ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21V6.75A1.5 1.5 0 015.25 5.25h6A1.5 1.5 0 0112.75 6.75V21M3.75 21h16.5M3.75 21H2.25M20.25 21V10.5a1.5 1.5 0 00-1.5-1.5h-3a1.5 1.5 0 00-1.5 1.5V21m3-15h.008v.008H18v-.008zm0 3h.008v.008H18v-.008zm0 3h.008v.008H18v-.008zM6.75 9h.008v.008H6.75V9zm0 3h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm3-6h.008v.008H9.75V9zm0 3h.008v.008H9.75V12zm0 3h.008v.008H9.75V15z" />
             </svg>
           </div>
-          <span class="font-head text-[15px] font-bold">Client Details</span>
+          <span class="font-head text-[15px] font-bold">Client</span>
         </div>
 
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -205,42 +174,17 @@ include dirname(__DIR__) . "/includes/header.php";
               name="client_name"
               class="<?= INPUT_CLASS ?>"
               placeholder="e.g. Autodesk"
-              value="<?= e(
-                        $editClient["client_name"] ?? ($_POST["client_name"] ?? "")
-                      ) ?>"
+              value="<?= e($editClient["client_name"] ?? ($_POST["client_name"] ?? "")) ?>"
               required
+              pattern="[A-Za-z0-9 .&-]+"
+              title="Only letters, numbers, spaces, periods, ampersands, and hyphens are allowed."
+              oninput="this.value = this.value.replace(/[^A-Za-z0-9 .&-]/g, '')"
               autofocus />
             <p class="text-xs text-base-content/50">
               Enter the official client/company name.
             </p>
           </fieldset>
-
-          <!-- Client Code -->
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">
-              Client Code
-              <span class="text-error">*</span>
-            </legend>
-
-            <input
-              type="text"
-              name="client_code"
-              id="clientCodeInput"
-              class="input w-full uppercase tracking-wide"
-              placeholder="e.g. ADSK"
-              maxlength="6"
-              value="<?= e(
-                        $editClient["client_code"] ?? ($_POST["client_code"] ?? "")
-                      ) ?>"
-              oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')"
-              required />
-            <p class="label">
-              2–6 characters, letters and numbers only.
-            </p>
-          </fieldset>
-
         </div>
-        <p class="text-[11.5px] text-gray-400 mt-2.5">Client codes must be <strong class="text-gray-900/55">2–6 uppercase letters/digits</strong> and unique across all clients.</p>
       </div>
 
       <!-- ══ RIGHT RAIL ══ -->
@@ -249,52 +193,29 @@ include dirname(__DIR__) . "/includes/header.php";
         <!-- Stats card -->
         <div class="rounded-2xl p-6 border border-gray-200" style="background-color:#ffffff !important">
           <div class="flex items-center gap-2.5 mb-1">
-            <div class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-              <svg class="h-4 w-4 text-gray-900/80" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+            <div class="<?= SVG_DIV ?>">
+              <svg class="<?= SVG_ICON ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
               </svg>
             </div>
             <span class="font-head text-[15px] font-bold">Overview</span>
           </div>
           <div class="flex items-baseline gap-2 mt-3">
-            <span class="font-head text-[28px] font-extrabold text-gray-900 leading-none">
-              <?= count($clients) ?></span>
+            <span class="font-head text-[28px] font-extrabold text-gray-900 leading-none"><?= count(
+                                                                                            $clients
+                                                                                          ) ?></span>
             <span class="text-[12.5px] text-gray-500">total clients</span>
           </div>
         </div>
 
-        <!-- Code guidelines card -->
-        <div class="rounded-2xl p-6 border border-gray-200" style="background-color:#ffffff !important">
-          <div class="flex items-center gap-2.5 mb-4">
-            <div class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-              <svg class="h-4 w-4 text-gray-900/80" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
-              </svg>
-            </div>
-            <span class="font-head text-[15px] font-bold">Code guidelines</span>
-          </div>
-          <div class="space-y-3">
-            <div class="flex items-start gap-2.5">
-              <span class="mt-0.5 flex-shrink-0 w-1.5 h-1.5 rounded-full bg-blue-600"></span>
-              <p class="text-[12.5px] text-gray-900/55">2–6 characters, letters and digits only</p>
-            </div>
-            <div class="flex items-start gap-2.5">
-              <span class="mt-0.5 flex-shrink-0 w-1.5 h-1.5 rounded-full bg-blue-600"></span>
-              <p class="text-[12.5px] text-gray-900/55">Auto-uppercased as you type</p>
-            </div>
-            <div class="flex items-start gap-2.5">
-              <span class="mt-0.5 flex-shrink-0 w-1.5 h-1.5 rounded-full bg-blue-600"></span>
-              <p class="text-[12.5px] text-gray-900/55">Must be unique across all clients</p>
-            </div>
-          </div>
-        </div>
+
 
       </div>
     </div>
   </form>
 
   <!-- ══ CLIENTS TABLE ══ -->
-  <div class="rounded-2xl overflow-hidden mt-5 border border-gray-200" style="background-color:#ffffff !important">
+  <div class="rounded-2xl overflow-hidden mt-5 border border-gray-200 shadow-sm">
     <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
       <span class="font-head text-[15px] font-bold">All Clients</span>
       <span class="badge badge-ghost badge-sm font-medium">
@@ -303,14 +224,13 @@ include dirname(__DIR__) . "/includes/header.php";
     </div>
 
     <div class="overflow-x-auto">
-      <table class="w-full text-[13px]">
-        <thead class="bg-gray-50">
+      <table class="<?= TABLE_CLASS ?>">
+        <thead class="<?= TABLE_HEAD_CLASS ?>">
           <tr>
-            <th class="text-left px-6 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Client Name</th>
-            <th class="text-left px-6 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Client Code</th>
-            <th class="text-left px-6 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Created By</th>
-            <th class="text-left px-6 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Created</th>
-            <th class="text-left px-6 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Actions</th>
+            <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Client Name</th>
+            <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Created By</th>
+            <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Created</th>
+            <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -333,37 +253,49 @@ include dirname(__DIR__) . "/includes/header.php";
                                                                             $c["client_name"]
                                                                           ) ?></strong>
                 </td>
-                <td class="px-6 py-3.5 align-middle">
-                  <code class="bg-blue-50 text-blue-600 rounded-md px-2.5 py-1 text-[12.5px] font-semibold tracking-wide">
-                    <?= e($c["client_code"]) ?>
-                  </code>
-                </td>
-                <td class="px-6 py-3.5 align-middle text-gray-900/55 text-[13px]"><?= e(
-                                                                                    $c["created_by_name"] ?? "—"
-                                                                                  ) ?></td>
-                <td class="px-6 py-3.5 align-middle text-[12px] text-gray-900/45">
+
+                <td class="px-4 py-3.5 align-middle font-medium text-base-content/70"><?= e(
+                                                                                        $c["created_by_name"] ?? "—"
+                                                                                      ) ?></td>
+                <td class="px-4 py-3.5 align-middle font-medium text-base-content/70">
                   <?= date("d M Y", strtotime($c["created_at"])) ?>
                 </td>
                 <td class="px-6 py-3.5 align-middle">
                   <div class="flex items-center gap-1.5">
-                    <a href="<?= ADMIN_URL ?>/pages/clients.php?edit=<?= $c["id"] ?>" title="Edit"
-                      class="flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors">
-                      <svg class="h-[15px] w-[15px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
-                      </svg>
-                    </a>
-                    <form method="POST" class="inline"
-                      onsubmit="return confirm('Delete client <?= e(
-                                                                addslashes($c["client_name"])
-                                                              ) ?>?')">
-                      <input type="hidden" name="action" value="delete">
-                      <input type="hidden" name="client_id" value="<?= $c["id"] ?>">
-                      <button type="submit" title="Delete"
-                        class="flex items-center justify-center w-8 h-8 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors">
+                    <div class="tooltip" data-tip="Edit">
+                      <a href="<?= ADMIN_URL ?>/pages/clients.php?edit=<?= $c["id"] ?>" title="Edit"
+                        class="btn btn-sm btn-square h-8 min-h-8 w-8 rounded-lg btn-outline border-base-300 bg-base-100 text-base-content/60 hover:border-secondary hover:bg-secondary hover:text-secondary-content">
                         <svg class="h-[15px] w-[15px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
                         </svg>
-                      </button>
+                      </a>
+                    </div>
+                    <form method="POST" class="inline">
+                      <input type="hidden" name="action" value="delete">
+                      <input type="hidden" name="client_id" value="<?= e($c['id']) ?>">
+                      <div class="tooltip" data-tip="Delete">
+                        <button
+                          type="button"
+                          onclick="openDeleteModal(
+                          <?= (int)$c['id'] ?>,
+                          <?= htmlspecialchars(json_encode($c['client_name']), ENT_QUOTES, 'UTF-8') ?>
+                        )"
+                          class="btn btn-sm btn-square h-8 min-h-8 w-8 rounded-lg btn-outline btn-error">
+
+                          <svg
+                            class="h-[15px] w-[15px]"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            stroke-width="1.75"
+                            aria-hidden="true">
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                          </svg>
+                        </button>
+                      </div>
                     </form>
                   </div>
                 </td>
@@ -372,12 +304,158 @@ include dirname(__DIR__) . "/includes/header.php";
           <?php endif; ?>
         </tbody>
       </table>
+      <dialog id="deleteClientModal" class="modal">
+        <div class="modal-box w-[calc(100%-2rem)] max-w-lg rounded-box border border-base-300 bg-base-100 p-0 shadow-xl">
+
+          <!-- Header -->
+          <div class="flex items-center gap-4 border-b border-base-200 px-5 py-5 sm:px-6">
+
+            <div class="flex size-10 shrink-0 items-center justify-center rounded-full bg-error/10 text-error">
+              <svg
+                class="size-[15px]"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="1.75">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+              </svg>
+            </div>
+
+            <div class="min-w-0 flex-1">
+              <h3 class="font-head text-lg font-bold leading-6 text-base-content">
+                Delete client
+              </h3>
+            </div>
+
+            <button
+              type="button"
+              onclick="deleteClientModal.close()"
+              class="btn btn-sm btn-circle btn-ghost size-8 min-h-8 shrink-0 text-base-content/50"
+              aria-label="Close">
+
+              <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+
+            </button>
+          </div>
+
+          <!-- Body -->
+          <div class="space-y-4 px-5 py-5 sm:px-6">
+
+            <div class="alert border-error/20 bg-error/5 text-base-content">
+              <svg
+                class="size-5 shrink-0 text-error"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="1.8">
+
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+
+              <span class="text-sm">
+                This action cannot be undone.
+              </span>
+            </div>
+
+            <div class="rounded-box border border-base-300 bg-base-200/50 p-4">
+              <div class="flex items-start gap-3">
+
+                <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-base-100 text-base-content/50 shadow-sm">
+                  <svg
+                    class="size-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    stroke-width="1.8">
+
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M20 7h-4V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2H4a2 2 0 00-2 2v9a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2zM8 7h8" />
+                  </svg>
+                </div>
+
+                <div class="min-w-0 flex-1">
+                  <p class="text-[11px] font-bold uppercase tracking-wide text-base-content/45">
+                    Selected client
+                  </p>
+
+                  <p
+                    id="deleteClientName"
+                    class="mt-1 truncate text-sm font-semibold text-base-content">
+                  </p>
+
+                  <p class="mt-1 text-xs leading-5 text-base-content/55">
+                    This client and its associated information will be permanently removed.
+                  </p>
+                </div>
+
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Footer -->
+          <div class="modal-action m-0 flex flex-col-reverse gap-2 border-t border-base-200 bg-base-200/30 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+
+            <button
+              type="button"
+              onclick="deleteClientModal.close()"
+              class="btn btn-ghost h-10 min-h-10 w-full rounded-lg px-5 text-sm font-semibold sm:w-auto">
+              Cancel
+            </button>
+
+            <form method="POST" id="confirmDeleteClientForm" class="w-full sm:w-auto">
+              <input type="hidden" name="action" value="delete">
+              <input type="hidden" name="client_id" id="deleteClientId">
+
+              <button
+                type="submit"
+                class="btn btn-error h-10 min-h-10 w-full rounded-lg px-5 text-sm font-semibold text-error-content sm:w-auto">
+
+                <svg
+                  class="size-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="2">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3m-9 0h14" />
+                </svg>
+
+                Delete permanently
+              </button>
+            </form>
+
+          </div>
+
+        </div>
+
+        <form method="dialog" class="modal-backdrop bg-black/40 backdrop-blur-[2px]">
+          <button>close</button>
+        </form>
+      </dialog>
     </div>
   </div>
 
-  <!-- ═══ CLIENTS TABLE (Responsive: table on desktop, cards on mobile) ═══ -->
-
-
 </div>
 
+<script>
+  function openDeleteModal(clientId, clientName) {
+    document.getElementById('deleteClientId').value = clientId;
+    document.getElementById('deleteClientName').textContent = clientName;
+
+    document.getElementById('deleteClientModal').showModal();
+  }
+</script>
 <?php include dirname(__DIR__) . "/includes/footer.php"; ?>
