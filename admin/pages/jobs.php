@@ -103,7 +103,8 @@ try {
   $allTypes = $pdo->query("SELECT DISTINCT job_type FROM jobs ORDER BY job_type")->fetchAll(PDO::FETCH_COLUMN);
   $allWork  = $pdo->query("SELECT DISTINCT workplace_type FROM jobs ORDER BY workplace_type")->fetchAll(PDO::FETCH_COLUMN);
 } catch (Exception $e) {
-  print_r($e);
+  error_log('[jobs] query failed: ' . $e->getMessage());
+  flash('error', 'Could not load jobs. Please try again.');
   $jobs = [];
   $totalRows = 0;
   $totalPages = 1;
@@ -111,8 +112,23 @@ try {
   $allWork = [];
 }
 
+// ── Global status counts (for the summary cards) ─────────────
+$jobStats = ['published' => 0, 'draft' => 0, 'closed' => 0];
+try {
+  foreach (db()->query("SELECT status, COUNT(*) AS c FROM jobs GROUP BY status") as $r) {
+    if (array_key_exists($r['status'], $jobStats)) {
+      $jobStats[$r['status']] = (int) $r['c'];
+    }
+  }
+} catch (Exception $e) {
+  error_log('[jobs] stats query failed: ' . $e->getMessage());
+}
+$totalJobsAll = array_sum($jobStats);
+
 // ── Bulk / single actions ────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['action'])) {
+  csrf_verify();
+
   $ids     = array_filter(array_map('intval', (array)($_POST['ids'] ?? [])));
   $action  = $_POST['action'];
 
@@ -143,7 +159,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['action'])) {
       }
       logActivity($action . '_jobs', 'job', null, 'IDs: ' . implode(',', $ids));
     } catch (Exception $e) {
-      flash('error', 'Action failed: ' . $e->getMessage());
+      error_log('[jobs] bulk action failed: ' . $e->getMessage());
+      flash('error', 'The action could not be completed. Please try again.');
     }
   }
   // Preserve all filters when redirecting back
@@ -165,13 +182,13 @@ function jobStatusBadge(string $status, bool $isExpired): string
     return '<span class="badge badge-sm gap-1.5 border-base-300 bg-base-200 text-base-content/50"><span class="size-1.5 rounded-full bg-base-content/30"></span>Expired</span>';
   }
   $map = [
-    'published' => ['badge-success badge-soft', 'bg-success'],
-    'draft'     => ['badge-warning badge-soft', 'bg-warning'],
+    'published' => ['border-success/25 bg-success/10 text-success', 'bg-success'],
+    'draft'     => ['border-warning/25 bg-warning/10 text-warning', 'bg-warning'],
     'closed'    => ['border-base-300 bg-base-200 text-base-content/60', 'bg-base-content/40'],
-    'archived'  => ['badge-error badge-soft', 'bg-error'],
+    'archived'  => ['border-error/25 bg-error/10 text-error', 'bg-error'],
   ];
   [$classes, $dot] = $map[$status] ?? ['border-base-300 bg-base-200 text-base-content/60', 'bg-base-content/40'];
-  return '<span class="badge badge-sm gap-1.5 ' . $classes . '"><span class="size-1.5 rounded-full ' . $dot . '"></span>' . ucfirst(e($status)) . '</span>';
+  return '<span class="badge badge-sm gap-1.5 border ' . $classes . '"><span class="size-1.5 rounded-full ' . $dot . '"></span>' . ucfirst(e($status)) . '</span>';
 }
 
 function wpBadgeClass(?string $wp): string
@@ -193,165 +210,191 @@ $breadcrumbs = [['Dashboard', ADMIN_URL . '/index.php'], ['All Jobs', $jobsUrl]]
 include dirname(__DIR__) . '/includes/header.php';
 ?>
 
-<!-- ══════════════ DARK CANVAS ══════════════
-     Same pattern as admins.php / clients.php: breaks out of the light shell's
-     padding so this page renders as a self-contained dark panel while the
-     sidebar/topbar stay light. Backgrounds carry both the Tailwind class AND
-     a hard inline style so they render even if the Tailwind CDN script fails. -->
 <div class="min-w-0 space-y-6">
+
+  <!-- ═══════════ PAGE INTRO ═══════════ -->
+  <section class="flex flex-wrap items-start justify-between gap-4">
+    <div class="max-w-xl">
+      <h2 class="font-head text-[21px] font-bold leading-tight tracking-tight text-base-content">
+        Job postings
+      </h2>
+      <p class="mt-2 text-[13px] leading-relaxed text-base-content/60">
+        Everything you've published, drafted or closed — filter, update in bulk,
+        clone or remove postings from one place.
+      </p>
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="<?= ADMIN_URL ?>/pages/post_job.php" class="<?= PRIMARY_BUTTON_CLASS ?> shadow-pop hover:-translate-y-px hover:opacity-100 hover:shadow-lg">
+        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.25">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
+        Post a job
+      </a>
+    </div>
+  </section>
+
+  <!-- ═══════════ AT-A-GLANCE SUMMARY ═══════════ -->
+  <section aria-label="Summary" class="grid grid-cols-2 gap-3 xl:grid-cols-4">
+
+    <div class="stats border-base-300 bg-base-100 shadow-card transition duration-200 hover:-translate-y-0.5">
+      <div class="stat px-4 py-3.5">
+        <div class="stat-figure mb-0">
+          <div class="grid size-9 place-items-center rounded-lg bg-primary/10 text-primary">
+            <svg class="size-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 14.15v4.098a2.25 2.25 0 01-2.25 2.25h-12a2.25 2.25 0 01-2.25-2.25V14.15M16.5 6.75V5.25A2.25 2.25 0 0014.25 3h-4.5A2.25 2.25 0 007.5 5.25v1.5m6 0V7.5c0 .828-.672 1.5-1.5 1.5h-3c-.828 0-1.5-.672-1.5-1.5V6.75m6 0h3.688c.622 0 1.19.368 1.441.94l1.5 3.438a2.25 2.25 0 01.17.894v2.028a2.25 2.25 0 01-2.25 2.25h-.75M4.5 13.55v2.028c0 .32.068.635.17.894l1.5 3.437a2.25 2.25 0 001.44 1.44h.75m6.64-7.85h3.71" />
+            </svg>
+          </div>
+        </div>
+        <div class="stat-title text-[10.5px] font-semibold uppercase tracking-[0.08em] text-base-content/50">All jobs</div>
+        <div class="stat-value font-head text-[20px] tabular-nums tracking-tight text-base-content"><?= $totalJobsAll ?></div>
+        <div class="stat-desc text-[11px] text-base-content/45">every posting on file</div>
+      </div>
+    </div>
+
+    <div class="stats border-base-300 bg-base-100 shadow-card transition duration-200 hover:-translate-y-0.5">
+      <div class="stat px-4 py-3.5">
+        <div class="stat-figure mb-0">
+          <div class="grid size-9 place-items-center rounded-lg bg-success/10 text-success">
+            <svg class="size-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+        </div>
+        <div class="stat-title text-[10.5px] font-semibold uppercase tracking-[0.08em] text-base-content/50">Published</div>
+        <div class="stat-value font-head text-[20px] tabular-nums tracking-tight text-base-content"><?= $jobStats['published'] ?></div>
+        <div class="stat-desc text-[11px] text-base-content/45">live on the careers page</div>
+      </div>
+    </div>
+
+    <div class="stats border-base-300 bg-base-100 shadow-card transition duration-200 hover:-translate-y-0.5">
+      <div class="stat px-4 py-3.5">
+        <div class="stat-figure mb-0">
+          <div class="grid size-9 place-items-center rounded-lg bg-warning/10 text-warning">
+            <svg class="size-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m6.75 12l-3-3m0 0l-3 3m3-3v6m-9-3.75h-1.5m1.5 0V21a2.25 2.25 0 002.25 2.25h13.5A2.25 2.25 0 0021 21V9a2.25 2.25 0 00-.659-1.591l-4.75-4.75A2.25 2.25 0 0013.999.75H6.75A2.25 2.25 0 004.5 3v6" />
+            </svg>
+          </div>
+        </div>
+        <div class="stat-title text-[10.5px] font-semibold uppercase tracking-[0.08em] text-base-content/50">Drafts</div>
+        <div class="stat-value font-head text-[20px] tabular-nums tracking-tight text-base-content"><?= $jobStats['draft'] ?></div>
+        <div class="stat-desc text-[11px] text-base-content/45">not published yet</div>
+      </div>
+    </div>
+
+    <div class="stats border-base-300 bg-base-100 shadow-card transition duration-200 hover:-translate-y-0.5">
+      <div class="stat px-4 py-3.5">
+        <div class="stat-figure mb-0">
+          <div class="grid size-9 place-items-center rounded-lg bg-neutral/10 text-neutral">
+            <svg class="size-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+            </svg>
+          </div>
+        </div>
+        <div class="stat-title text-[10.5px] font-semibold uppercase tracking-[0.08em] text-base-content/50">Closed</div>
+        <div class="stat-value font-head text-[20px] tabular-nums tracking-tight text-base-content"><?= $jobStats['closed'] ?></div>
+        <div class="stat-desc text-[11px] text-base-content/45">no longer accepting applications</div>
+      </div>
+    </div>
+
+  </section>
+
   <!-- ══ FILTERS ══ -->
   <form
     method="GET"
-    class="mb-5 rounded-2xl border border-base-300 bg-base-100 p-4 shadow-sm sm:p-5">
-    <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:gap-3">
+    class="rounded-2xl border border-base-300 bg-base-100 p-4 shadow-card">
+    <div class="flex flex-wrap items-center gap-3">
+
       <!-- Search -->
-      <fieldset class="fieldset min-w-0 flex-1 xl:min-w-[240px]">
-        <label class="<?= INPUT_CLASS ?>">
-          <svg class="h-[1em] opacity-50" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-            <g
-              stroke-linejoin="round"
-              stroke-linecap="round"
-              stroke-width="2.5"
-              fill="none"
-              stroke="currentColor">
-              <circle cx="11" cy="11" r="8"></circle>
-              <path d="m21 21-4.3-4.3"></path>
-            </g>
-          </svg>
-          <input type="search" name="q" class="grow" placeholder="Search Title / Code / Client" value="<?= e($fSearch) ?>" />
-        </label>
-      </fieldset>
+      <label class="input input-sm h-10 min-w-[220px] flex-1 items-center gap-2 border-transparent bg-base-200 focus-within:border-primary focus-within:bg-base-100">
+        <svg class="size-4 shrink-0 text-base-content/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
+        </svg>
+        <input type="search" name="q" class="grow bg-transparent text-[13px] outline-none placeholder:text-base-content/35"
+          placeholder="Search title, code or client…" value="<?= e($fSearch) ?>" />
+      </label>
+
       <!-- Status -->
-      <fieldset class="fieldset w-full xl:w-[180px] 2xl:w-[200px]">
-
-        <select
-          name="status"
-          id="status"
-          class="<?= SELECT_CLASS ?>">
-          <option value="">All Status</option>
-
-          <?php foreach (['published', 'draft', 'closed', 'archived'] as $s): ?>
-            <option
-              value="<?= e($s) ?>"
-              <?= $fStatus === $s ? 'selected' : '' ?>>
-              <?= ucfirst($s) ?>
-            </option>
-          <?php endforeach; ?>
-        </select>
-      </fieldset>
-
+      <select name="status" aria-label="Filter by status" onchange="this.form.submit()"
+        class="select select-sm h-10 min-h-10 w-auto min-w-[140px] border-transparent bg-base-200 text-[12.5px] font-medium focus:border-primary focus:bg-base-100 focus:outline-none">
+        <option value="">All statuses</option>
+        <?php foreach (['published', 'draft', 'closed', 'archived'] as $s): ?>
+          <option value="<?= e($s) ?>" <?= $fStatus === $s ? 'selected' : '' ?>><?= ucfirst($s) ?></option>
+        <?php endforeach; ?>
+      </select>
 
       <!-- Country -->
-      <fieldset class="fieldset w-full xl:w-[180px] 2xl:w-[200px]">
-        <select
-          name="country"
-          id="country"
-          class="<?= SELECT_CLASS ?>">
-          <option value="">All Countries</option>
-
-          <?php foreach (['India', 'United States', 'Canada'] as $c): ?>
-            <option
-              value="<?= e($c) ?>"
-              <?= $fCountry === $c ? 'selected' : '' ?>>
-              <?= e($c) ?>
-            </option>
-          <?php endforeach; ?>
-        </select>
-      </fieldset>
-
+      <select name="country" aria-label="Filter by country" onchange="this.form.submit()"
+        class="select select-sm h-10 min-h-10 w-auto min-w-[140px] border-transparent bg-base-200 text-[12.5px] font-medium focus:border-primary focus:bg-base-100 focus:outline-none">
+        <option value="">All countries</option>
+        <?php foreach (['India', 'United States', 'Canada'] as $c): ?>
+          <option value="<?= e($c) ?>" <?= $fCountry === $c ? 'selected' : '' ?>><?= e($c) ?></option>
+        <?php endforeach; ?>
+      </select>
 
       <!-- Job Type -->
-      <fieldset class="fieldset w-full xl:w-[180px] 2xl:w-[200px]">
-        <select
-          name="job_type"
-          id="jobType"
-          class="<?= SELECT_CLASS ?>">
-          <option value="">All Job Types</option>
-
-          <?php foreach ($allTypes as $t): ?>
-            <option
-              value="<?= e($t) ?>"
-              <?= $fType === $t ? 'selected' : '' ?>>
-              <?= e($t) ?>
-            </option>
-          <?php endforeach; ?>
-        </select>
-      </fieldset>
-
+      <select name="job_type" aria-label="Filter by job type" onchange="this.form.submit()"
+        class="select select-sm h-10 min-h-10 w-auto min-w-[140px] border-transparent bg-base-200 text-[12.5px] font-medium focus:border-primary focus:bg-base-100 focus:outline-none">
+        <option value="">All job types</option>
+        <?php foreach ($allTypes as $t): ?>
+          <option value="<?= e($t) ?>" <?= $fType === $t ? 'selected' : '' ?>><?= e($t) ?></option>
+        <?php endforeach; ?>
+      </select>
 
       <!-- Workplace -->
-      <fieldset class="fieldset w-full xl:w-[180px] 2xl:w-[200px]">
-        <select
-          name="workplace"
-          id="workplace"
-          class="<?= SELECT_CLASS ?>">
-          <option value="">All Workplaces</option>
-
-          <?php foreach ($allWork as $w): ?>
-            <option
-              value="<?= e($w) ?>"
-              <?= $fWork === $w ? 'selected' : '' ?>>
-              <?= e($w) ?>
-            </option>
-          <?php endforeach; ?>
-        </select>
-      </fieldset>
+      <select name="workplace" aria-label="Filter by workplace" onchange="this.form.submit()"
+        class="select select-sm h-10 min-h-10 w-auto min-w-[140px] border-transparent bg-base-200 text-[12.5px] font-medium focus:border-primary focus:bg-base-100 focus:outline-none">
+        <option value="">All workplaces</option>
+        <?php foreach ($allWork as $w): ?>
+          <option value="<?= e($w) ?>" <?= $fWork === $w ? 'selected' : '' ?>><?= e($w) ?></option>
+        <?php endforeach; ?>
+      </select>
 
       <!-- Actions -->
-      <div class="flex w-full shrink-0 items-center gap-2 xl:w-auto">
-        <!-- Filter -->
-        <button
-          type="submit"
-          class="<?= PRIMARY_BUTTON_CLASS ?>">
+      <div class="flex items-center gap-2">
+        <button type="submit" class="<?= PRIMARY_BUTTON_CLASS ?>">
           <svg class="size-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
           </svg>
           Filter
         </button>
-        <!-- Clear -->
-        <button
-          type="button"
-          onclick="window.location.href='<?= ADMIN_URL ?>/pages/jobs.php'"
-          id="clearFilters"
-          class="<?= SECONDARY_BUTTON_CLASS ?>">
-          Clear
-        </button>
-
+        <a href="<?= ADMIN_URL ?>/pages/jobs.php" id="clearFilters" class="<?= SECONDARY_BUTTON_CLASS ?>">Clear</a>
       </div>
-
 
     </div>
   </form>
 
   <!-- ══ BULK ACTIONS + TABLE ══ -->
   <form method="POST" id="bulkForm">
-    <section class="overflow-hidden rounded-box border border-base-300 bg-base-100 shadow-sm">
+    <?= csrf_field() ?>
+    <section class="overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-card">
 
       <!-- Toolbar -->
-      <div class="flex flex-col gap-3 border-b border-base-300 bg-base-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-        <div class="min-w-0">
-          <h2 class="font-head text-[15px] font-bold text-base-content">Jobs</h2>
-          <p class="mt-0.5 text-xs text-base-content/55">
-            Showing <strong class="font-semibold text-base-content"><?= count($jobs) ?></strong>
-            of <strong class="font-semibold text-base-content"><?= $totalRows ?></strong> jobs
-          </p>
+      <div class="flex flex-col gap-3 border-b border-base-300 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div class="mr-auto flex items-center gap-3">
+          <div class="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+            <svg class="size-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 14.15v4.098a2.25 2.25 0 01-2.25 2.25h-12a2.25 2.25 0 01-2.25-2.25V14.15M16.5 6.75V5.25A2.25 2.25 0 0014.25 3h-4.5A2.25 2.25 0 007.5 5.25v1.5m6 0V7.5c0 .828-.672 1.5-1.5 1.5h-3c-.828 0-1.5-.672-1.5-1.5V6.75m6 0h3.688c.622 0 1.19.368 1.441.94l1.5 3.438a2.25 2.25 0 01.17.894v2.028a2.25 2.25 0 01-2.25 2.25h-.75M4.5 13.55v2.028c0 .32.068.635.17.894l1.5 3.437a2.25 2.25 0 001.44 1.44h.75m6.64-7.85h3.71" />
+            </svg>
+          </div>
+          <div>
+            <h2 class="font-head text-[15px] font-bold tracking-tight text-base-content">All jobs</h2>
+            <p class="text-[11.5px] text-base-content/50">
+              Showing <strong class="font-semibold text-base-content"><?= count($jobs) ?></strong>
+              of <strong class="font-semibold text-base-content"><?= $totalRows ?></strong> jobs
+            </p>
+          </div>
         </div>
-        <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-          <select name="action" id="bulkAction"
-            class="<?= SELECT_CLASS ?>">
-            <option value="">Bulk Action…</option>
+        <div class="flex items-center gap-2">
+          <select name="action" id="bulkAction" aria-label="Bulk action"
+            class="select select-sm h-9 min-h-9 border-transparent bg-base-200 text-[12.5px] font-medium focus:border-primary focus:bg-base-100 focus:outline-none">
+            <option value="">Bulk action…</option>
             <option value="publish">Publish</option>
-            <option value="draft">Move to Draft</option>
+            <option value="draft">Move to draft</option>
             <option value="close">Close</option>
             <option value="delete">Delete</option>
           </select>
-          <button
-            type="button"
-            onclick="openBulkActionModal()"
-            class="<?= SECONDARY_BUTTON_CLASS ?>">
+          <button type="button" onclick="openBulkActionModal()" id="bulkApplyBtn" disabled
+            class="<?= SECONDARY_BUTTON_CLASS ?> disabled:opacity-50">
             Apply
           </button>
         </div>
@@ -363,26 +406,45 @@ include dirname(__DIR__) . '/includes/header.php';
           <thead class="<?= TABLE_HEAD_CLASS ?>">
             <tr>
               <th class="w-10 border-b border-base-300 px-4 py-3">
-                <input type="checkbox" id="checkAll" title="Select all" class="checkbox checkbox-primary checkbox-sm rounded">
+                <input type="checkbox" id="checkAll" title="Select all" class="checkbox checkbox-sm rounded">
               </th>
-              <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Job Code</th>
-              <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Client Name</th>
+              <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Job code</th>
+              <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Client</th>
               <th class="min-w-[260px] border-b border-base-300 px-4 py-3 text-[11px] font-bold uppercase tracking-wide whitespace-nowrap">Title</th>
               <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Country</th>
-              <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Job Type</th>
+              <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Type</th>
               <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Workplace</th>
               <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Experience</th>
-              <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Open Date</th>
+              <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Open date</th>
               <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Status</th>
-              <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Posted By</th>
-              <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Actions</th>
+              <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Posted by</th>
+              <th class="<?= TABLE_HEAD_ROW_CLASS ?>"><span class="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody>
             <?php if (empty($jobs)): ?>
               <tr>
-                <td colspan="12" class="py-12 text-center text-base-content/55">
-                  No jobs found. <a href="<?= ADMIN_URL ?>/pages/post_job.php" class="link link-primary font-semibold">Post one &rarr;</a>
+                <td colspan="12">
+                  <div class="py-14 text-center">
+                    <div class="mx-auto grid size-16 place-items-center rounded-full border-2 border-dashed border-base-300 bg-base-200/50 text-base-content/40">
+                      <svg class="size-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 14.15v4.098a2.25 2.25 0 01-2.25 2.25h-12a2.25 2.25 0 01-2.25-2.25V14.15M16.5 6.75V5.25A2.25 2.25 0 0014.25 3h-4.5A2.25 2.25 0 007.5 5.25v1.5m6 0V7.5c0 .828-.672 1.5-1.5 1.5h-3c-.828 0-1.5-.672-1.5-1.5V6.75m6 0h3.688c.622 0 1.19.368 1.441.94l1.5 3.438a2.25 2.25 0 01.17.894v2.028a2.25 2.25 0 01-2.25 2.25h-.75M4.5 13.55v2.028c0 .32.068.635.17.894l1.5 3.437a2.25 2.25 0 001.44 1.44h.75m6.64-7.85h3.71" />
+                      </svg>
+                    </div>
+                    <h4 class="mt-4 font-head text-[15px] font-bold text-base-content">
+                      <?= $totalRows === 0 && count(getCurrentFilters()) > 0 ? 'No jobs match your filters' : 'No jobs yet' ?>
+                    </h4>
+                    <p class="mx-auto mt-1 max-w-xs text-[12.5px] leading-relaxed text-base-content/50">
+                      <?= $totalRows === 0 && count(getCurrentFilters()) > 0
+                        ? 'Try changing or clearing the filters above.'
+                        : 'Post your first job to see it listed here.' ?>
+                    </p>
+                    <?php if (count(getCurrentFilters()) > 0): ?>
+                      <a href="<?= ADMIN_URL ?>/pages/jobs.php" class="<?= SECONDARY_BUTTON_CLASS ?> mt-4">Clear filters</a>
+                    <?php else: ?>
+                      <a href="<?= ADMIN_URL ?>/pages/post_job.php" class="<?= PRIMARY_BUTTON_CLASS ?> mt-4 shadow-pop">Post a job</a>
+                    <?php endif; ?>
+                  </div>
                 </td>
               </tr>
             <?php else: ?>
@@ -398,10 +460,10 @@ include dirname(__DIR__) . '/includes/header.php';
                   }
                 }
                 ?>
-                <tr class="border-b border-slate-200 last:border-b-0 hover:bg-slate-100 transition-colors"
+                <tr class="cursor-pointer border-b border-base-300/60 transition-colors last:border-b-0 hover:bg-base-200/60"
                   onclick="window.open('<?= $jobDetailUrl ?>', '_blank')">
                   <td class="px-4 py-3.5 align-middle" onclick="event.stopPropagation()">
-                    <input type="checkbox" name="ids[]" value="<?= $j['id'] ?>" class="row-check checkbox checkbox-primary checkbox-sm rounded">
+                    <input type="checkbox" name="ids[]" value="<?= $j['id'] ?>" class="row-check checkbox checkbox-sm rounded" aria-label="Select job <?= e($j['job_code']) ?>">
                   </td>
                   <td class="px-4 py-3.5 align-middle">
                     <code class="badge badge-soft badge-primary rounded-md font-mono text-[11px] font-semibold">
@@ -423,76 +485,82 @@ include dirname(__DIR__) . '/includes/header.php';
                   <td class="px-4 py-3.5 align-middle text-base-content/65"><?= e($j['country']) ?></td>
                   <td class="px-4 py-3.5 align-middle text-base-content/65"><?= e($j['job_type']) ?></td>
                   <td class="px-4 py-3.5 align-middle">
-                    <span class="badge badge-soft badge-sm   <?= wpBadgeClass($j['workplace_type']) ?> capitalize"><?= e($j['workplace_type']) ?></span>
-                    <!-- <?= e($j['workplace_type']) ?> -->
+                    <span class="badge badge-soft badge-sm whitespace-nowrap <?= wpBadgeClass($j['workplace_type']) ?> capitalize"><?= e($j['workplace_type']) ?></span>
                   </td>
                   <td class="px-4 py-3.5 align-middle text-base-content/65"><?= e($j['experience'] ?? '—') ?></td>
-                  <td class="px-4 py-3.5 align-middle text-[12px] text-base-content/55">
+                  <td class="whitespace-nowrap px-4 py-3.5 align-middle text-[12px] tabular-nums text-base-content/55">
                     <?= $j['open_date'] ? date('d M Y', strtotime($j['open_date'])) : '—' ?>
                   </td>
                   <td class="px-4 py-3.5 align-middle">
                     <?= jobStatusBadge($j['status'], $isExpired) ?>
                   </td>
-                  <td class="px-4 py-3.5 align-middle text-[12px] text-base-content/55"><?= e($j['posted_by'] ?? '—') ?></td>
+                  <td class="whitespace-nowrap px-4 py-3.5 align-middle">
+                    <span class="inline-flex items-center gap-1.5 text-[12px] text-base-content/55">
+                      <svg class="size-3.5 shrink-0 text-base-content/35" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                      </svg>
+                      <?= e($j['posted_by'] ?? '—') ?>
+                    </span>
+                  </td>
                   <td class="px-4 py-3.5 align-middle" onclick="event.stopPropagation()">
-                    <div class="flex items-center gap-1.5">
+                    <div class="flex items-center justify-end gap-1">
                       <?php if ($isExpired): ?>
-                        <span title="Cannot edit — close date has passed"
-                          class="btn btn-sm btn-square h-8 min-h-8 w-8 rounded-lg btn-disabled">
-                          <svg class="size-[15px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
-                          </svg>
+                        <span class="tooltip tooltip-left" data-tip="Cannot edit — close date has passed">
+                          <span class="btn btn-square btn-sm h-8 min-h-8 w-8 cursor-not-allowed rounded-full bg-base-200 text-base-content/30" aria-disabled="true">
+                            <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                            </svg>
+                          </span>
                         </span>
                       <?php else: ?>
-                        <div class="tooltip" data-tip="Edit">
+                        <div class="tooltip tooltip-left" data-tip="Edit">
                           <a href="<?= buildFilterUrl(ADMIN_URL . '/pages/post_job.php', ['edit' => $j['id']]) ?>" title="Edit"
-                            onclick="event.stopPropagation()"
-                            class="btn btn-sm btn-square h-8 min-h-8 w-8 rounded-lg btn-outline border-base-300 bg-base-100 text-base-content/60 hover:border-primary hover:bg-primary hover:text-primary-content">
-                            <svg class="size-[15px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                            onclick="event.stopPropagation()" aria-label="Edit job"
+                            class="btn btn-square btn-sm h-8 min-h-8 w-8 rounded-full border-transparent bg-transparent text-base-content/50 transition-all hover:bg-primary/10 hover:text-primary">
+                            <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
                               <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
                             </svg>
                           </a>
                         </div>
                         <?php if ($j['status'] !== 'published'): ?>
-                          <div class="tooltip" data-tip="Publish">
+                          <div class="tooltip tooltip-left" data-tip="Publish">
                             <a href="<?= buildFilterUrl(ADMIN_URL . '/pages/job_action.php', ['id' => $j['id'], 'a' => 'publish']) ?>" title="Publish"
-                              onclick="event.stopPropagation()"
-                              class="btn btn-sm btn-square h-8 min-h-8 w-8 rounded-lg btn-primary text-primary-content shadow-sm">
-                              <svg class="size-[14px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                              onclick="event.stopPropagation()" aria-label="Publish job"
+                              class="btn btn-square btn-sm h-8 min-h-8 w-8 rounded-full border-transparent bg-transparent text-base-content/50 transition-all hover:bg-success/10 hover:text-success">
+                              <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z" />
                               </svg>
                             </a>
                           </div>
                         <?php else: ?>
-                          <div class="tooltip" data-tip="Close">
+                          <div class="tooltip tooltip-left" data-tip="Close">
                             <a href="<?= buildFilterUrl(ADMIN_URL . '/pages/job_action.php', ['id' => $j['id'], 'a' => 'close']) ?>" title="Close"
-                              onclick="event.stopPropagation()"
-                              class="btn btn-sm btn-square h-8 min-h-8 w-8 rounded-lg btn-outline btn-warning">
-                              <svg class="size-[14px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                              onclick="event.stopPropagation()" aria-label="Close job"
+                              class="btn btn-square btn-sm h-8 min-h-8 w-8 rounded-full border-transparent bg-transparent text-base-content/50 transition-all hover:bg-warning/10 hover:text-warning">
+                              <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
                                 <rect x="6" y="6" width="12" height="12" rx="1.5" />
                               </svg>
                             </a>
                           </div>
                         <?php endif; ?>
                       <?php endif; ?>
-                      <div class="tooltip" data-tip="Clone">
+                      <div class="tooltip tooltip-left" data-tip="Clone">
                         <button
                           type="button"
-                          title="Clone Job"
+                          title="Clone job"
                           aria-label="Clone job"
                           onclick="openCloneModal(
                           '<?= e($j['id']) ?>',
                           '<?= e($j['job_title']) ?>',
                           '<?= e(buildFilterUrl(ADMIN_URL . '/pages/post_job.php', ['clone' => $j['id']])) ?>'
                         )"
-
-                          class="btn btn-sm btn-square h-8 min-h-8 w-8 rounded-lg btn-outline border-base-300 bg-base-100 text-base-content/60 hover:border-secondary hover:bg-secondary hover:text-secondary-content">
-                          <svg class="size-[15px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                          class="btn btn-square btn-sm h-8 min-h-8 w-8 rounded-full border-transparent bg-transparent text-base-content/50 transition-all hover:bg-primary/10 hover:text-primary">
+                          <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
                           </svg>
                         </button>
                       </div>
-                      <div class="tooltip" data-tip="Delete">
+                      <div class="tooltip tooltip-left" data-tip="Delete">
                         <button
                           type="button"
                           title="Delete"
@@ -502,18 +570,9 @@ include dirname(__DIR__) . '/includes/header.php';
                           '<?= e($j['job_title']) ?>',
                           '<?= e(buildFilterUrl(ADMIN_URL . '/pages/job_action.php', ['id' => $j['id'], 'a' => 'delete'])) ?>'
                         )"
-                          class="btn btn-sm btn-square h-8 min-h-8 w-8 rounded-lg btn-outline btn-error">
-                          <svg
-                            class="size-[15px]"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            stroke-width="1.75"
-                            aria-hidden="true">
-                            <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                          class="btn btn-square btn-sm h-8 min-h-8 w-8 rounded-full border-transparent bg-transparent text-base-content/50 transition-all hover:bg-error/10 hover:text-error">
+                          <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                           </svg>
                         </button>
                       </div>
@@ -531,139 +590,107 @@ include dirname(__DIR__) . '/includes/header.php';
 
   <!-- Delete Modal -->
   <dialog id="deleteModal" class="modal">
-    <div class="modal-box w-[calc(100%-2rem)] max-w-lg rounded-box border border-base-300 bg-base-100 p-0 shadow-xl">
+    <div class="modal-box w-[calc(100%-2rem)] max-w-md rounded-3xl border border-base-300/70 bg-base-100 p-0 shadow-xl">
       <!-- Header -->
-      <div class="flex items-center gap-4 border-b border-base-200 px-5 py-5 sm:px-6">
-        <div class="flex size-10 shrink-0 items-center justify-center rounded-full bg-error/10 text-error">
-          <svg
-            class="<?= SVG_ICON ?>"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            stroke-width="1.75"
-            aria-hidden="true">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-          </svg>
-        </div>
-        <div class="min-w-0 flex-1">
-          <h3 class="<?= MODAL_HEADING ?>">
-            Delete job posting
-          </h3>
-          <p class="mt-1 text-sm text-base-content/60">
-            This action cannot be undone
-          </p>
+      <div class="flex items-center justify-between gap-3 px-5 pb-1 pt-5">
+        <div class="min-w-0">
+          <h3 class="font-head text-[16px] font-bold tracking-tight text-base-content">Delete job posting?</h3>
+          <p class="mt-0.5 text-[11.5px] text-base-content/50">This action is permanent.</p>
         </div>
         <button
           type="button"
           onclick="deleteModal.close()"
-          class="btn btn-sm btn-circle btn-ghost size-9 min-h-9 shrink-0 text-base-content/50 hover:bg-base-200"
+          class="btn btn-sm btn-circle btn-ghost size-8 min-h-8 shrink-0 text-base-content/50 hover:bg-base-200 hover:text-base-content"
           aria-label="Close">
-          <svg class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
       </div>
-      <div class="px-6 py-5">
-        <div class="rounded-xl  p-4">
-          <div class="flex items-start gap-3">
-            <div class="flex-1">
-              <p class="text-sm font-medium text-base-content">
-                Are you sure you want to delete <strong id="deleteJobName" class="text-error"></strong>?
-              </p>
-              <p class="mt-2 text-xs leading-5 text-base-content/60">
-                This will permanently remove the job posting and all associated data. This action cannot be undone.
-              </p>
-            </div>
-          </div>
+      <div class="px-5 py-5">
+        <div class="rounded-2xl border border-error/15 bg-error/5 p-4">
+          <p class="text-[13px] leading-relaxed text-base-content">
+            You're about to delete <strong id="deleteJobName" class="text-error"></strong>.
+          </p>
+          <ul class="mt-2.5 space-y-1.5 text-[12px] leading-relaxed text-base-content/70">
+            <li class="flex items-start gap-2">
+              <span class="mt-[7px] size-1 shrink-0 rounded-full bg-error/60" aria-hidden="true"></span>
+              The posting is removed from the careers page immediately.
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="mt-[7px] size-1 shrink-0 rounded-full bg-error/60" aria-hidden="true"></span>
+              This cannot be undone.
+            </li>
+          </ul>
         </div>
       </div>
-      <div class="flex flex-col-reverse gap-3 border-t border-base-200 bg-base-200/30 px-6 py-4 sm:flex-row sm:justify-end">
+      <div class="modal-action m-0 flex flex-col-reverse gap-2 border-t border-base-200/80 bg-base-200/40 px-5 py-4 sm:flex-row sm:justify-end">
         <button
           type="button"
           onclick="deleteModal.close()"
-          class="btn btn-ghost h-11 min-h-11 w-full rounded-xl px-6 text-sm font-semibold sm:w-auto hover:bg-base-200">
+          class="btn h-10 min-h-10 w-full rounded-full border border-base-300 bg-base-100 px-5 text-sm font-semibold text-base-content/80 hover:bg-base-200 hover:text-base-content sm:w-auto">
           Cancel
         </button>
         <a
           id="confirmDeleteBtn"
           href="#"
-          class="btn btn-error h-11 min-h-11 w-full rounded-xl px-6 text-sm font-semibold text-error-content sm:w-auto shadow-lg">
-          <svg class="size-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3m-9 0h14" />
-          </svg>
+          class="btn btn-error h-10 min-h-10 w-full rounded-full px-6 text-sm font-semibold sm:w-auto">
           Delete job
         </a>
       </div>
     </div>
-    <form method="dialog" class="modal-backdrop bg-black/40">
+    <form method="dialog" class="modal-backdrop bg-black/40 backdrop-blur-sm">
       <button>close</button>
     </form>
   </dialog>
 
   <!-- Clone Modal -->
   <dialog id="cloneModal" class="modal">
-    <div class="modal-box w-[calc(100%-2rem)] max-w-lg rounded-2xl border border-base-300 bg-base-100 p-0 shadow-2xl">
-      <div class="flex items-center gap-4 border-b border-base-200 px-6 py-5">
-        <div class="<?= SVG_DIV ?>">
-          <svg class="<?= SVG_ICON ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
-          </svg>
-        </div>
-        <div class="min-w-0 flex-1">
-          <h3 class="<?= MODAL_HEADING ?>">
-            Clone job posting
-          </h3>
-          <p class="mt-1 text-sm text-base-content/60">
-            Create a copy of this job
+    <div class="modal-box w-[calc(100%-2rem)] max-w-md rounded-3xl border border-base-300/70 bg-base-100 p-0 shadow-xl">
+      <div class="flex items-center justify-between gap-3 px-5 pb-1 pt-5">
+        <div class="min-w-0">
+          <h3 class="font-head text-[16px] font-bold tracking-tight text-base-content">Clone job posting</h3>
+          <p class="mt-0.5 truncate text-[11.5px] text-base-content/50">
+            Copy of <strong id="cloneJobName" class="text-primary"></strong>
           </p>
         </div>
         <button
           type="button"
           onclick="cloneModal.close()"
-          class="btn btn-sm btn-circle btn-ghost size-9 min-h-9 shrink-0 text-base-content/50 hover:bg-base-200"
+          class="btn btn-sm btn-circle btn-ghost size-8 min-h-8 shrink-0 text-base-content/50 hover:bg-base-200 hover:text-base-content"
           aria-label="Close">
-          <svg class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
       </div>
-      <div class="px-6 py-5">
-        <div class="rounded-xl p-4">
-          <div class="flex items-start gap-3">
-            <div class="flex-1">
-              <p class="text-sm font-medium text-base-content">
-                Clone <strong id="cloneJobName" class="text-primary"></strong>?
-              </p>
-              <p class="mt-2 text-xs leading-5 text-base-content/60">
-                A new job with a unique Job Number will be created based on this job's details.
-              </p>
-            </div>
-          </div>
+      <div class="px-5 py-5">
+        <div class="rounded-2xl border border-primary/15 bg-primary/5 p-4">
+          <p class="text-[13px] leading-relaxed text-base-content">
+            A new draft job will be created with a fresh job number, copying all details from this posting.
+          </p>
+          <p class="mt-2 text-[11.5px] text-base-content/50">
+            Nothing changes on the original job — you can edit the copy before publishing it.
+          </p>
         </div>
       </div>
-      <div class="flex flex-col-reverse gap-3 border-t border-base-200 bg-base-200/30 px-6 py-4 sm:flex-row sm:justify-end">
+      <div class="modal-action m-0 flex flex-col-reverse gap-2 border-t border-base-200/80 bg-base-200/40 px-5 py-4 sm:flex-row sm:justify-end">
         <button
           type="button"
           onclick="cloneModal.close()"
-          class="btn btn-ghost h-11 min-h-11 w-full rounded-xl px-6 text-sm font-semibold sm:w-auto hover:bg-base-200">
+          class="btn btn-ghost h-10 min-h-10 w-full rounded-full px-5 text-sm font-semibold text-base-content/70 hover:bg-base-200 hover:text-base-content sm:w-auto">
           Cancel
         </button>
         <a
           id="confirmCloneBtn"
           href="#"
-          class="btn btn-primary h-11 min-h-11 w-full rounded-xl px-6 text-sm font-semibold text-primary-content sm:w-auto shadow-lg">
-          <svg class="size-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
-          </svg>
+          class="btn btn-primary h-10 min-h-10 w-full rounded-full px-6 text-sm font-semibold shadow-pop sm:w-auto">
           Clone job
         </a>
       </div>
     </div>
 
-    <form method="dialog" class="modal-backdrop bg-black/40">
+    <form method="dialog" class="modal-backdrop bg-black/40 backdrop-blur-sm">
       <button>close</button>
     </form>
   </dialog>
@@ -671,123 +698,66 @@ include dirname(__DIR__) . '/includes/header.php';
   <!-- Bulk action modal -->
   <dialog id="bulkActionModal" class="modal">
     <div
-      class="modal-box w-[calc(100%-2rem)] max-w-md rounded-xl border border-base-300 bg-base-100 p-0 shadow-xl">
+      class="modal-box w-[calc(100%-2rem)] max-w-md rounded-3xl border border-base-300/70 bg-base-100 p-0 shadow-xl">
       <!-- Header -->
-      <div class="flex items-center gap-4 border-b border-base-200 px-5 py-5 sm:px-6">
-        <div class="<?= SVG_DIV ?>">
-          <svg
-            class="<?= SVG_ICON ?>"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            stroke-width="1.75"
-            aria-hidden="true">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a3 3 0 006 0M9 5a3 3 0 013-3 3 3 0 013 3" />
-          </svg>
-        </div>
-        <div class="min-w-0 flex-1">
-          <h3 class="<?= MODAL_HEADING ?>">
-            Apply action
-          </h3>
-          <p class="mt-0.5 text-xs text-base-content/50">
-            Confirm the action for the selected jobs.
-          </p>
+      <div class="flex items-center justify-between gap-3 px-5 pb-1 pt-5">
+        <div class="min-w-0">
+          <h3 class="font-head text-[16px] font-bold tracking-tight text-base-content">Apply bulk action</h3>
+          <p class="mt-0.5 text-[11.5px] text-base-content/50">Confirm before continuing.</p>
         </div>
         <button
           type="button"
           onclick="bulkActionModal.close()"
-          class="btn btn-sm btn-circle btn-ghost size-8 min-h-8 shrink-0 text-base-content/50"
+          class="btn btn-sm btn-circle btn-ghost size-8 min-h-8 shrink-0 text-base-content/50 hover:bg-base-200 hover:text-base-content"
           aria-label="Close">
-
-          <svg
-            class="size-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            stroke-width="2">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M6 18L18 6M6 6l12 12" />
+          <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
       </div>
 
       <!-- Body -->
-      <div class="px-6 py-5">
-        <div class="rounded-xl p-4">
-          <div class="flex items-start gap-3">
-            <div class="flex-1">
-              <p class="text-sm font-medium text-base-content">
-                Are you sure you want to jobs <strong id="selectedAction"></strong> ?
-              </p>
-              <p class=" mt-2 text-xs leading-5 text-base-content/60">
-                You are about to apply the selected action to
-                <strong id="selectedJobCount" class="font-semibold text-base-content">
-                  0
-                </strong>
-                selected job(s).
-                A new job with a unique Job Number will be created based on this job's details.
-              </p>
-            </div>
-          </div>
-          <div class="alert mt-4 border-warning/20 bg-warning/5 text-base-content">
-            <svg
-              class="size-5 shrink-0 text-warning"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="1.8">
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-            </svg>
-
-            <span class="text-xs leading-5">
-              Please review your selection before continuing.
-            </span>
-          </div>
+      <div class="px-5 py-5">
+        <div class="rounded-2xl border border-warning/20 bg-warning/5 p-4">
+          <p class="text-[13px] leading-relaxed text-base-content">
+            You're about to apply
+            <strong id="selectedAction" class="capitalize text-warning"></strong>
+            to <strong id="selectedJobCount" class="tabular-nums">0</strong>
+            selected job<span id="selectedJobPlural">s</span>.
+          </p>
+          <p class="mt-2 text-[11.5px] leading-relaxed text-base-content/60">
+            Please review your selection before continuing — this updates every selected posting at once.
+          </p>
         </div>
       </div>
 
       <!-- Footer -->
-      <div class="modal-action m-0 flex flex-col-reverse gap-2 border-t border-base-200 bg-base-200/30 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+      <div class="modal-action m-0 flex flex-col-reverse gap-2 border-t border-base-200/80 bg-base-200/40 px-5 py-4 sm:flex-row sm:justify-end">
         <button
           type="button"
           onclick="bulkActionModal.close()"
-          class="btn btn-ghost h-10 min-h-10 w-full rounded-lg px-5 text-sm font-semibold sm:w-auto">
+          class="btn btn-ghost h-10 min-h-10 w-full rounded-full px-5 text-sm font-semibold text-base-content/70 hover:bg-base-200 hover:text-base-content sm:w-auto">
           Cancel
         </button>
         <button
           type="button"
           onclick="submitBulkAction()"
-          class="btn btn-primary h-10 min-h-10 w-full rounded-lg px-5 text-sm font-semibold sm:w-auto">
-          <svg
-            class="size-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            stroke-width="1.8">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 6l6 6-6 6" />
-          </svg>
+          id="bulkConfirmBtn"
+          class="btn btn-primary h-10 min-h-10 w-full rounded-full px-6 text-sm font-semibold shadow-pop sm:w-auto">
           Apply action
         </button>
       </div>
     </div>
 
     <!-- Backdrop -->
-    <form method="dialog" class="modal-backdrop bg-black/40">
+    <form method="dialog" class="modal-backdrop bg-black/40 backdrop-blur-sm">
       <button type="submit">close</button>
     </form>
   </dialog>
 
   <!-- ══ PAGINATION ══ -->
   <?php if ($totalPages > 1): ?>
-    <div class="mt-5 flex items-center justify-end">
+    <div class="flex items-center justify-end">
       <div class="join">
         <?php if ($page > 1): ?>
           <a href="<?= pageUrl($page - 1) ?>"
@@ -815,62 +785,56 @@ include dirname(__DIR__) . '/includes/header.php';
 </div>
 
 <script>
-  function openDeleteModal(id, jobName, deleteUrl) {
-    const modal = document.getElementById('deleteModal');
-    const jobNameElement = document.getElementById('deleteJobName');
-    const confirmButton = document.getElementById('confirmDeleteBtn');
-
-    jobNameElement.textContent = jobName;
-    confirmButton.href = deleteUrl;
-
-    modal.showModal();
+  /* ── Row selection & bulk UI ─────────────────────────────── */
+  function selectedJobCount() {
+    return document.querySelectorAll('input[name="ids[]"]:checked').length;
   }
 
-  function openCloneModal(id, jobName, deleteUrl) {
-    const modal = document.getElementById('cloneModal');
-    const jobNameElement = document.getElementById('cloneJobName');
-    const confirmButton = document.getElementById('confirmCloneBtn');
+  function updateBulkUi() {
+    var btn = document.getElementById('bulkApplyBtn');
+    if (btn) btn.disabled = selectedJobCount() === 0;
+  }
 
-    jobNameElement.textContent = jobName;
-    confirmButton.href = deleteUrl;
+  function openDeleteModal(id, jobName, deleteUrl) {
+    document.getElementById('deleteJobName').textContent = jobName;
+    document.getElementById('confirmDeleteBtn').href = deleteUrl;
+    deleteModal.showModal();
+  }
 
-    modal.showModal();
+  function openCloneModal(id, jobName, cloneUrl) {
+    document.getElementById('cloneJobName').textContent = jobName;
+    document.getElementById('confirmCloneBtn').href = cloneUrl;
+    cloneModal.showModal();
   }
 
   function openBulkActionModal() {
-    const selected = document.querySelectorAll(
-      'input[name="ids[]"]:checked'
-    );
+    var count = selectedJobCount();
+    var actionEl = document.getElementById('bulkAction');
+    if (count === 0 || !actionEl.value) return;
 
-    const selectedAction = document.getElementById('bulkAction').value;
-    if (selected.length === 0) {
-      return;
-    }
+    var labels = { publish: 'Publish', draft: 'Move to draft', close: 'Close', delete: 'Delete' };
+    document.getElementById('selectedJobCount').textContent = count;
+    document.getElementById('selectedJobPlural').textContent = count === 1 ? '' : 's';
+    document.getElementById('selectedAction').textContent = labels[actionEl.value] || actionEl.value;
 
-    document.getElementById('selectedJobCount').textContent = selected.length;
-    document.getElementById('selectedAction').textContent = selectedAction;
-
-    document.getElementById('bulkActionModal').showModal();
+    bulkActionModal.showModal();
   }
 
   function submitBulkAction() {
-    const selected = document.querySelectorAll(
-      'input[name="selected_jobs[]"]:checked'
-    );
-
-    if (selected.length === 0) {
-      bulkActionModal.close();
-      return;
-    }
-
-    // Submit the existing form
-    document.getElementById('bulkActionForm').submit();
+    bulkActionModal.close();
+    document.getElementById('bulkForm').submit();
   }
 
-  // Check all checkbox
+  // Check all + live bulk button state
   document.getElementById('checkAll')?.addEventListener('change', function() {
     document.querySelectorAll('.row-check').forEach(cb => cb.checked = this.checked);
+    updateBulkUi();
   });
+  document.addEventListener('change', function(e) {
+    if (e.target.classList && e.target.classList.contains('row-check')) updateBulkUi();
+  });
+
+  updateBulkUi();
 </script>
 
 <?php include dirname(__DIR__) . '/includes/footer.php'; ?>

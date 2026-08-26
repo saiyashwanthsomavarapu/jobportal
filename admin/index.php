@@ -75,15 +75,16 @@ try {
   $recent = $pdo
     ->query(
       "
-        SELECT
-            j.*,
-            REGEXP_REPLACE(j.client_code, '[^0-9]', '') AS client_code,
-            a.name AS posted_by
-        FROM jobs j
-        LEFT JOIN admin_users a
-            ON a.id = j.created_by
-        ORDER BY j.created_at DESC
-        LIMIT 8
+       SELECT 
+        j.*,
+        REGEXP_REPLACE(j.client_code, '[^0-9]', '') AS cleaned_client_code,
+        a.name AS posted_by
+      FROM jobs j
+      LEFT JOIN admin_users a 
+      ON a.id = j.created_by
+      WHERE j.status = 'published'
+      ORDER BY j.created_at DESC
+      LIMIT 8;
     "
     )
     ->fetchAll();
@@ -250,7 +251,7 @@ include __DIR__ . "/includes/header.php";
           <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
             Total Jobs
           </p>
-          <p class="mt-2 font-head text-[29px] font-extrabold leading-none text-gray-900">
+          <p class="mt-2 text-[29px] font-extrabold  text-gray-900">
             <?= number_format($total) ?>
           </p>
           <div class="mt-3 flex items-center gap-2">
@@ -300,7 +301,7 @@ include __DIR__ . "/includes/header.php";
           <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
             Published
           </p>
-          <p class="mt-2 font-head text-[29px] font-extrabold leading-none text-gray-900">
+          <p class="mt-2 text-[29px] font-extrabold leading-none text-gray-900">
             <?= number_format($published) ?>
           </p>
           <div class="mt-3 flex items-center gap-2 text-[11px] text-gray-400">
@@ -345,7 +346,7 @@ include __DIR__ . "/includes/header.php";
           <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
             Drafts
           </p>
-          <p class="mt-2 font-head text-[29px] font-extrabold leading-none text-gray-900">
+          <p class="mt-2 text-[29px] font-extrabold leading-none text-gray-900">
             <?= number_format($drafts) ?>
           </p>
           <div class="mt-3 flex items-center gap-2 text-[11px] text-gray-400">
@@ -389,7 +390,7 @@ include __DIR__ . "/includes/header.php";
           <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
             Closed
           </p>
-          <p class="mt-2 font-head text-[29px] font-extrabold leading-none text-gray-900">
+          <p class="mt-2 text-[29px] font-extrabold leading-none text-gray-900">
             <?= number_format($closed) ?>
           </p>
           <div class="mt-3 flex items-center gap-2 text-[11px] text-gray-400">
@@ -499,7 +500,7 @@ include __DIR__ . "/includes/header.php";
             <?php $statusStyles = dashStatusStyles((string) $job["status"]); ?>
             <a
               href="<?= ADMIN_URL ?>/pages/post_job.php?edit=<?= (int) $job["id"] ?>"
-              class="group block px-5 py-4 transition hover:bg-gray-50 sm:px-6">
+              class="group block px-5 py-4 transition hover:bg-gray-200 sm:px-6">
               <div class="flex items-start gap-3.5">
                 <!-- Icon -->
                 <div class="<?= SVG_DIV ?>">
@@ -520,11 +521,17 @@ include __DIR__ . "/includes/header.php";
                 <div class="min-w-0 flex-1">
                   <div class="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
                     <div class="flex min-w-0 items-center gap-2">
-                      <h3 class="truncate text-[13px] font-semibold text-gray-800 transition">
+                      <h3 class="truncate text-sm font-semibold text-gray-800 transition">
                         <?= e($job["job_title"]) ?>
                       </h3>
                     </div>
-                    <span class="shrink-0 text-[10px] text-gray-400">
+                    <span class="shrink-0 text-sm text-gray-400 ">
+
+                      <span
+                        class="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold <?= $statusStyles["badge"] ?>">
+                        <span class="h-1.5 w-1.5 rounded-full <?= $statusStyles["dot"] ?> "></span>
+                        <?= e(ucfirst($job["status"])) ?>
+                      </span>
                       <?= timeAgo($job["created_at"]) ?>
                     </span>
                   </div>
@@ -537,7 +544,7 @@ include __DIR__ . "/includes/header.php";
                       <span class="text-gray-300">
                         •
                       </span>
-                      <span>
+                      <span class="font-extrabold text-xs">
                         Job code: <?= e($job["client_code"]) ?>
                       </span>
                     <?php endif; ?>
@@ -546,7 +553,7 @@ include __DIR__ . "/includes/header.php";
                       <span class="text-gray-300">
                         •
                       </span>
-                      <span class="truncate">
+                      <span class="truncate font-extrabold text-xs">
                         <?= e($job["city"] ?? "") ?>
                         <?= !empty($job["city"]) ? ", " : "" ?>
                         <?= e($job["country"]) ?>
@@ -554,13 +561,13 @@ include __DIR__ . "/includes/header.php";
                     <?php endif; ?>
 
                   </div>
-                  <div class="mt-2">
+                  <!-- <div class="mt-2">
                     <span
                       class="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold <?= $statusStyles["badge"] ?>">
-                      <span class="h-1.5 w-1.5 rounded-full <?= $statusStyles["dot"] ?>"></span>
+                      <span class="h-1.5 w-1.5 rounded-full <?= $statusStyles["dot"] ?> "></span>
                       <?= e(ucfirst($job["status"])) ?>
                     </span>
-                  </div>
+                  </div> -->
                 </div>
                 <!-- Arrow -->
                 <div class="hidden self-center sm:block">

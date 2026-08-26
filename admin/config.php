@@ -82,6 +82,38 @@ function flash(string $key, string $msg = null): ?string
     return $val;
 }
 
+// ─────────────────────────────────────────────────────────────
+// CSRF PROTECTION
+// ─────────────────────────────────────────────────────────────
+function csrf_token(): string
+{
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+function csrf_field(): string
+{
+    return '<input type="hidden" name="csrf_token" value="' . e(csrf_token()) . '">';
+}
+
+/**
+ * Abort state-changing POSTs that don't carry a valid token.
+ * Call at the very top of the POST handler, before any output.
+ */
+function csrf_verify(): void
+{
+    $posted = $_POST['csrf_token'] ?? '';
+    if (
+        !is_string($posted) || $posted === ''
+        || !hash_equals(csrf_token(), $posted)
+    ) {
+        flash('error', 'For your security this request was blocked. Please go back and try again.');
+        redirect(strtok($_SERVER['REQUEST_URI'] ?? '/', '?'));
+    }
+}
+
 function slugify(string $text): string
 {
     $text = strtolower(trim($text));
