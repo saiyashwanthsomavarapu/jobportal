@@ -67,7 +67,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         flash(
           "error",
           "This client has " . $jobCount . " job posting" . ($jobCount === 1 ? "" : "s") .
-          ". Reassign or delete those jobs first."
+            ". Reassign or delete those jobs first."
         );
       } else {
         db()
@@ -168,7 +168,7 @@ include dirname(__DIR__) . "/includes/header.php";
   <!-- ═══════════ PAGE INTRO + PRIMARY ACTION ═══════════ -->
   <section class="flex flex-wrap items-start justify-between gap-4">
     <div class="max-w-xl">
-      <h2 class="font-head text-[21px] font-bold leading-tight tracking-tight text-base-content">
+      <h2 class=" text-[21px] font-bold leading-tight tracking-tight text-base-content">
         Clients
       </h2>
       <p class="mt-2 text-[13px] leading-relaxed text-base-content/60">
@@ -187,56 +187,6 @@ include dirname(__DIR__) . "/includes/header.php";
     </div>
   </section>
 
-  <!-- ═══════════ AT-A-GLANCE SUMMARY ═══════════ -->
-  <section aria-label="Summary" class="grid grid-cols-2 gap-3 xl:grid-cols-4">
-
-    <div class="stats border-base-300 bg-base-100 shadow-card transition duration-200 hover:-translate-y-0.5">
-      <div class="stat px-4 py-3.5">
-        <div class="stat-figure mb-0">
-          <div class="grid size-9 place-items-center rounded-lg bg-primary/10 text-primary">
-            <svg class="size-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21V6.75A1.5 1.5 0 015.25 5.25h6A1.5 1.5 0 0112.75 6.75V21M3.75 21h16.5M3.75 21H2.25M20.25 21V10.5a1.5 1.5 0 00-1.5-1.5h-3a1.5 1.5 0 00-1.5 1.5V21m3-15h.008v.008H18v-.008zm0 3h.008v.008H18v-.008zm0 3h.008v.008H18v-.008zM6.75 9h.008v.008H6.75V9zm0 3h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm3-6h.008v.008H9.75V9zm0 3h.008v.008H9.75V12zm0 3h.008v.008H9.75V15z" />
-            </svg>
-          </div>
-        </div>
-        <div class="stat-title text-[10.5px] font-semibold uppercase tracking-[0.08em] text-base-content/50">Total clients</div>
-        <div class="stat-value font-head text-[20px] tabular-nums tracking-tight text-base-content"><?= $totalClients ?></div>
-        <div class="stat-desc text-[11px] text-base-content/45">companies on file</div>
-      </div>
-    </div>
-
-    <div class="stats border-base-300 bg-base-100 shadow-card transition duration-200 hover:-translate-y-0.5">
-      <div class="stat px-4 py-3.5">
-        <div class="stat-figure mb-0">
-          <div class="grid size-9 place-items-center rounded-lg bg-success/10 text-success">
-            <svg class="size-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-        </div>
-        <div class="stat-title text-[10.5px] font-semibold uppercase tracking-[0.08em] text-base-content/50">This month</div>
-        <div class="stat-value font-head text-[20px] tabular-nums tracking-tight text-base-content"><?= $monthClients ?></div>
-        <div class="stat-desc text-[11px] text-base-content/45">newly added clients</div>
-      </div>
-    </div>
-
-    <div class="stats border-base-300 bg-base-100 shadow-card transition duration-200 hover:-translate-y-0.5">
-      <div class="stat px-4 py-3.5">
-        <div class="stat-figure mb-0">
-          <div class="grid size-9 place-items-center rounded-lg bg-warning/10 text-warning">
-            <svg class="size-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
-            </svg>
-          </div>
-        </div>
-        <div class="stat-title text-[10.5px] font-semibold uppercase tracking-[0.08em] text-base-content/50">This year</div>
-        <div class="stat-value font-head text-[20px] tabular-nums tracking-tight text-base-content"><?= $yearClients ?></div>
-        <div class="stat-desc text-[11px] text-base-content/45">added in <?= date("Y") ?></div>
-      </div>
-    </div>
-
-  </section>
-
   <!-- ═══════════ CLIENTS LIST ═══════════ -->
   <section class="overflow-hidden rounded-2xl bg-base-100 shadow-card border border-base-300">
 
@@ -248,7 +198,7 @@ include dirname(__DIR__) . "/includes/header.php";
           </svg>
         </div>
         <div>
-          <h3 class="font-head text-[15px] font-bold tracking-tight text-base-content">All clients</h3>
+          <h3 class="text-[15px] font-bold tracking-tight text-base-content">All clients</h3>
           <p id="tableMeta" class="text-[11.5px] text-base-content/50">
             Showing <?= $totalClients ?> of <?= $totalClients ?> client<?= $totalClients === 1 ? "" : "s" ?>
           </p>
@@ -271,7 +221,7 @@ include dirname(__DIR__) . "/includes/header.php";
             <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Client</th>
             <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Added by</th>
             <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Added</th>
-            <th class="<?= TABLE_HEAD_ROW_CLASS ?>"><span class="sr-only">Actions</span></th>
+            <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Actions</th>
           </tr>
         </thead>
         <tbody id="clientsTbody">
@@ -286,7 +236,7 @@ include dirname(__DIR__) . "/includes/header.php";
                       <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21V6.75A1.5 1.5 0 015.25 5.25h6A1.5 1.5 0 0112.75 6.75V21M3.75 21h16.5M3.75 21H2.25M20.25 21V10.5a1.5 1.5 0 00-1.5-1.5h-3a1.5 1.5 0 00-1.5 1.5V21" />
                     </svg>
                   </div>
-                  <h4 class="mt-4 font-head text-[15px] font-bold text-base-content">No clients yet</h4>
+                  <h4 class="mt-4  text-[15px] font-bold text-base-content">No clients yet</h4>
                   <p class="mx-auto mt-1 max-w-xs text-[12.5px] leading-relaxed text-base-content/50">
                     Add your first client to start posting jobs for them.
                   </p>
@@ -315,7 +265,7 @@ include dirname(__DIR__) . "/includes/header.php";
                 <!-- Client -->
                 <td class="px-5 py-3.5 align-middle">
                   <div class="flex items-center gap-3">
-                    <div class="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/10 font-head text-[13px] font-bold text-primary">
+                    <div class="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/10  text-[13px] font-bold text-primary">
                       <?= strtoupper(substr($c["client_name"], 0, 1)) ?>
                     </div>
                     <div class="min-w-0">
@@ -342,14 +292,14 @@ include dirname(__DIR__) . "/includes/header.php";
 
                 <!-- Actions -->
                 <td class="px-5 py-3.5 align-middle">
-                  <div class="flex items-center justify-end gap-1">
+                  <div class="flex items-center justify-start gap-1">
 
                     <div class="tooltip tooltip-left" data-tip="Edit details">
                       <button type="button" aria-label="Edit <?= e($c["client_name"]) ?>"
                         onclick="openEditClientModal(this)"
                         data-id="<?= $c["id"] ?>"
                         data-name="<?= e($c["client_name"]) ?>"
-                        class="btn btn-square btn-sm h-8 min-h-8 w-8 rounded-full border-transparent bg-transparent text-base-content/50 transition-all hover:bg-primary/10 hover:text-primary">
+                        class="<?= EDIT_BUTTON ?>">
                         <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
                           <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
                         </svg>
@@ -359,7 +309,7 @@ include dirname(__DIR__) . "/includes/header.php";
                     <div class="tooltip tooltip-left" data-tip="Delete permanently">
                       <button type="button" aria-label="Delete <?= e($c["client_name"]) ?>"
                         onclick="openDeleteModal(<?= (int)$c['id'] ?>, '<?= e(addslashes($c['client_name'])) ?>')"
-                        class="btn btn-square btn-sm h-8 min-h-8 w-8 rounded-full border-transparent bg-transparent text-base-content/50 transition-all hover:bg-error/10 hover:text-error">
+                        class="<?= DELETE_BUTTON ?>">
                         <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
                           <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                         </svg>
@@ -386,7 +336,7 @@ include dirname(__DIR__) . "/includes/header.php";
     <!-- Header -->
     <header class="flex items-center justify-between gap-3 px-5 pb-1 pt-5">
       <div class="min-w-0">
-        <h3 id="clientModalTitle" class="truncate font-head text-[16px] font-bold tracking-tight text-base-content">New client</h3>
+        <h3 id="clientModalTitle" class="truncate text-[16px] font-bold tracking-tight text-base-content">New client</h3>
         <p id="clientModalSub" class="truncate text-[11.5px] text-base-content/50">Add a company you recruit for.</p>
       </div>
       <button type="button" onclick="clientModal.close()"
@@ -456,7 +406,7 @@ include dirname(__DIR__) . "/includes/header.php";
 
     <div class="flex items-center justify-between gap-3 px-5 pb-1 pt-5">
       <div class="min-w-0">
-        <h3 class="font-head text-[16px] font-bold tracking-tight text-base-content">Delete client?</h3>
+        <h3 class=" text-[16px] font-bold tracking-tight text-base-content">Delete client?</h3>
         <p class="mt-0.5 text-[11.5px] text-base-content/50">This action is permanent.</p>
       </div>
       <button type="button" onclick="deleteClientModal.close()"
@@ -517,7 +467,9 @@ include dirname(__DIR__) . "/includes/header.php";
     document.getElementById('clientModalSub').textContent = 'Add a company you recruit for.';
     document.getElementById('clientSubmitLabel').textContent = 'Create client';
     clientModal.showModal();
-    setTimeout(function() { document.getElementById('cName').focus(); }, 80);
+    setTimeout(function() {
+      document.getElementById('cName').focus();
+    }, 80);
   }
 
   function openEditClientModal(btn) {
@@ -533,7 +485,9 @@ include dirname(__DIR__) . "/includes/header.php";
     document.getElementById('clientSubmitLabel').textContent = 'Save changes';
 
     clientModal.showModal();
-    setTimeout(function() { document.getElementById('cName').focus(); }, 80);
+    setTimeout(function() {
+      document.getElementById('cName').focus();
+    }, 80);
   }
 
   /* ── Delete modal ────────────────────────────────────────── */
@@ -571,17 +525,17 @@ include dirname(__DIR__) . "/includes/header.php";
   document.addEventListener('DOMContentLoaded', function() {
     bindTableSearch();
 
-<?php if ($isPostFailure || $editClient): ?>
-    /* Reopen the modal after a failed save, or when arriving via ?edit= link.
-       Field values were already rendered server-side. */
-    document.getElementById('formClientId').value = <?= $autoOpenClientId ?>;
-    document.getElementById('clientModalTitle').textContent = <?= $autoOpenClientId > 0 ? "'Edit client'" : "'New client'" ?>;
-    document.getElementById('clientModalSub').textContent = <?= $autoOpenClientId > 0
-      ? json_encode($prefillName, $JSON_FLAGS)
-      : "'Add a company you recruit for.'" ?>;
-    document.getElementById('clientSubmitLabel').textContent = <?= $autoOpenClientId > 0 ? "'Save changes'" : "'Create client'" ?>;
-    document.getElementById('clientModal').showModal();
-<?php endif; ?>
+    <?php if ($isPostFailure || $editClient): ?>
+      /* Reopen the modal after a failed save, or when arriving via ?edit= link.
+         Field values were already rendered server-side. */
+      document.getElementById('formClientId').value = <?= $autoOpenClientId ?>;
+      document.getElementById('clientModalTitle').textContent = <?= $autoOpenClientId > 0 ? "'Edit client'" : "'New client'" ?>;
+      document.getElementById('clientModalSub').textContent = <?= $autoOpenClientId > 0
+                                                                ? json_encode($prefillName, $JSON_FLAGS)
+                                                                : "'Add a company you recruit for.'" ?>;
+      document.getElementById('clientSubmitLabel').textContent = <?= $autoOpenClientId > 0 ? "'Save changes'" : "'Create client'" ?>;
+      document.getElementById('clientModal').showModal();
+    <?php endif; ?>
   });
 </script>
 <?php include dirname(__DIR__) . "/includes/footer.php"; ?>

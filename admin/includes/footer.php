@@ -226,30 +226,6 @@
                    Post a Job
                </a>
 
-
-               <!-- Drafts -->
-               <a
-                   href="<?= ADMIN_URL ?>/pages/jobs.php?status=draft"
-                   class="group flex items-center gap-3 px-2.5 py-2.5 rounded-lg text-[13.5px] font-medium text-ink2 hover:bg-card2 hover:text-ink transition-colors">
-                   <svg class="h-[18px] w-[18px] flex-shrink-0 text-muted group-hover:text-ink2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                       <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25" />
-                   </svg>
-                   <span class="flex-1">
-                       Drafts
-                   </span>
-                   <?php
-                    try {
-                        $dc = db()
-                            ->query("SELECT COUNT(*) FROM jobs WHERE status='draft'")
-                            ->fetchColumn();
-                        if ($dc > 0) {
-                            echo ' <span class="bg-warn text-white rounded-full text-[10px] font-bold px-[7px] py-px leading-[16px]">' . $dc . '</span>';
-                        }
-                    } catch (Exception $e) {
-                    }
-                    ?>
-               </a>
-
                <!-- Settings -->
                <p class="px-2.5 pt-4 pb-1.5 text-[10.5px] font-bold text-muted tracking-[1.1px] uppercase"> Settings </p>
 
@@ -282,7 +258,7 @@
            <!-- CURRENT ADMIN -->
            <div class="px-3.5 py-3.5 border-t border-line flex-shrink-0">
                <div class="flex items-center gap-2.5 px-1.5 py-2 rounded-lg">
-                   <div class="w-8 h-8 rounded-full bg-accent flex items-center justify-center font-head text-[13px] font-bold text-white flex-shrink-0">
+                   <div class="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-[13px] font-bold text-white flex-shrink-0">
                        <?= strtoupper(substr($currentAdmin['name'], 0, 1)) ?>
                    </div>
                    <div class="min-w-0 flex-1">

@@ -108,21 +108,6 @@ $pageTitle = $pageTitle ?? 'Dashboard';
           Post a Job
         </a>
 
-        <a href="<?= ADMIN_URL ?>/pages/jobs.php?status=draft"
-          class="group flex items-center gap-3 px-2.5 py-2 rounded-lg text-[13.5px] font-medium text-ink2 hover:bg-card2 hover:text-ink transition-colors">
-          <svg class="h-[18px] w-[18px] flex-shrink-0 text-muted group-hover:text-ink2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m6.75 12l-3-3m0 0l-3 3m3-3v6m-9-3.75h-1.5m1.5 0V21a2.25 2.25 0 002.25 2.25h13.5A2.25 2.25 0 0021 21V9a2.25 2.25 0 00-.659-1.591l-4.75-4.75A2.25 2.25 0 0013.999.75H6.75A2.25 2.25 0 004.5 3v6" />
-          </svg>
-          <span class="flex-1">Drafts</span>
-          <?php
-          try {
-            $dc = db()->query("SELECT COUNT(*) FROM jobs WHERE status='draft'")->fetchColumn();
-            if ($dc > 0) echo '<span class="bg-warn text-white rounded-full text-[10px] font-bold px-[7px] py-px leading-[16px]">' . $dc . '</span>';
-          } catch (Exception $e) {
-          }
-          ?>
-        </a>
-
         <p class="px-2.5 pt-4 pb-1.5 text-[10.5px] font-bold text-muted tracking-[1.1px] uppercase">Settings</p>
 
         <?php $isActive = basename($_SERVER['PHP_SELF']) === 'admins.php'; ?>
@@ -139,7 +124,7 @@ $pageTitle = $pageTitle ?? 'Dashboard';
       <div class="px-3.5 py-3.5 border-t border-line flex-shrink-0">
         <div class="flex items-center gap-2.5 px-1.5 py-2 rounded-lg mb-1">
           <div class="w-8 h-8 rounded-full bg-accent flex items-center justify-center
-                      font-head text-[13px] font-bold text-white flex-shrink-0">
+                       text-[13px] font-bold text-white flex-shrink-0">
             <?= strtoupper(substr($currentAdmin['name'], 0, 1)) ?>
           </div>
           <div class="min-w-0 flex-1">
@@ -209,27 +194,27 @@ $pageTitle = $pageTitle ?? 'Dashboard';
       <div class="sticky top-3 md:top-3 mb-3 max-md:mx-3 max-md:mt-16 bg-surface border border-line rounded-2xl shadow-card
                   flex items-center px-6 py-3.5 gap-4 z-[90]">
         <div class="flex-1 min-w-0">
-          <div class="font-head text-[17px] font-bold text-ink tracking-tight truncate"><?= e($pageTitle) ?></div>
-          <?php if (!empty($breadcrumbs)): ?>
+          <div class="text-[17px] font-bold text-ink tracking-tight truncate"><?= e($pageTitle) ?></div>
+          <!-- <?php if (!empty($breadcrumbs)): ?>
             <div class="text-[12px] text-muted mt-0.5 flex items-center gap-1.5 flex-wrap">
               <?php foreach ($breadcrumbs as $i => [$label, $url]): ?>
                 <?php if ($i > 0): ?><span class="text-line2">/</span><?php endif; ?>
                 <?= $url ? '<a href="' . e($url) . '" class="text-accent hover:underline">' . e($label) . '</a>' : '<span>' . e($label) . '</span>' ?>
               <?php endforeach; ?>
             </div>
-          <?php endif; ?>
+          <?php endif; ?> -->
         </div>
 
-        <div class="hidden lg:flex items-center gap-2 bg-card2 border border-line rounded-lg px-3 py-2 w-64 text-muted">
+        <!-- <div class="hidden lg:flex items-center gap-2 bg-card2 border border-line rounded-lg px-3 py-2 w-64 text-muted">
           <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
           </svg>
           <input type="text" placeholder="Search..." class="bg-transparent border-none outline-none text-[13px] text-ink w-full placeholder-muted">
-        </div>
+        </div> -->
 
         <div class="flex items-center gap-2 flex-shrink-0">
           <a href="https://www.accelonconsulting.com/careers/" target="_blank"
-            class="hidden sm:flex items-center gap-1.5 bg-transparent text-ink2 border border-line2 rounded-lg font-head
+            class="hidden sm:flex items-center gap-1.5 bg-transparent text-ink2 border border-line2 rounded-lg
                    text-[12px] font-bold tracking-wide px-3.5 py-2 hover:text-ink hover:border-muted hover:bg-card2 transition-all">
             <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
@@ -237,7 +222,7 @@ $pageTitle = $pageTitle ?? 'Dashboard';
             View Site
           </a>
           <a href="<?= ADMIN_URL ?>/pages/post_job.php"
-            class="flex items-center gap-1.5 bg-accent text-white rounded-lg font-head text-[12px] font-bold
+            class="flex items-center gap-1.5 bg-accent text-white rounded-lg  text-[12px] font-bold
                    tracking-wide px-4 py-2 shadow-pop hover:bg-accent-dark transition-all">
             <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.25">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />

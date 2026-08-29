@@ -15,7 +15,7 @@
     --color-warn: #d97706;
     --color-success: #0f9d63;
 
-    --font-head: "Syne", sans-serif;
+    --font-head: "Syne";
     --font-sans: "DM Sans", sans-serif;
 
     --shadow-card: 0 1px 2px rgba(17, 24, 39, .04), 0 8px 24px -12px rgba(17, 24, 39, .08);

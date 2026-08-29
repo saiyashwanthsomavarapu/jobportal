@@ -5,6 +5,10 @@ require_once dirname(__DIR__) . "/utils/classes.php";
 
 $pdo = db();
 
+/* AJAX detection — must be set early so POST handlers can return JSON */
+$isAjax = !empty($_GET["ajax"]) ||
+  (strtolower($_SERVER["HTTP_X_REQUESTED_WITH"] ?? "") === "xmlhttprequest");
+
 /* LOAD JOB FOR EDIT / CLONE */
 
 $editId = (int) ($_GET["edit"] ?? 0);
@@ -99,11 +103,8 @@ $jobFields = require __DIR__ . "/../config/job-fields.php";
 
 $workplaceTypes = ["Onsite", "Hybrid", "Remote"];
 
-$expFromOpts = array_map("strval", range(0, 10));
 
-$expToOpts = array_merge(array_map("strval", range(4, 15)), ["15+"]);
-
-$salaryTypes = ["Annual", "Monthly", "Per Hour", "Yearly"];
+$salaryTypes = ["Annual", "Monthly", "Per Hour"];
 
 
 /* HELPERS */
@@ -277,29 +278,12 @@ function validateJob(array $data, string $clientSuffix): array
     $errors[] = "Workplace Type is required.";
   }
 
-  if (!$data["timezone"]) {
-    $errors[] = "Time Zone is required.";
-  }
-
   if (!$data["job_type"]) {
     $errors[] = "Job Type is required.";
   }
 
-  if ($data["exp_from"] === "") {
-    $errors[] = 'Experience "From" is required.';
-  }
-
-  if ($data["exp_to"] === "") {
-    $errors[] = 'Experience "To" is required.';
-  }
-
-  /* Range sanity: "From" must not exceed "To" ("15+" counts as 15) */
-  if (
-    $data["exp_from"] !== "" &&
-    $data["exp_to"] !== "" &&
-    (int) $data["exp_from"] > (int) $data["exp_to"]
-  ) {
-    $errors[] = 'Experience "From" cannot be greater than "To".';
+  if (!$data["experience_range"]) {
+    $errors[] = "Experience range is required.";
   }
 
   if (!$data["salary_boe"]) {
@@ -403,8 +387,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     "timezone" => trim($_POST["timezone"] ?? ""),
     "job_type" => trim($_POST["job_type"] ?? ""),
     "job_type_other" => trim($_POST["job_type_other"] ?? ""),
-    "exp_from" => trim($_POST["exp_from"] ?? null),
-    "exp_to" => trim($_POST["exp_to"] ?? null),
+    "exp_from" => "",
+    "exp_to" => "",
+    "experience_range" => trim($_POST["experience_range"] ?? ""),
     "experience" => "",
     "salary_boe" => isset($_POST["salary_boe"]) ? 1 : 0,
     "salary_from" => preg_replace(
@@ -424,8 +409,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     "salary_rate" => "",
     "industry" => "",
     "industry_other" => "",
-    "job_description" => $_POST["our_terms"] ?? "",
-    "key_skills" => $_POST["our_terms"] ?? "",
+    "job_description" => $_POST["job_description"] ?? "",
+    "key_skills" => $_POST["key_skills"] ?? "",
     "our_terms" => $_POST["our_terms"] ?? "",
     "open_date" => $openDateRaw,
     "close_date" => $autoCloseDate,
@@ -435,8 +420,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     "client_id" => trim($_POST["client_id"] ?? 0),
   ];
 
-  /* Experience */
-
+  /* Experience — parse range string into from/to */
+  $expRange = $data["experience_range"] ?? "";
+  if (preg_match('/^(\d+)[\s]*[-–][\s]*(\d+\+?)$/', $expRange, $m)) {
+    $data["exp_from"] = $m[1];
+    $data["exp_to"] = $m[2];
+  } elseif (preg_match('/^(\d+)\+?$/', $expRange, $m)) {
+    $data["exp_from"] = $m[1];
+    $data["exp_to"] = $m[1] . "+";
+  }
   $data["experience"] = buildExperience($data["exp_from"], $data["exp_to"]);
 
   /* Salary */
@@ -564,9 +556,19 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       }
 
       /* Redirect after successful save */
+      if ($isAjax) {
+        header("Content-Type: application/json");
+        echo json_encode(["ok" => true, "message" => "Job saved successfully."]);
+        exit;
+      }
       redirect(ADMIN_URL . "/pages/jobs.php");
     } catch (Exception $e) {
       error_log("[post_job] save failed: " . $e->getMessage());
+      if ($isAjax) {
+        header("Content-Type: application/json");
+        echo json_encode(["ok" => false, "message" => "Something went wrong while saving. Please try again."]);
+        exit;
+      }
       $errors[] = "Something went wrong while saving. Please try again.";
     }
   }
@@ -591,17 +593,18 @@ function oldSel(string $key, string $value): string
     : "";
 }
 
-/* EXPERIENCE VALUES */
-$savedExpFrom = "";
-$savedExpTo = "";
+/* EXPERIENCE VALUES — derive saved range string for the single dropdown */
+$savedExpRange = "";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-  $savedExpFrom = $_POST["exp_from"] ?? "";
-  $savedExpTo = $_POST["exp_to"] ?? "";
+  $savedExpRange = $_POST["experience_range"] ?? "";
 } elseif (($isEdit || $isClone) && !empty($job["experience"])) {
   $experience = parseExperience($job["experience"]);
-  $savedExpFrom = $experience["from"];
-  $savedExpTo = $experience["to"];
+  $from = $experience["from"];
+  $to = $experience["to"];
+  if ($from !== "" && $to !== "") {
+    $savedExpRange = $from . "-" . $to;
+  }
 }
 
 /* SALARY VALUES */
@@ -689,10 +692,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   $savedCcSuffix = $job["client_code"] ?? "";
 }
 /* HEADER */
-include dirname(__DIR__) . "/includes/header.php";
+if (!$isAjax) {
+  include dirname(__DIR__) . "/includes/header.php";
+}
 ?>
 
-<div class="min-w-0 space-y-5">
+<div class="min-w-0 space-y-4">
 
   <?php if (!empty($errors)): ?>
     <div role="alert" class="alert alert-error alert-soft items-start">
@@ -710,17 +715,17 @@ include dirname(__DIR__) . "/includes/header.php";
     </div>
   <?php endif; ?>
 
-  <form method="POST" id="jobForm" class="space-y-5"
-    action="<?= $isEdit
-              ? "?edit=" . $editId
-              : ($isClone
-                ? "?clone=" . $cloneId
-                : "") ?>">
+  <form method="POST" id="jobForm" class="space-y-4"
+    action="<?= ($isAjax ? ADMIN_URL . '/pages/post_job.php' : '')
+              . ($isEdit
+                ? "?edit=" . $editId
+                : ($isClone
+                  ? "?clone=" . $cloneId
+                  : "")) ?>">
 
     <?= csrf_field() ?>
 
     <?php if ($isClone): ?>
-      <!-- Hidden flag so POST handler knows this is a clone submission -->
       <input type="hidden" name="clone_source_id" value="<?= $cloneId ?>">
       <div class="flex items-start gap-3 rounded-2xl border border-warning/25 bg-warning/[.07] px-4 py-3.5">
         <svg class="mt-0.5 size-4.5 shrink-0 text-warning" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
@@ -733,501 +738,273 @@ include dirname(__DIR__) . "/includes/header.php";
       </div>
     <?php endif; ?>
 
-    <!-- Hidden job-number plumbing (auto-assigned, not a user decision) -->
+    <!-- Hidden plumbing -->
     <input type="hidden" name="job_code_display" id="jobCodeDisplay"
       value="<?= $isEdit ? e($job["job_code"]) : ($isClone ? e($cloneNewCode) : "") ?>">
     <input type="hidden" name="job_code_prefix" id="jobCodePrefix" value="AC">
     <input type="hidden" name="job_code_number" id="jobCodeNumber"
       value="<?= $isEdit ? e($job["job_code_number"]) : ($isClone ? e($cloneNewNumber) : "") ?>">
 
-    <!-- ═══ CARD 1 · CLIENT & ROLE ═══ -->
-    <section class="overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-card">
-      <header class="flex items-center gap-3 border-b border-base-300 px-5 py-3.5">
-        <div class="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
-          <svg class="size-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0112 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 01-.673-.38m0 0A2.18 2.18 0 013 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0013.5 3h-3a2.25 2.25 0 00-2.25 2.25v.894m7.5 0a48.667 48.667 0 00-7.5 0" />
-          </svg>
-        </div>
-        <div class="min-w-0">
-          <h2 class="text-[13.5px] font-bold text-base-content">Client &amp; Role</h2>
-          <p class="text-[11.5px] text-base-content/50">Who is this role for, and what is the position?</p>
-        </div>
-      </header>
-
-      <div class="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
-        <div class="min-w-0">
-          <label for="client_id" class="mb-1.5 block text-xs font-semibold text-base-content/70">
-            Company or Client name <span class="text-error">*</span>
-          </label>
-          <select name="client_id" id="client_id" class="<?= SELECT_CLASS ?>" required>
-            <option value="">Select client</option>
-            <?php foreach ($clientsList as $client): ?>
-              <option value="<?= e($client['id']) ?>" <?= oldSel('client_id', $client['id']) ?>>
-                <?= e($client['client_name']) ?>
-              </option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-
-        <div class="min-w-0">
-          <label for="clientCodeSuffix" class="mb-1.5 block text-xs font-semibold text-base-content/70">
-            Client Reference <span class="text-error">*</span>
-            <span class="font-normal text-base-content/45">(internal only)</span>
-          </label>
-          <input
-            type="text"
-            name="client_code_suffix"
-            id="clientCodeSuffix"
-            class="<?= INPUT_CLASS ?> validator"
-            placeholder="12345"
-            maxlength="5"
-            pattern="\d{4,5}"
-            value="<?= e(preg_replace("/[^0-9]/", "", $savedCcSuffix)) ?>"
-            oninput="this.value=this.value.replace(/[^0-9]/g,'')"
-            title="4 or 5 digit number"
-            required />
-          <p class="mt-1.5 text-[11px] leading-snug text-base-content/45">4 or 5 digit client reference.</p>
-        </div>
-
-        <div class="min-w-0">
-          <label for="jobTitle" class="mb-1.5 block text-xs font-semibold text-base-content/70">
-            Job Title <span class="text-error">*</span>
-          </label>
-          <input
-            type="text"
-            name="job_title"
-            id="jobTitle"
-            class="<?= INPUT_CLASS ?> validator"
-            placeholder="e.g. Senior Full Stack Developer"
-            value="<?= old('job_title') ?>"
-            maxlength="150"
-            required />
-        </div>
-
-        <div class="min-w-0">
-          <label for="country" class="mb-1.5 block text-xs font-semibold text-base-content/70">
-            Country <span class="text-error">*</span>
-            <?php if ($isEdit): ?><span class="font-normal text-base-content/45">(locked)</span><?php endif; ?>
-          </label>
-          <select name="country" id="country" class="<?= SELECT_CLASS ?>" onchange="onCountryChange()" required
-            <?= $isEdit ? 'disabled' : '' ?>>
-            <option value="">Select country</option>
-            <?php foreach ($countryData as $c => $d): ?>
-              <option value="<?= e($c) ?>" <?= oldSel('country', $c) ?>>
-                <?= e($c) ?>
-              </option>
-            <?php endforeach; ?>
-          </select>
-          <?php if ($isEdit): ?>
-            <input type="hidden" name="country" value="<?= e($job['country'] ?? '') ?>">
-          <?php endif; ?>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═══ CARD 2 · LOCATION & WORK ARRANGEMENT ═══ -->
-    <section class="overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-card">
-      <header class="flex items-center gap-3 border-b border-base-300 px-5 py-3.5">
-        <div class="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
-          <svg class="size-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
-            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
-          </svg>
-        </div>
-        <div class="min-w-0">
-          <h2 class="text-[13.5px] font-bold text-base-content">Location &amp; Work Arrangement</h2>
-          <p class="text-[11.5px] text-base-content/50">Where the role is based and how the candidate will work.</p>
-        </div>
-      </header>
-
-      <div class="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4">
-        <div class="min-w-0">
-          <label for="workplaceType" class="mb-1.5 block text-xs font-semibold text-base-content/70">
-            Workplace Type <span class="text-error">*</span>
-          </label>
-          <select
-            name="workplace_type"
-            id="workplaceType"
-            class="<?= SELECT_CLASS ?>"
-            onchange="toggleLocationFields()"
-            required>
-            <option value="">Select type</option>
-            <?php foreach ($workplaceTypes as $wt): ?>
-              <option value="<?= e($wt) ?>" <?= oldSel('workplace_type', $wt) ?>>
-                <?= e($wt) ?>
-              </option>
-            <?php endforeach; ?>
-          </select>
-          <p class="mt-1.5 text-[11px] leading-snug text-base-content/45">Remote hides City &amp; State.</p>
-        </div>
-
-        <div class="min-w-0">
-          <label for="city" class="mb-1.5 block text-xs font-semibold text-base-content/70">
-            City <span class="text-error">*</span>
-          </label>
-          <input
-            type="text"
-            name="city"
-            id="city"
-            class="<?= INPUT_CLASS ?> validator"
-            placeholder="e.g. Bangalore"
-            value="<?= old('city') ?>"
-            required />
-        </div>
-
-        <div class="min-w-0">
-          <label for="stateSelect" class="mb-1.5 block text-xs font-semibold text-base-content/70">
-            State / Province <span class="text-error">*</span>
-          </label>
-          <select
-            name="state_province"
-            id="stateSelect"
-            class="<?= SELECT_CLASS ?>"
-            onchange="onStateChange()"
-            required>
-            <option value="">Select country first</option>
-          </select>
-          <p class="mt-1.5 text-[11px] leading-snug text-base-content/45">Time zone is picked automatically.</p>
-        </div>
-
-        <div class="min-w-0">
-          <label for="timezoneSelect" class="mb-1.5 block text-xs font-semibold text-base-content/70">
-            Time Zone <span class="text-error">*</span>
-          </label>
-          <select
-            name="timezone"
-            id="timezoneSelect"
-            class="<?= SELECT_CLASS ?>"
-            required>
-            <option value="">Select country first</option>
-          </select>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═══ CARD 3 · ROLE REQUIREMENTS ═══ -->
-    <section class="overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-card">
-      <header class="flex items-center gap-3 border-b border-base-300 px-5 py-3.5">
-        <div class="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
-          <svg class="size-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        </div>
-        <div class="min-w-0">
-          <h2 class="text-[13.5px] font-bold text-base-content">Role Requirements</h2>
-          <p class="text-[11.5px] text-base-content/50">Employment type and experience range for this position.</p>
-        </div>
-      </header>
-
-      <div class="grid grid-cols-1 gap-4 p-5 lg:grid-cols-2">
-        <!-- Job Type -->
-        <div class="min-w-0">
-          <label for="jobTypeSelect" class="mb-1.5 block text-xs font-semibold text-base-content/70">
-            Job Type <span class="text-error">*</span>
-          </label>
-          <select
-            name="job_type"
-            id="jobTypeSelect"
-            class="<?= SELECT_CLASS ?>"
-            onchange="toggleOther(this, 'otherJobType')"
-            required>
-            <option value="">Select job type</option>
-          </select>
-          <div id="otherJobType" class="mt-3 hidden">
-            <label for="jobTypeOther" class="mb-1.5 block text-xs font-semibold text-base-content/70">
-              Specify job type <span class="text-error">*</span>
-            </label>
-            <input
-              type="text"
-              name="job_type_other"
-              id="jobTypeOther"
-              class="<?= INPUT_CLASS ?>"
-              placeholder="e.g. Contract, Freelance"
-              value="<?= old('job_type_other') ?>">
-          </div>
-        </div>
-
-        <!-- Experience -->
-        <div class="min-w-0">
-          <span class="mb-1.5 block text-xs font-semibold text-base-content/70">
-            Experience <span class="text-error">*</span>
-          </span>
-          <div class="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
-            <select name="exp_from" id="expFrom" class="<?= SELECT_CLASS ?>" required onchange="updateExpPreview()">
-              <option value="">Min. years</option>
-              <?php foreach ($expFromOpts as $v): ?>
-                <option value="<?= e($v) ?>" <?= $savedExpFrom === $v ? 'selected' : '' ?>><?= e($v) ?></option>
-              <?php endforeach; ?>
-            </select>
-
-            <div class="hidden items-center justify-center sm:flex">
-              <div class="flex size-7 items-center justify-center rounded-full bg-base-200 text-[12px] font-semibold text-base-content/40">–</div>
-            </div>
-
-            <select name="exp_to" id="expTo" class="<?= SELECT_CLASS ?>" required onchange="updateExpPreview()">
-              <option value="">Max. years</option>
-              <?php foreach ($expToOpts as $v): ?>
-                <option value="<?= e($v) ?>" <?= $savedExpTo === $v ? 'selected' : '' ?>><?= e($v) ?></option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-
-          <div class="mt-2 flex items-center justify-between gap-2 rounded-lg bg-base-200/60 px-3 py-2">
-            <span class="text-[10.5px] font-semibold uppercase tracking-wide text-base-content/45">Preview</span>
-            <strong id="expPreview" class="text-[12.5px] font-bold text-primary">
-              <?php if ($savedExpFrom !== '' && $savedExpTo !== ''): ?>
-                <?= e($savedExpFrom . ' - ' . $savedExpTo . ' years') ?>
-              <?php else: ?>
-                Select experience range
-              <?php endif; ?>
-            </strong>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═══ CARD 4 · COMPENSATION ═══ -->
-    <section class="overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-card">
-      <header class="flex items-center justify-between gap-3 border-b border-base-300 px-5 py-3.5">
-        <div class="flex items-center gap-3">
-          <div class="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
-            <svg class="size-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <div class="min-w-0">
-            <h2 class="text-[13.5px] font-bold text-base-content">Compensation</h2>
-            <p class="text-[11.5px] text-base-content/50">Salary range, or mark it as based on experience.</p>
-          </div>
-        </div>
-        <span class="badge badge-soft badge-primary badge-sm hidden sm:inline-flex">Required</span>
-      </header>
-
-      <div class="space-y-4 p-5">
-        <!-- BOE option -->
-        <label
-          for="salaryBoe"
-          class="flex cursor-pointer items-center gap-3.5 rounded-xl border p-3.5 transition-all
-          <?= $savedSalBoe
-            ? 'border-success/40 bg-success/[.06]'
-            : 'border-base-300 bg-base-200/30 hover:border-primary/30 hover:bg-primary/[.03]' ?>">
-          <input
-            type="checkbox"
-            name="salary_boe"
-            id="salaryBoe"
-            value="1"
-            class="toggle toggle-sm toggle-success"
-            onchange="toggleSalaryBoe()"
-            <?= $savedSalBoe ? 'checked' : '' ?>>
-          <span class="min-w-0 flex-1">
-            <span class="flex flex-wrap items-center gap-2">
-              <span class="text-[13px] font-semibold text-base-content">Based on Experience</span>
-              <span class="badge badge-success badge-xs font-bold">BOE</span>
-            </span>
-            <span class="mt-0.5 block text-[11.5px] leading-relaxed text-base-content/50">
-              Salary is determined by the candidate's experience, skills and qualifications.
-            </span>
-          </span>
+    <!-- ── Location ── -->
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div class="min-w-0">
+        <label for="country" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">
+          Country <span class="text-error">*</span>
+          <?php if ($isEdit): ?><span class="font-normal normal-case tracking-normal text-base-content/40">(locked)</span><?php endif; ?>
         </label>
+        <select name="country" id="country" class="<?= SELECT_CLASS ?>" onchange="onCountryChange()" required
+          <?= $isEdit ? 'disabled' : '' ?>>
+          <option value="">Select</option>
+          <?php foreach ($countryData as $c => $d): ?>
+            <option value="<?= e($c) ?>" <?= oldSel('country', $c) ?>><?= e($c) ?></option>
+          <?php endforeach; ?>
+        </select>
+        <?php if ($isEdit): ?>
+          <input type="hidden" name="country" value="<?= e($job['country'] ?? '') ?>">
+        <?php endif; ?>
+      </div>
 
-        <!-- BOE message -->
-        <div id="salaryBoeText" class="<?= $savedSalBoe ? '' : 'hidden' ?>">
-          <div class="alert alert-success alert-soft py-2.5 text-[12px]">
-            <svg class="size-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75l2.25 2.25L15 10.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span>Salary will be shown as "Based on Experience".</span>
-          </div>
-        </div>
+      <div class="min-w-0">
+        <label for="workplaceType" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">
+          Workplace <span class="text-error">*</span>
+        </label>
+        <select name="workplace_type" id="workplaceType" class="<?= SELECT_CLASS ?>" onchange="toggleLocationFields()" required>
+          <option value="">Select</option>
+          <?php foreach ($workplaceTypes as $wt): ?>
+            <option value="<?= e($wt) ?>" <?= oldSel('workplace_type', $wt) ?>><?= e($wt) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
 
-        <!-- Salary range -->
-        <div id="salaryInputsWrap" class="<?= $savedSalBoe ? 'hidden' : '' ?> space-y-4">
-          <div class="grid w-full grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-end">
-            <fieldset class="min-w-0">
-              <legend class="mb-1.5 block text-xs font-semibold text-base-content/70">Minimum</legend>
-              <div class="flex w-full">
-                <input type="number" name="salary_from" id="salaryFrom" class="<?= INPUT_CLASS ?> min-w-0 flex-1 rounded-r-none"
-                  placeholder="35"
-                  value="<?= e($savedSalFrom) ?>"
-                  min="0"
-                  step="any"
-                  oninput="updateSalaryPreview()"
-                  <?= $savedSalBoe ? '' : 'required' ?>>
-                <select
-                  name="salary_unit_from"
-                  id="salaryUnitFrom"
-                  class="<?= SELECT_CLASS ?> w-[105px] shrink-0 rounded-l-none border-l-0"
-                  onchange="updateSalaryPreview()">
-                  <option value="" <?= $savedSalUnitFrom === '' ? 'selected' : '' ?>> — </option>
-                  <option value="L" <?= $savedSalUnitFrom === 'L' ? 'selected' : '' ?>> L — Lakhs </option>
-                  <option value="K" <?= $savedSalUnitFrom === 'K' ? 'selected' : '' ?>> K — Thousands </option>
-                </select>
-              </div>
-            </fieldset>
+      <div class="min-w-0">
+        <label for="city" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">
+          City <span class="text-error">*</span>
+        </label>
+        <input type="text" name="city" id="city" class="<?= INPUT_CLASS ?>" placeholder="e.g. Bangalore" value="<?= old('city') ?>" required />
+      </div>
 
-            <div class="hidden items-center justify-center md:flex">
-              <div class="flex size-7 items-center justify-center rounded-full bg-base-200 text-[12px] font-semibold text-base-content/40">–</div>
-            </div>
+      <div class="min-w-0">
+        <label for="stateSelect" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">
+          State <span class="text-error">*</span>
+        </label>
+        <select name="state_province" id="stateSelect" class="<?= SELECT_CLASS ?>" onchange="onStateChange()" required>
+          <option value="">Select country</option>
+        </select>
+      </div>
 
-            <fieldset class="min-w-0">
-              <legend class="mb-1.5 block text-xs font-semibold text-base-content/70">Maximum</legend>
-              <div class="flex w-full">
-                <input type="number" name="salary_to" id="salaryTo" class="<?= INPUT_CLASS ?> min-w-0 flex-1 rounded-r-none"
-                  placeholder="45"
-                  value="<?= e($savedSalTo) ?>"
-                  min="0"
-                  step="any"
-                  oninput="updateSalaryPreview()"
-                  <?= $savedSalBoe ? '' : 'required' ?>>
-                <select
-                  name="salary_unit_to"
-                  id="salaryUnitTo"
-                  class="<?= SELECT_CLASS ?> w-[105px] shrink-0 rounded-l-none border-l-0"
-                  onchange="updateSalaryPreview()">
-                  <option value="" <?= $savedSalUnitTo === '' ? 'selected' : '' ?>> — </option>
-                  <option value="L" <?= $savedSalUnitTo === 'L' ? 'selected' : '' ?>> L — Lakhs </option>
-                  <option value="K" <?= $savedSalUnitTo === 'K' ? 'selected' : '' ?>> K — Thousands </option>
-                </select>
-              </div>
-            </fieldset>
-          </div>
+      <input type="hidden" name="timezone" id="timezoneSelect" value="<?= old('timezone') ?>">
+    </div>
 
-          <!-- Currency + Type -->
-          <div class="grid grid-cols-1 gap-4 border-t border-base-300 pt-4 sm:grid-cols-2">
-            <fieldset class="min-w-0">
-              <legend class="mb-1.5 block text-xs font-semibold text-base-content/70">
-                Currency <span class="text-error">*</span>
-              </legend>
-              <select
-                name="salary_currency"
-                id="salaryCurrency"
-                class="<?= SELECT_CLASS ?>"
-                required
-                onchange="updateSalaryPreview()">
-                <option value="">Select currency</option>
-              </select>
-            </fieldset>
+    <!-- ── Job Title ── -->
+    <div>
+      <label for="jobTitle" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">
+        Job Title <span class="text-error">*</span>
+      </label>
+      <input type="text" name="job_title" id="jobTitle" class="<?= INPUT_CLASS ?>" placeholder="e.g. Senior Full Stack Developer" value="<?= old('job_title') ?>" maxlength="150" required />
+    </div>
 
-            <fieldset class="min-w-0">
-              <legend class="mb-1.5 block text-xs font-semibold text-base-content/70">
-                Salary Type <span class="text-error">*</span>
-              </legend>
-              <select
-                name="salary_type"
-                id="salaryType"
-                class="<?= SELECT_CLASS ?>"
-                required
-                onchange="updateSalaryPreview()">
-                <option value="">Select salary type</option>
-                <?php foreach ($salaryTypes as $st): ?>
-                  <option value="<?= e($st) ?>" <?= $savedSalType === $st ? 'selected' : '' ?>>
-                    <?= e($st) ?>
-                  </option>
-                <?php endforeach; ?>
-              </select>
-            </fieldset>
-          </div>
-
-          <!-- Live preview -->
-          <div class="flex flex-col gap-1.5 rounded-lg bg-base-200/60 px-3.5 py-2.5 sm:flex-row sm:items-center sm:justify-between">
-            <span class="text-[10.5px] font-semibold uppercase tracking-wide text-base-content/45">Salary preview</span>
-            <div id="salaryPreview" class="break-words text-[12.5px] font-bold text-primary sm:text-right">
-              <?php
-              if ($savedSalFrom !== '' || $savedSalTo !== '') {
-                $fromDisp = $savedSalFrom !== ''
-                  ? $savedSalFrom . ($savedSalUnitFrom !== '' ? ' ' . $savedSalUnitFrom : '')
-                  : '';
-
-                $toDisp = $savedSalTo !== ''
-                  ? $savedSalTo . ($savedSalUnitTo !== '' ? ' ' . $savedSalUnitTo : '')
-                  : '';
-
-                $range = ($fromDisp !== '' && $toDisp !== '')
-                  ? $fromDisp . ' – ' . $toDisp
-                  : ($fromDisp ?: $toDisp);
-
-                echo e(
-                  implode(
-                    ' | ',
-                    array_filter([
-                      $range,
-                      $savedSalCur,
-                      $savedSalType
-                    ])
-                  )
-                );
-              } else {
-                echo '—';
-              }
-              ?>
-            </div>
-          </div>
+    <!-- ── Role + Experience ── -->
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div class="min-w-0">
+        <label for="jobTypeSelect" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">
+          Job Type <span class="text-error">*</span>
+        </label>
+        <select name="job_type" id="jobTypeSelect" class="<?= SELECT_CLASS ?>" onchange="toggleOther(this, 'otherJobType')" required>
+          <option value="">Select</option>
+        </select>
+        <div id="otherJobType" class="mt-2 hidden">
+          <input type="text" name="job_type_other" id="jobTypeOther" class="<?= INPUT_CLASS ?>" placeholder="e.g. Contract" value="<?= old('job_type_other') ?>">
         </div>
       </div>
-    </section>
 
-    <!-- ═══ CARD 5 · JOB CONTENT ═══ -->
-    <section class="overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-card">
-      <header class="flex items-center gap-3 border-b border-base-300 px-5 py-3.5">
-        <div class="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
-          <svg class="size-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m6.75 12l-3-3m0 0l-3 3m3-3v6M6.75 21h10.5a2.25 2.25 0 002.25-2.25V6.108c0-.397-.158-.779-.44-1.06L15.94 1.44A1.5 1.5 0 0014.878 1H6.75A2.25 2.25 0 004.5 3.25v15.5A2.25 2.25 0 006.75 21z" />
-          </svg>
-        </div>
-        <div class="min-w-0">
-          <h2 class="text-[13.5px] font-bold text-base-content">Job Content</h2>
-          <p class="text-[11.5px] text-base-content/50">What candidates will read on the careers page.</p>
-        </div>
-      </header>
-
-      <div class="flex flex-col gap-5 p-5">
-        <div>
-          <label for="job_description" class="mb-1.5 block text-xs font-semibold text-base-content/70">
-            Job Description
-          </label>
-          <textarea id="job_description" name="job_description" class="<?= TEXTAREA_CLASS ?>"><?= old("job_description") ?></textarea>
-        </div>
-
-        <div>
-          <label for="key_skills" class="mb-1.5 block text-xs font-semibold text-base-content/70">
-            Requirements
-          </label>
-          <textarea id="key_skills" name="key_skills" class="<?= TEXTAREA_CLASS ?>"><?= old("key_skills") ?></textarea>
-        </div>
-
-        <div>
-          <label for="our_terms" class="mb-1.5 block text-xs font-semibold text-base-content/70">
-            Why Join Us <span class="text-error">*</span>
-          </label>
-          <textarea id="our_terms" name="our_terms" class="<?= TEXTAREA_CLASS ?>"><?= old("our_terms") ?></textarea>
-          <p class="mt-1.5 text-[11px] text-base-content/45">Auto-filled per country for new jobs — edit as needed.</p>
-        </div>
+      <div class="min-w-0">
+        <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">
+          Experience <span class="text-error">*</span>
+        </label>
+        <select name="experience_range" id="experienceRange" class="<?= SELECT_CLASS ?>" required>
+          <option value="">Select range</option>
+          <option value="0-2" <?= oldSel('experience_range', '0-2') ?>>0 – 2 years</option>
+          <option value="3-5" <?= oldSel('experience_range', '3-5') ?>>3 – 5 years</option>
+          <option value="5-10" <?= oldSel('experience_range', '5-10') ?>>5 – 10 years</option>
+          <option value="10+" <?= oldSel('experience_range', '10+') ?>>10+ years</option>
+        </select>
       </div>
-    </section>
+    </div>
 
-    <!-- ═══ STICKY ACTIONS ═══ -->
-    <div class="sticky bottom-3 z-30 flex flex-wrap items-center gap-2 rounded-2xl border border-base-300 bg-base-100/95 px-4 py-3 shadow-pop backdrop-blur">
-      <span class="mr-auto hidden text-[11.5px] text-base-content/50 sm:block">
-        <span class="text-error">*</span> Required fields
+    <!-- ── Client ── -->
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div class="min-w-0">
+        <label for="client_id" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">
+          Client <span class="text-error">*</span>
+        </label>
+        <select name="client_id" id="client_id" class="<?= SELECT_CLASS ?>" required>
+          <option value="">Select client</option>
+          <?php foreach ($clientsList as $client): ?>
+            <option value="<?= e($client['id']) ?>" <?= oldSel('client_id', $client['id']) ?>><?= e($client['client_name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+
+      <div class="min-w-0">
+        <label for="clientCodeSuffix" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">
+          Client Ref
+        </label>
+        <input type="text" name="client_code_suffix" id="clientCodeSuffix" class="<?= INPUT_CLASS ?>" placeholder="12345" maxlength="5" pattern="\d{4,5}" value="<?= e(preg_replace("/[^0-9]/", "", $savedCcSuffix)) ?>" oninput="this.value=this.value.replace(/[^0-9]/g,'')" title="4 or 5 digit number" />
+      </div>
+    </div>
+
+    <!-- ── Compensation ── -->
+    <div class="space-y-3">
+      <label for="salaryBoe" class="flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-all <?= $savedSalBoe ? 'border-success/40 bg-success/[.06]' : 'border-base-300 bg-base-200/30 hover:border-primary/30' ?>">
+        <input type="checkbox" name="salary_boe" id="salaryBoe" value="1" class="toggle toggle-sm toggle-success" onchange="toggleSalaryBoe()" <?= $savedSalBoe ? 'checked' : '' ?>>
+        <span class="text-[13px] font-semibold text-base-content">Based on Experience</span>
+      </label>
+
+      <div id="salaryBoeText" class="<?= $savedSalBoe ? '' : 'hidden' ?>">
+        <div class="alert alert-success alert-soft py-2 text-[12px]">Salary will be shown as "Based on Experience".</div>
+      </div>
+
+      <div id="salaryInputsWrap" class="<?= $savedSalBoe ? 'hidden' : '' ?> space-y-3">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div class="min-w-0">
+            <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">Min</label>
+            <div class="flex">
+              <input type="number" name="salary_from" id="salaryFrom" class="<?= INPUT_CLASS ?> min-w-0 flex-1 rounded-r-none" placeholder="35" value="<?= e($savedSalFrom) ?>" min="0" step="any" oninput="updateSalaryPreview()" <?= $savedSalBoe ? '' : 'required' ?>>
+              <select name="salary_unit_from" id="salaryUnitFrom" class="<?= SELECT_CLASS ?> w-20 shrink-0 rounded-l-none border-l-0" onchange="updateSalaryPreview()">
+                <option value="" <?= $savedSalUnitFrom === '' ? 'selected' : '' ?>>—</option>
+                <option value="L" <?= $savedSalUnitFrom === 'L' ? 'selected' : '' ?>>L</option>
+                <option value="K" <?= $savedSalUnitFrom === 'K' ? 'selected' : '' ?>>K</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="min-w-0">
+            <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">Max</label>
+            <div class="flex">
+              <input type="number" name="salary_to" id="salaryTo" class="<?= INPUT_CLASS ?> min-w-0 flex-1 rounded-r-none" placeholder="45" value="<?= e($savedSalTo) ?>" min="0" step="any" oninput="updateSalaryPreview()" <?= $savedSalBoe ? '' : 'required' ?>>
+              <select name="salary_unit_to" id="salaryUnitTo" class="<?= SELECT_CLASS ?> w-20 shrink-0 rounded-l-none border-l-0" onchange="updateSalaryPreview()">
+                <option value="" <?= $savedSalUnitTo === '' ? 'selected' : '' ?>>—</option>
+                <option value="L" <?= $savedSalUnitTo === 'L' ? 'selected' : '' ?>>L</option>
+                <option value="K" <?= $savedSalUnitTo === 'K' ? 'selected' : '' ?>>K</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="min-w-0">
+            <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">Currency <span class="text-error">*</span></label>
+            <select name="salary_currency" id="salaryCurrency" class="<?= SELECT_CLASS ?>" required onchange="updateSalaryPreview()">
+              <option value="">Select</option>
+            </select>
+          </div>
+
+          <div class="min-w-0">
+            <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">Type <span class="text-error">*</span></label>
+            <select name="salary_type" id="salaryType" class="<?= SELECT_CLASS ?>" required onchange="updateSalaryPreview()">
+              <option value="">Select</option>
+              <?php foreach ($salaryTypes as $st): ?>
+                <option value="<?= e($st) ?>" <?= $savedSalType === $st ? 'selected' : '' ?>><?= e($st) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+        </div>
+
+        <!-- <div id="salaryPreview" class="rounded-lg bg-base-200/60 px-3 py-2 text-[12px] font-bold text-primary">
+          <?php
+          if ($savedSalFrom !== '' || $savedSalTo !== '') {
+            $fromDisp = $savedSalFrom !== '' ? $savedSalFrom . ($savedSalUnitFrom !== '' ? ' ' . $savedSalUnitFrom : '') : '';
+            $toDisp = $savedSalTo !== '' ? $savedSalTo . ($savedSalUnitTo !== '' ? ' ' . $savedSalUnitTo : '') : '';
+            $range = ($fromDisp !== '' && $toDisp !== '') ? $fromDisp . ' - ' . $toDisp : ($fromDisp ?: $toDisp);
+            echo e(implode(' | ', array_filter([$range, $savedSalCur, $savedSalType])));
+          } else {
+            echo '—';
+          }
+          ?>
+        </div> -->
+      </div>
+    </div>
+
+    <!-- ── Content (Quill editors) ── -->
+    <style>
+      .quill-editor-wrap .ql-toolbar {
+        border-radius: 12px 12px 0 0;
+      }
+
+      .quill-editor-wrap .ql-container {
+        height: auto;
+        min-height: 160px;
+        border-radius: 0 0 12px 12px;
+        font-family: inherit;
+      }
+
+      .quill-editor-wrap .ql-editor {
+        height: auto;
+        min-height: 160px;
+        font-size: 13px;
+        line-height: 1.6;
+      }
+
+      .quill-editor-wrap .ql-editor.ql-blank::before {
+        font-style: normal;
+      }
+    </style>
+    <div class="space-y-3">
+      <div class="quill-editor-wrap">
+        <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">Job Description</label>
+        <input type="hidden" id="job_description" name="job_description" value="<?= old("job_description") ?>">
+        <div id="job_description_editor"><?= old("job_description") ?></div>
+      </div>
+      <div class="quill-editor-wrap">
+        <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">Requirements</label>
+        <input type="hidden" id="key_skills" name="key_skills" value="<?= old("key_skills") ?>">
+        <div id="key_skills_editor"><?= old("key_skills") ?></div>
+      </div>
+      <div class="quill-editor-wrap">
+        <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">Why Join Us <span class="text-error">*</span></label>
+        <input type="hidden" id="our_terms" name="our_terms" value="<?= old("our_terms") ?>">
+        <div id="our_terms_editor"><?= old("our_terms") ?></div>
+        <p class="mt-1 text-[11px] text-base-content/40">Auto-filled per country for new jobs.</p>
+      </div>
+    </div>
+
+    <!-- ── Summary ── -->
+    <div class="flex flex-wrap gap-1.5 text-[12px]">
+      <span class="inline-flex items-center rounded-full border border-base-300 bg-base-200/60 px-2.5 py-1 font-semibold text-base-content/60" id="summaryJobCode">
+        <?= $isEdit ? e($job["job_code"]) : ($isClone ? e($cloneNewCode) : '—') ?>
       </span>
+      <span class="inline-flex items-center rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 font-semibold text-primary" id="summaryTitle">
+        <?= old('job_title') ?: '—' ?>
+      </span>
+      <span class="inline-flex items-center rounded-full border border-base-300 bg-base-200/60 px-2.5 py-1 text-base-content/50" id="summaryLocation">
+        <?= old('country') ?: '—' ?>
+      </span>
+      <span class="inline-flex items-center rounded-full border border-base-300 bg-base-200/60 px-2.5 py-1 text-base-content/50" id="summaryWorkplace">
+        <?= old('workplace_type') ?: '—' ?>
+      </span>
+      <span class="inline-flex items-center rounded-full border border-base-300 bg-base-200/60 px-2.5 py-1 text-base-content/50" id="summaryJobType">
+        <?= old('job_type') ?: '—' ?>
+      </span>
+      <span class="inline-flex items-center rounded-full border border-base-300 bg-base-200/60 px-2.5 py-1 text-base-content/50" id="summaryExp">
+        <?= $savedExpRange ? e($savedExpRange) . ' yrs' : '—' ?>
+      </span>
+      <span class="inline-flex items-center rounded-full border border-base-300 bg-base-200/60 px-2.5 py-1 text-base-content/50" id="summarySalary">
+        <?= $savedSalBoe ? 'BOE' : '—' ?>
+      </span>
+      <?php if ($isEdit): ?>
+        <span class="inline-flex items-center rounded-full <?= $job['status'] === 'published' ? 'border border-success/30 bg-success/10 text-success' : 'border border-warning/30 bg-warning/10 text-warning' ?> px-2.5 py-1 font-semibold">
+          <?= e(ucfirst($job['status'])) ?>
+        </span>
+      <?php endif; ?>
+    </div>
+
+    <!-- ── Actions ── -->
+    <div class="sticky bottom-3 z-30 flex flex-wrap items-center gap-2 rounded-2xl border border-base-300 bg-base-100/95 px-4 py-3 shadow-pop backdrop-blur">
+      <span class="mr-auto hidden text-[11.5px] text-base-content/50 sm:block"><span class="text-error">*</span> Required</span>
 
       <button type="submit" name="submit_action" value="publish" class="btn btn-primary btn-sm h-9 min-h-9 rounded-full px-5 text-[12.5px] font-semibold shadow-pop">
-        <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
-        </svg>
-        <?php if ($isClone): ?>
-          Publish
-        <?php elseif ($isEdit): ?>
-          Update &amp; Publish
-        <?php else: ?>
-          Publish Job
-        <?php endif; ?>
+        <?= $isClone ? 'Publish' : ($isEdit ? 'Update &amp; Publish' : 'Publish Job') ?>
       </button>
 
       <button type="submit" name="submit_action" value="draft" class="btn btn-sm h-9 min-h-9 rounded-full border-base-300 bg-base-100 px-5 text-[12.5px] font-semibold hover:bg-base-200">
-        <svg class="size-4" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M5 3a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7.828A2 2 0 0 0 20.414 6.4l-2.8-2.8A2 2 0 0 0 16.172 3H5zm2 2h8v4H7V5zm10 14H7v-6h10v6z" />
-        </svg>
         <?= $isClone ? 'Draft' : 'Save as Draft' ?>
       </button>
 
@@ -1236,62 +1013,40 @@ include dirname(__DIR__) . "/includes/header.php";
       </a>
 
       <?php if ($isEdit): ?>
-        <button
-          type="button"
-          onclick="openDeleteJobModal()"
-          class="btn btn-sm ml-auto h-9 min-h-9 gap-2 rounded-full border-error/30 bg-transparent px-4 text-[12.5px] font-semibold text-error hover:border-error hover:bg-error hover:text-error-content">
-          <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+        <button type="button" onclick="openDeleteJobModal()" class="btn btn-sm ml-auto h-9 min-h-9 gap-2 rounded-full border-error/30 bg-transparent px-4 text-[12.5px] font-semibold text-error hover:border-error hover:bg-error hover:text-error-content">
+          <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
             <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
           </svg>
-          Delete Job
+          Delete
         </button>
       <?php endif; ?>
     </div>
 
-    <!-- Delete Job Modal -->
+    <!-- Delete Modal -->
     <dialog id="deleteJobModal" class="modal">
       <div class="modal-box w-[calc(100%-2rem)] max-w-md rounded-3xl border border-base-300/70 bg-base-100 p-0 shadow-xl">
-
         <div class="flex items-center justify-between gap-3 px-5 pb-1 pt-5">
           <div class="min-w-0">
-            <h3 class="font-head text-[16px] font-bold tracking-tight text-base-content">Delete job?</h3>
+            <h3 class=" text-[16px] font-bold tracking-tight text-base-content">Delete job?</h3>
             <p class="mt-0.5 text-[11.5px] text-base-content/50">This action is permanent.</p>
           </div>
-          <button
-            type="button"
-            onclick="closeDeleteJobModal()"
-            class="btn btn-sm btn-circle btn-ghost size-8 min-h-8 shrink-0 text-base-content/50 hover:bg-base-200 hover:text-base-content"
-            aria-label="Close">
+          <button type="button" onclick="closeDeleteJobModal()" class="btn btn-sm btn-circle btn-ghost size-8 min-h-8 shrink-0 text-base-content/50 hover:bg-base-200 hover:text-base-content" aria-label="Close">
             <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
-
         <div class="px-5 py-5">
           <div class="rounded-2xl border border-error/15 bg-error/5 p-4">
             <p class="text-[13px] leading-relaxed text-base-content">
-              This permanently removes the posting <strong class="text-error"><?= e($job["job_code"] ?? "") ?></strong> and all associated information.
+              This permanently removes <strong class="text-error"><?= e($job["job_code"] ?? "") ?></strong> and all associated information.
             </p>
-            <p class="mt-2 text-[11.5px] text-base-content/50">
-              Consider closing it instead if you only want to take it offline.
-            </p>
+            <p class="mt-2 text-[11.5px] text-base-content/50">Consider closing it instead if you only want to take it offline.</p>
           </div>
         </div>
-
         <div class="modal-action m-0 flex flex-col-reverse gap-2 border-t border-base-200/80 bg-base-200/40 px-5 py-4 sm:flex-row sm:justify-end">
-          <button
-            type="button"
-            onclick="closeDeleteJobModal()"
-            class="btn h-10 min-h-10 w-full rounded-full border border-base-300 bg-base-100 px-5 text-sm font-semibold text-base-content/80 hover:bg-base-200 hover:text-base-content sm:w-auto">
-            Cancel
-          </button>
-          <a
-            id="confirmDeleteJobBtn"
-            href="#"
-            class="btn btn-error h-10 min-h-10 w-full rounded-full px-6 text-sm font-semibold sm:w-auto">
-            Delete permanently
-          </a>
+          <button type="button" onclick="closeDeleteJobModal()" class="btn h-10 min-h-10 w-full rounded-full border border-base-300 bg-base-100 px-5 text-sm font-semibold text-base-content/80 hover:bg-base-200 hover:text-base-content sm:w-auto">Cancel</button>
+          <a id="confirmDeleteJobBtn" href="#" class="btn btn-error h-10 min-h-10 w-full rounded-full px-6 text-sm font-semibold sm:w-auto">Delete permanently</a>
         </div>
       </div>
       <form method="dialog" class="modal-backdrop bg-black/40 backdrop-blur-sm">
@@ -1305,18 +1060,18 @@ include dirname(__DIR__) . "/includes/header.php";
 
 <!-- ══ Data from PHP → JS ══ -->
 <script>
-  const COUNTRY_DATA = <?= json_encode($countryData, JSON_UNESCAPED_UNICODE) ?>;
-  const IS_EDIT = <?= json_encode($isEdit) ?>; // false for clone — country dropdown stays editable
-  const IS_CLONE = <?= json_encode($isClone) ?>;
-  const SAVED_COUNTRY = <?= json_encode(old("country", $isEdit || $isClone ? $job["country"] ?? "" : "")) ?>;
-  const SAVED_STATE = <?= json_encode(old("state_province", $isEdit || $isClone ? $job["state_province"] ?? "" : "")) ?>;
-  const SAVED_TIMEZONE = <?= json_encode(old("timezone", $isEdit || $isClone ? $job["timezone"] ?? "" : "")) ?>;
-  const SAVED_JOB_TYPE = <?= json_encode(old("job_type", $isEdit || $isClone ? $job["job_type"] ?? "" : "")) ?>;
-  const SAVED_WORKPLACE_TYPE = <?= json_encode(
-                                  old("workplace_type", $isEdit || $isClone ? $job["workplace_type"] ?? "" : "")
-                                ) ?>;
-  const SAVED_SALARY_TYPE = <?= json_encode(old("salary_type", $isEdit || $isClone ? $job["salary_type"] ?? "" : "")) ?>;
-  const SAVED_CURRENCY = <?= json_encode(old('salary_currency', $isEdit || $isClone ? $job["salary_currency"] ?? "" : "")) ?>;
+  var COUNTRY_DATA = <?= json_encode($countryData, JSON_UNESCAPED_UNICODE) ?>;
+  var IS_EDIT = <?= json_encode($isEdit) ?>; // false for clone — country dropdown stays editable
+  var IS_CLONE = <?= json_encode($isClone) ?>;
+  var SAVED_COUNTRY = <?= json_encode(old("country", $isEdit || $isClone ? $job["country"] ?? "" : "")) ?>;
+  var SAVED_STATE = <?= json_encode(old("state_province", $isEdit || $isClone ? $job["state_province"] ?? "" : "")) ?>;
+  var SAVED_TIMEZONE = <?= json_encode(old("timezone", $isEdit || $isClone ? $job["timezone"] ?? "" : "")) ?>;
+  var SAVED_JOB_TYPE = <?= json_encode(old("job_type", $isEdit || $isClone ? $job["job_type"] ?? "" : "")) ?>;
+  var SAVED_WORKPLACE_TYPE = <?= json_encode(
+                                old("workplace_type", $isEdit || $isClone ? $job["workplace_type"] ?? "" : "")
+                              ) ?>;
+  var SAVED_SALARY_TYPE = <?= json_encode(old("salary_type", $isEdit || $isClone ? $job["salary_type"] ?? "" : "")) ?>;
+  var SAVED_CURRENCY = <?= json_encode(old('salary_currency', $isEdit || $isClone ? $job["salary_currency"] ?? "" : "")) ?>;
 
   function openDeleteJobModal() {
     document.getElementById('confirmDeleteJobBtn').href =
@@ -1389,22 +1144,13 @@ include dirname(__DIR__) . "/includes/header.php";
       stateSelect.appendChild(option);
     });
 
-    // Time Zone
-    timezoneSelect.innerHTML = '<option value="">Select timezone</option>';
-    (data.timezones || []).forEach(timezone => {
-      const option = new Option(timezone, timezone);
-      if (
-        SAVED_TIMEZONE &&
-        timezone.trim().toLowerCase() === SAVED_TIMEZONE.trim().toLowerCase()
-      ) {
-        option.selected = true;
-      }
-      timezoneSelect.appendChild(option);
-    });
-
-    // Auto-select timezone when there's only one option (e.g. India → IST)
-    if (!SAVED_TIMEZONE && (data.timezones || []).length === 1) {
-      timezoneSelect.value = data.timezones[0];
+    // Time Zone (hidden input — set value from state mapping or saved value)
+    if (SAVED_TIMEZONE) {
+      timezoneSelect.value = SAVED_TIMEZONE;
+    } else {
+      // Auto-select timezone when there's only one option (e.g. India → IST)
+      const timezones = data.timezones || [];
+      timezoneSelect.value = timezones.length === 1 ? timezones[0] : '';
     }
 
     // Job Type
@@ -1448,12 +1194,10 @@ include dirname(__DIR__) . "/includes/header.php";
     toggleLocationFields();
 
     // Pre-fill "Why Join Us" for new jobs only
-    if (!IS_EDIT && !IS_CLONE) {
-      const ed = tinymce.get('our_terms');
-      if (ed) {
-        const content = OUR_TERMS_PLACEHOLDERS[country];
-        ed.setContent(content || '');
-      }
+    if (!IS_EDIT && !IS_CLONE && quillEditors['our_terms']) {
+      var content = OUR_TERMS_PLACEHOLDERS[country] || '';
+      quillEditors['our_terms'].root.innerHTML = content;
+      document.getElementById('our_terms').value = content;
     }
 
     // Auto-select timezone from state mapping on new jobs
@@ -1463,13 +1207,13 @@ include dirname(__DIR__) . "/includes/header.php";
   // ── State → timezone auto-select ──────────────────────────────
   function onStateChange() {
     const countryEl = document.getElementById('country');
-    const stateEl   = document.getElementById('stateSelect');
-    const tzEl      = document.getElementById('timezoneSelect');
+    const stateEl = document.getElementById('stateSelect');
+    const tzEl = document.getElementById('timezoneSelect');
     if (!countryEl || !stateEl || !tzEl || !stateEl.value) return;
 
     const data = getCountryData(countryEl.value);
     const mapped = data.states?.[stateEl.value];
-    if (mapped && tzEl.querySelector('option[value="' + mapped + '"]')) {
+    if (mapped) {
       tzEl.value = mapped;
     }
   }
@@ -1496,14 +1240,7 @@ include dirname(__DIR__) . "/includes/header.php";
 
   // ── Experience preview ────────────────────────────────────────
   function updateExpPreview() {
-    const from = document.getElementById('expFrom')?.value || '';
-    const to = document.getElementById('expTo')?.value || '';
-    const preview = document.getElementById('expPreview');
-    if (!preview) return;
-    preview.textContent =
-      from && to ?
-      `${from} - ${to} years` :
-      'Select experience range';
+    // Single range dropdown — no preview needed, preview lives in the select itself
   }
 
   // ── Salary preview ────────────────────────────────────────────
@@ -1555,6 +1292,30 @@ include dirname(__DIR__) . "/includes/header.php";
     }
   }
 
+  // ── Summary card ──────────────────────────────────────────────
+  function updateSummary() {
+    const title = document.getElementById('jobTitle')?.value || '—';
+    const country = document.getElementById('country')?.value || '—';
+    const workplace = document.getElementById('workplaceType')?.value || '—';
+    const jobType = document.getElementById('jobTypeSelect')?.value || '—';
+    const expRange = document.getElementById('experienceRange')?.value || '';
+    const boe = document.getElementById('salaryBoe')?.checked;
+
+    const titleEl = document.getElementById('summaryTitle');
+    const locEl = document.getElementById('summaryLocation');
+    const wpEl = document.getElementById('summaryWorkplace');
+    const jtEl = document.getElementById('summaryJobType');
+    const expEl = document.getElementById('summaryExp');
+    const salEl = document.getElementById('summarySalary');
+
+    if (titleEl) titleEl.textContent = title;
+    if (locEl) locEl.textContent = country;
+    if (wpEl) wpEl.textContent = workplace;
+    if (jtEl) jtEl.textContent = jobType;
+    if (expEl) expEl.textContent = expRange ? expRange + ' yrs' : '—';
+    if (salEl) salEl.textContent = boe ? 'BOE' : '—';
+  }
+
   // ── Init ──────────────────────────────────────────────────────
   function initializeForm() {
     try {
@@ -1580,6 +1341,8 @@ include dirname(__DIR__) . "/includes/header.php";
       updateExpPreview();
       updateSalaryPreview();
       toggleSalaryBoe();
+      updateSummary();
+      initQuillEditors();
     } catch (error) {
       console.error('Form initialization failed:', error);
     }
@@ -1596,21 +1359,25 @@ include dirname(__DIR__) . "/includes/header.php";
     const el = e.target;
     clearTimeout(window.__invalidScroll);
     window.__invalidScroll = setTimeout(function() {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      el.focus({ preventScroll: true });
+      el.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      });
+      el.focus({
+        preventScroll: true
+      });
     }, 60);
   }, true);
+
+  // Update summary card on any field change
+  document.getElementById('jobForm').addEventListener('input', updateSummary);
+  document.getElementById('jobForm').addEventListener('change', updateSummary);
 </script>
 
-<script src="https://cdn.tiny.cloud/1/yqey0x686cm618eysfgj0l4o0chy4vr9kthimc8hgtp2bhqn/tinymce/8/tinymce.min.js"
-  referrerpolicy="origin" crossorigin="anonymous"></script>
 <script>
-  document.getElementById('jobForm').addEventListener('submit', function() {
-    tinymce.triggerSave();
-  });
   // ══════════════════════════════════════════════════════════════════════
   // OUR_TERMS_PLACEHOLDERS
-  // Pre-fills the "Why Join Us" TinyMCE editor for NEW posts only.
+  // Pre-fills the "Why Join Us" editor for NEW posts only.
   // Edit/Clone posts are never affected.
   //
   // ── HOW TO UPDATE ──────────────────────────────────────────────────
@@ -1621,11 +1388,11 @@ include dirname(__DIR__) . "/includes/header.php";
   // ── COUNTRIES CURRENTLY CONFIGURED ────────────────────────────────
   //    India | United States | Canada
   // ══════════════════════════════════════════════════════════════════════
-  const OUR_TERMS_PLACEHOLDERS = {
+  var OUR_TERMS_PLACEHOLDERS = {
 
     // ── INDIA ──────────────────────────────────────────────────────────
     'India': `
-    <p><strong>Accelon Consulting</strong> is a global workforce solutions partner and AI enablement leader, but above all, we are a people‑first organization. Our dual commitment is simple: advancing careers and enabling organizations to thrive in a connected, intelligent future. We know our professionals bring specialized expertise, strategic insight, and immediate impact to every engagement. You’re not just filling a seat - you’re solving problems, leading change, and driving results. Because of that, we treat every consultant like the professional they are. Our culture is built on respect, transparency, and long‑term growth, offering opportunities to work on high‑impact projects with leading global enterprises. At Accelon, people are supported, achievements are recognized, and careers are built with purpose. To learn more about our culture and what it’s like to be part of our team, visit the <a href="https://www.accelonconsulting.com/life-at-accelon/">Life at Accelon</a> section on our website.</p>
+    <p><strong>Accelon Consulting</strong> is a global workforce solutions partner and AI enablement leader, but above all, we are a people‑first organization. Our dual commitment is simple: advancing careers and enabling organizations to thrive in a connected, intelligent future. We know our professionals bring specialized expertise, strategic insight, and immediate impact to every engagement. You're not just filling a seat - you're solving problems, leading change, and driving results. Because of that, we treat every consultant like the professional they are. Our culture is built on respect, transparency, and long‑term growth, offering opportunities to work on high‑impact projects with leading global enterprises. At Accelon, people are supported, achievements are recognized, and careers are built with purpose. To learn more about our culture and what it's like to be part of our team, visit the <a href="https://www.accelonconsulting.com/life-at-accelon/">Life at Accelon</a> section on our website.</p>
     <ul>
       <li>Free Health Insurance – Comprehensive coverage for you and your dependents.</li>
       <li>Work-Life Balance – Flexible work arrangements and realistic workloads to help you maintain a healthy balance.</li>
@@ -1636,7 +1403,7 @@ include dirname(__DIR__) . "/includes/header.php";
 
     // ── UNITED STATES ──────────────────────────────────────────────────
     'United States': `
-    <p><strong>Accelon Consulting</strong> is a global workforce solutions partner and AI enablement leader, but above all, we are a people‑first organization. Our dual commitment is simple: advancing careers and enabling organizations to thrive in a connected, intelligent future. We know our professionals bring specialized expertise, strategic insight, and immediate impact to every engagement. You’re not just filling a seat - you’re solving problems, leading change, and driving results. Because of that, we treat every consultant like the professional they are. Our culture is built on respect, transparency, and long‑term growth, offering opportunities to work on high‑impact projects with leading global enterprises. At Accelon, people are supported, achievements are recognized, and careers are built with purpose. To learn more about our culture and what it’s like to be part of our team, visit the <a href="https://www.accelonconsulting.com/life-at-accelon/">Life at Accelon</a> section on our website.</p>
+    <p><strong>Accelon Consulting</strong> is a global workforce solutions partner and AI enablement leader, but above all, we are a people‑first organization. Our dual commitment is simple: advancing careers and enabling organizations to thrive in a connected, intelligent future. We know our professionals bring specialized expertise, strategic insight, and immediate impact to every engagement. You're not just filling a seat - you're solving problems, leading change, and driving results. Because of that, we treat every consultant like the professional they are. Our culture is built on respect, transparency, and long‑term growth, offering opportunities to work on high‑impact projects with leading global enterprises. At Accelon, people are supported, achievements are recognized, and careers are built with purpose. To learn more about our culture and what it's like to be part of our team, visit the <a href="https://www.accelonconsulting.com/life-at-accelon/">Life at Accelon</a> section on our website.</p>
     <ul>
       <li>We offer healthcare plans, which you may opt into at your own expense.</li>
       <li>Sick leave is provided under the state laws applicable to your residence.</li>
@@ -1647,7 +1414,7 @@ include dirname(__DIR__) . "/includes/header.php";
 
     // ── CANADA ─────────────────────────────────────────────────────────
     'Canada': `
-    <p><strong>Accelon Consulting</strong> is a global workforce solutions partner and AI enablement leader, but above all, we are a people‑first organization. Our dual commitment is simple: advancing careers and enabling organizations to thrive in a connected, intelligent future. We know our professionals bring specialized expertise, strategic insight, and immediate impact to every engagement. You’re not just filling a seat - you’re solving problems, leading change, and driving results. Because of that, we treat every consultant like the professional they are. Our culture is built on respect, transparency, and long‑term growth, offering opportunities to work on high‑impact projects with leading global enterprises. At Accelon, people are supported, achievements are recognized, and careers are built with purpose. To learn more about our culture and what it’s like to be part of our team, visit the <a href="https://www.accelonconsulting.com/life-at-accelon/">Life at Accelon</a> section on our website.</p>
+    <p><strong>Accelon Consulting</strong> is a global workforce solutions partner and AI enablement leader, but above all, we are a people‑first organization. Our dual commitment is simple: advancing careers and enabling organizations to thrive in a connected, intelligent future. We know our professionals bring specialized expertise, strategic insight, and immediate impact to every engagement. You're not just filling a seat - you're solving problems, leading change, and driving results. Because of that, we treat every consultant like the professional they are. Our culture is built on respect, transparency, and long‑term growth, offering opportunities to work on high‑impact projects with leading global enterprises. At Accelon, people are supported, achievements are recognized, and careers are built with purpose. To learn more about our culture and what it's like to be part of our team, visit the <a href="https://www.accelonconsulting.com/life-at-accelon/">Life at Accelon</a> section on our website.</p>
     <ul>
       <li>We offer healthcare plans, which you may opt into at your own expense.</li>
       <li>Sick leave is provided under the province laws applicable to your residence.</li>
@@ -1657,7 +1424,7 @@ include dirname(__DIR__) . "/includes/header.php";
 
   `,
     'Mexico': `
-    <p><strong>Accelon Consulting</strong> is a global workforce solutions partner and AI enablement leader, but above all, we are a people‑first organization. Our dual commitment is simple: advancing careers and enabling organizations to thrive in a connected, intelligent future. We know our professionals bring specialized expertise, strategic insight, and immediate impact to every engagement. You’re not just filling a seat - you’re solving problems, leading change, and driving results. Because of that, we treat every consultant like the professional they are. Our culture is built on respect, transparency, and long‑term growth, offering opportunities to work on high‑impact projects with leading global enterprises. At Accelon, people are supported, achievements are recognized, and careers are built with purpose. To learn more about our culture and what it’s like to be part of our team, visit the <a href="https://www.accelonconsulting.com/life-at-accelon/">Life at Accelon</a> section on our website.</p>
+    <p><strong>Accelon Consulting</strong> is a global workforce solutions partner and AI enablement leader, but above all, we are a people‑first organization. Our dual commitment is simple: advancing careers and enabling organizations to thrive in a connected, intelligent future. We know our professionals bring specialized expertise, strategic insight, and immediate impact to every engagement. You're not just filling a seat - you're solving problems, leading change, and driving results. Because of that, we treat every consultant like the professional they are. Our culture is built on respect, transparency, and long‑term growth, offering opportunities to work on high‑impact projects with leading global enterprises. At Accelon, people are supported, achievements are recognized, and careers are built with purpose. To learn more about our culture and what it's like to be part of our team, visit the <a href="https://www.accelonconsulting.com/life-at-accelon/">Life at Accelon</a> section on our website.</p>
     <ul>
       <li>We offer healthcare plans, which you may opt into at your own expense.</li>
       <li>Sick leave is provided under the province laws applicable to your residence.</li>
@@ -1668,32 +1435,92 @@ include dirname(__DIR__) . "/includes/header.php";
 
   }; // ← Add new countries above this line
 
-  tinymce.init({
-    selector: '#job_description, #key_skills, #our_terms',
-    height: 300,
-    menubar: false,
-    plugins: 'anchor autolink charmap codesample emoticons image link lists media searchreplace table visualblocks wordcount',
-    toolbar: 'undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | alignleft aligncenter alignright alignjustify | bullist numlist | link image media table | removeformat',
-    font_family_formats: "Lato=Lato,sans-serif;Tahoma=tahoma,arial,helvetica,sans-serif;Arial=arial,helvetica,sans-serif",
-    font_size_formats: "8pt 9pt 10pt 11pt 12pt 14pt 16pt 18pt 24pt 36pt",
-    content_style: 'body { font-family: Lato, sans-serif; font-size: 10pt; }',
-    setup: function(editor) {
-      editor.on('change', function() {
-        editor.save();
+  /* ── Quill Editors ─────────────────────────────────────────── */
+  var quillEditors = {};
+
+  function syncAllQuillEditors() {
+    Object.keys(quillEditors).forEach(function(id) {
+      var hidden = document.getElementById(id);
+      if (hidden && quillEditors[id]) {
+        hidden.value = quillEditors[id].root.innerHTML;
+      }
+    });
+  }
+
+  function initQuillEditors() {
+    var toolbarOptions = [
+      [{
+        header: [1, 2, 3, false]
+      }],
+      ['bold', 'italic', 'underline', 'strike'],
+      [{
+        list: 'ordered'
+      }, {
+        list: 'bullet'
+      }],
+      ['link'],
+      [{
+        align: []
+      }],
+      ['clean']
+    ];
+
+    var fields = [{
+        id: 'job_description',
+        placeholder: 'Describe the role, responsibilities, and qualifications...'
+      },
+      {
+        id: 'key_skills',
+        placeholder: 'List required skills and qualifications...'
+      },
+      {
+        id: 'our_terms',
+        placeholder: 'Why should candidates join?'
+      }
+    ];
+
+    fields.forEach(function(cfg) {
+      var container = document.getElementById(cfg.id + '_editor');
+      var hidden = document.getElementById(cfg.id);
+      if (!container || !hidden) return;
+
+      var q = new Quill('#' + cfg.id + '_editor', {
+        theme: 'snow',
+        placeholder: cfg.placeholder,
+        modules: {
+          toolbar: toolbarOptions
+        }
       });
 
-      editor.on('init', function() {
-        if (IS_EDIT || IS_CLONE) return; // edit/clone → never touch
-        if (editor.id !== 'our_terms') return; // only our_terms gets prefilled
+      /* Pre-fill from hidden input (PHP value) */
+      if (hidden.value) {
+        q.root.innerHTML = hidden.value;
+      }
 
-        const country = document.getElementById('country').value;
-        if (!country) return;
-
-        const content = OUR_TERMS_PLACEHOLDERS[country];
-        if (content) editor.setContent(content);
+      /* Sync on every change */
+      q.on('text-change', function() {
+        hidden.value = q.root.innerHTML;
       });
+
+      quillEditors[cfg.id] = q;
+    });
+
+    /* Pre-fill "Why Join Us" for new jobs based on selected country */
+    if (!IS_EDIT && !IS_CLONE && quillEditors['our_terms']) {
+      var country = document.getElementById('country').value;
+      if (country && OUR_TERMS_PLACEHOLDERS[country]) {
+        quillEditors['our_terms'].root.innerHTML = OUR_TERMS_PLACEHOLDERS[country];
+        document.getElementById('our_terms').value = OUR_TERMS_PLACEHOLDERS[country];
+      }
     }
+  }
+
+  /* Sync Quill → hidden inputs before form submission */
+  document.getElementById('jobForm').addEventListener('submit', function() {
+    syncAllQuillEditors();
   });
 </script>
 
-<?php include dirname(__DIR__) . "/includes/footer.php"; ?>
+<?php if (!$isAjax): ?>
+  <?php include dirname(__DIR__) . "/includes/footer.php"; ?>
+<?php endif; ?>

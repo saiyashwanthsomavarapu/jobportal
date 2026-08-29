@@ -420,14 +420,14 @@ include dirname(__DIR__) . "/includes/header.php";
           </svg>
         </div>
         <div>
-          <h3 class="font-head text-[15px] font-bold tracking-tight text-base-content">All users</h3>
+          <h3 class=" text-[15px] font-bold tracking-tight text-base-content">All users</h3>
           <p id="tableMeta" class="text-[11.5px] text-base-content/50">
             Showing <?= $totalUsers ?> of <?= $totalUsers ?> member<?= $totalUsers === 1 ? "" : "s" ?>
           </p>
         </div>
       </div>
 
-      <label class="input input-sm h-9 w-64 max-w-full items-center gap-2 border-transparent bg-base-200 focus-within:border-primary focus-within:bg-base-100">
+      <label class="input input-sm h-9 w-64 max-w-full items-center gap-2 border focus-within:border-primary focus-within:bg-base-100">
         <svg class="size-4 shrink-0 text-base-content/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
         </svg>
@@ -487,7 +487,7 @@ include dirname(__DIR__) . "/includes/header.php";
                       <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
                     </svg>
                   </div>
-                  <h4 class="mt-4 font-head text-[15px] font-bold text-base-content">No team members yet</h4>
+                  <h4 class="mt-4  text-[15px] font-bold text-base-content">No team members yet</h4>
                   <p class="mx-auto mt-1 max-w-xs text-[12.5px] leading-relaxed text-base-content/50">
                     Invite your first teammate by creating their sign-in account.
                   </p>
@@ -543,9 +543,9 @@ include dirname(__DIR__) . "/includes/header.php";
                 <td class="px-5 py-3.5 align-middle">
                   <div class="flex items-center gap-3">
                     <div class="avatar avatar-placeholder" title="Member since <?= date("F Y", strtotime($u["created_at"])) ?>">
-                      <div class="w-9 rounded-full font-head text-[13px] font-bold <?= $isActiveUser
-                                                                                      ? "bg-primary text-primary-content"
-                                                                                      : "bg-base-300 text-base-content" ?>">
+                      <div class="w-9 rounded-full  text-[13px] font-bold <?= $isActiveUser
+                                                                            ? "bg-primary text-primary-content"
+                                                                            : "bg-base-300 text-base-content" ?>">
                         <span><?= strtoupper(substr($u["name"], 0, 1)) ?></span>
                       </div>
                     </div>
@@ -608,7 +608,7 @@ include dirname(__DIR__) . "/includes/header.php";
                         data-email="<?= e($u["email"]) ?>"
                         data-role="<?= e($u["role"]) ?>"
                         data-self="<?= $isSelf ? "1" : "0" ?>"
-                        class="btn btn-square btn-sm h-8 min-h-8 w-8 rounded-full border-transparent bg-transparent text-base-content/50 transition-all hover:bg-primary/10 hover:text-primary">
+                        class="<?= EDIT_BUTTON ?>">
                         <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
                           <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
                         </svg>
@@ -618,7 +618,7 @@ include dirname(__DIR__) . "/includes/header.php";
                     <div class="tooltip tooltip-left" data-tip="Reset password">
                       <button type="button" aria-label="Reset password of <?= e($u["name"]) ?>"
                         onclick="openResetModal(<?= $u['id'] ?>, '<?= e(addslashes($u['name'])) ?>')"
-                        class="btn btn-square btn-sm h-8 min-h-8 w-8 rounded-full border-transparent bg-transparent text-base-content/50 transition-all hover:bg-primary/10 hover:text-primary">
+                        class="<?= PUBLISH_BUTTON ?>">
                         <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
                           <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
                         </svg>
@@ -629,7 +629,7 @@ include dirname(__DIR__) . "/includes/header.php";
                       <div class="tooltip tooltip-left" data-tip="Delete permanently">
                         <button type="button" aria-label="Delete <?= e($u["name"]) ?>"
                           onclick="openDeleteModal(<?= (int)$u['id'] ?>, '<?= e(addslashes($u['name'])) ?>')"
-                          class="btn btn-square btn-sm h-8 min-h-8 w-8 rounded-full border-transparent bg-transparent text-base-content/50 transition-all hover:bg-error/10 hover:text-error">
+                          class="<?= DELETE_BUTTON ?>">
                           <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                           </svg>
@@ -661,7 +661,7 @@ include dirname(__DIR__) . "/includes/header.php";
     <!-- Header -->
     <header class="flex items-center justify-between gap-3 px-5 pb-1 pt-5">
       <div class="min-w-0">
-        <h3 id="userModalTitle" class="truncate font-head text-[16px] font-bold tracking-tight text-base-content">New User</h3>
+        <h3 id="userModalTitle" class="truncate  text-[16px] font-bold tracking-tight text-base-content">New User</h3>
       </div>
       <button type="button" onclick="userModal.close()"
         class="btn btn-sm btn-circle btn-ghost size-8 min-h-8 shrink-0 text-base-content/50 hover:bg-base-200 hover:text-base-content"
@@ -810,7 +810,7 @@ include dirname(__DIR__) . "/includes/header.php";
 
     <div class="flex items-center justify-between gap-3 px-5 pb-1 pt-5">
       <div class="min-w-0">
-        <h3 class="font-head text-[16px] font-bold tracking-tight text-base-content">Reset password</h3>
+        <h3 class=" text-[16px] font-bold tracking-tight text-base-content">Reset password</h3>
         <p class="truncate text-[11.5px] text-base-content/50">
           Temporary sign-in password for <strong class="text-base-content/70" id="resetUserName"></strong>
         </p>
@@ -824,11 +824,11 @@ include dirname(__DIR__) . "/includes/header.php";
       </button>
     </div>
 
-      <form method="POST" id="resetForm">
-        <div class="space-y-4 px-5 py-5">
-          <input type="hidden" name="action" value="reset_password">
-          <input type="hidden" name="user_id" id="resetUserId" value="">
-          <?= csrf_field() ?>
+    <form method="POST" id="resetForm">
+      <div class="space-y-4 px-5 py-5">
+        <input type="hidden" name="action" value="reset_password">
+        <input type="hidden" name="user_id" id="resetUserId" value="">
+        <?= csrf_field() ?>
 
         <div>
           <label for="resetPw" class="mb-1.5 block text-xs font-semibold text-base-content/70">
@@ -851,9 +851,6 @@ include dirname(__DIR__) . "/includes/header.php";
 
         <ul id="resetRules" class="flex flex-wrap gap-1.5"></ul>
 
-        <p class="rounded-xl bg-base-200 px-3 py-2 text-[11.5px] leading-relaxed text-base-content/60">
-          Share it privately (call or message) — never over plain email.
-        </p>
       </div>
     </form>
 
@@ -880,7 +877,7 @@ include dirname(__DIR__) . "/includes/header.php";
 
     <div class="flex items-center justify-between gap-3 px-5 pb-1 pt-5">
       <div class="min-w-0">
-        <h3 class="font-head text-[16px] font-bold tracking-tight text-base-content">Remove team member?</h3>
+        <h3 class=" text-[16px] font-bold tracking-tight text-base-content">Remove team member?</h3>
         <p class="mt-0.5 text-[11.5px] text-base-content/50">This action is permanent.</p>
       </div>
       <button type="button" onclick="deleteModal.close()"

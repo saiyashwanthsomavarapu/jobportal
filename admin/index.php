@@ -229,7 +229,7 @@ include __DIR__ . "/includes/header.php";
   <!-- HEADER -->
   <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
     <div>
-      <h1 class="mt-2 font-head text-2xl font-bold tracking-tight text-base-content sm:text-[26px]">
+      <h1 class="mt-2 text-2xl font-bold tracking-tight text-base-content sm:text-[26px]">
         <?= e($greeting) ?>, <?= e($firstName) ?>
       </h1>
 
@@ -433,7 +433,7 @@ include __DIR__ . "/includes/header.php";
       <!-- Header -->
       <div class="flex items-center justify-between border-b border-gray-200 px-5 py-4 sm:px-6">
         <div>
-          <div class="font-head text-[15px] font-bold text-gray-900">
+          <div class=" text-[17px] font-bold text-gray-900">
             Recent Jobs
           </div>
           <div class="mt-1 text-[11px] text-gray-500">
@@ -500,7 +500,7 @@ include __DIR__ . "/includes/header.php";
             <?php $statusStyles = dashStatusStyles((string) $job["status"]); ?>
             <a
               href="<?= ADMIN_URL ?>/pages/post_job.php?edit=<?= (int) $job["id"] ?>"
-              class="group block px-5 py-4 transition hover:bg-gray-200 sm:px-6">
+              class=" group block px-5 py-4 transition hover:bg-[#f59e0b]/20 sm:px-6">
               <div class="flex items-start gap-3.5">
                 <!-- Icon -->
                 <div class="<?= SVG_DIV ?>">
@@ -528,7 +528,7 @@ include __DIR__ . "/includes/header.php";
                     <span class="shrink-0 text-sm text-gray-400 ">
 
                       <span
-                        class="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold <?= $statusStyles["badge"] ?>">
+                        class="me-2 inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold <?= $statusStyles["badge"] ?>">
                         <span class="h-1.5 w-1.5 rounded-full <?= $statusStyles["dot"] ?> "></span>
                         <?= e(ucfirst($job["status"])) ?>
                       </span>
@@ -596,7 +596,7 @@ include __DIR__ . "/includes/header.php";
       class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
       <div class="flex items-start justify-between">
         <div>
-          <div class="font-head text-[15px] font-bold text-gray-900">
+          <div class=" text-[17px] font-bold text-gray-900">
             Jobs by Country
           </div>
           <div class="mt-1 text-[11px] text-gray-500">
