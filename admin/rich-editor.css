@@ -1,0 +1,4 @@
+.form-page-content .ql-toolbar.ql-snow{border-color:#dfe3e8;border-radius:7px 7px 0 0;background:#f8fafc}
+.form-page-content .ql-container.ql-snow{min-height:210px;border-color:#dfe3e8;border-radius:0 0 7px 7px;background:#fff;font-family:"DM Sans",system-ui,sans-serif;font-size:13px}
+.form-page-content .ql-editor{min-height:210px;line-height:1.6}
+.form-page-content .ql-container.ql-snow:focus-within{border-color:#74a9ed;box-shadow:0 0 0 3px rgba(23,105,232,.1)}

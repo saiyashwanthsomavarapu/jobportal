@@ -1,85 +1,186 @@
 <?php
 require_once dirname(__DIR__) . '/auth.php';
 require_once dirname(__DIR__) . '/utils/classes.php';
-// ── Helper Functions ────────────────────────────────────────────
-// Get current filter parameters as array
-function getCurrentFilters(): array
+
+function currentJobFilters(): array
 {
-  $filters = array_filter([
+  return array_filter([
+    'q' => trim($_GET['q'] ?? ''),
     'status' => $_GET['status'] ?? '',
     'country' => $_GET['country'] ?? '',
-    'job_type' => $_GET['job_type'] ?? '',
-    'workplace' => $_GET['workplace'] ?? '',
-    'q' => trim($_GET['q'] ?? ''),
-  ], fn($v) => $v !== '' && $v !== null);
-  return $filters;
+    'per_page' => $_GET['per_page'] ?? '',
+  ], fn($value) => $value !== '' && $value !== null);
 }
 
-// Build URL with current filters preserved
-function buildFilterUrl(string $base, array $extraParams = []): string
+function jobsFlag(?string $country): string
 {
-  $params = array_filter($_GET, fn($v) => $v !== '' && $v !== null);
-  $params = array_merge($params, $extraParams);
-  unset($params['page']); // Reset to page 1 when changing filters
-  return $base . '?' . http_build_query($params);
+  return match (strtolower(trim((string)$country))) {
+    'united states', 'usa', 'us' => '🇺🇸',
+    'canada' => '🇨🇦',
+    'india' => '🇮🇳',
+    default => '🌐',
+  };
 }
 
-// ── Filter inputs ────────────────────────────────────────────
-$fStatus   = $_GET['status']    ?? '';
-$fCountry  = $_GET['country']   ?? '';
-$fType     = $_GET['job_type']  ?? '';
-$fWork     = $_GET['workplace'] ?? '';
-$fSearch   = trim($_GET['q']    ?? '');
-$page      = max(1, (int)($_GET['page'] ?? 1));
-$perPage   = 15;
+function jobsStatus(string $status, bool $expired): array
+{
+  if ($expired) return ['Closed', 'closed'];
+  return match ($status) {
+    'published' => ['Published', 'published'],
+    'closed' => ['Closed', 'closed'],
+    'archived' => ['archived'],
+    default => ['Draft', 'draft'],
+  };
+}
 
-// ── Build query ──────────────────────────────────────────────
-$where  = ['1=1'];
+function renderJobsTableBody(array $jobs): string
+{
+  ob_start();
+  if (!$jobs) { ?>
+    <tr>
+      <td colspan="10">
+        <div class="no-jobs"><strong>No jobs found</strong><span>Try adjusting your filters or create a new job.</span><a href="<?= ADMIN_URL ?>/pages/post_job.php#country-basics">Create Job</a></div>
+      </td>
+    </tr>
+    <?php } else {
+    foreach ($jobs as $job): $expired = $job['status'] === 'published' && !empty($job['close_date']) && strtotime($job['close_date']) < strtotime('today');
+      [$statusLabel, $statusClass] = jobsStatus($job['status'], $expired);
+      $publicUrl = SITE_URL . '/job-detail.php?slug=' . urlencode($job['slug']);
+      $editUrl = ADMIN_URL . '/pages/post_job.php?edit=' . (int)$job['id'] . '#country-basics'; ?>
+      <tr class="job-row" data-edit="<?= e($editUrl) ?>">
+        <td class="check-column"><input class="row-check" type="checkbox" name="ids[]" value="<?= (int)$job['id'] ?>" aria-label="Select <?= e($job['job_title']) ?>"></td>
+        <td class="job-cell">
+          <a href="<?= e($editUrl) ?>" target="_blank" rel="noopener">
+            <strong><?= e(ucwords($job['job_title'])) ?></strong>
+            <small><?= e($job['job_code']) ?> <i>·</i> Job Code: <?= e($job["client_code"]) ?></small>
+          </a>
+        </td>
+        <td>
+          <span class="country-value">
+            <b><?= jobsFlag($job['country']) ?></b>
+            <?= e($job['country']) ?>
+          </span>
+        </td>
+        <td>
+          <span class="job-status <?= $statusClass ?>"><?= e($statusLabel) ?></span>
+        </td>
+        <td class="px-4 py-3.5 align-middle">
+          <span class="badge badge-soft badge-sm whitespace-nowrap <?= e($job['workplace_type']) ?> capitalize"><?= e($job['workplace_type']) ?></span>
+        </td>
+        <td class="px-4 py-3.5 align-middle text-base-content/65"><?= e($job['experience'] ?: '—') ?></td>
+        <td class="muted-cell">
+          <?= e($job['job_type'] ?: '—') ?>
+        </td>
+        <td>
+          <?= e($job['posted_by'] ?: '—') ?>
+        </td>
+        <td class="muted-cell created-cell">
+          <?= $job['created_at'] ? date('M j, Y', strtotime($job['created_at'])) : '—' ?>
+        </td>
+        <td class="actions-column">
+          <div class="actions-menu">
+            <button class="menu-trigger" type="button" aria-label="Actions for <?= e($job['job_title']) ?>" aria-expanded="false" onclick="toggleActionMenu(event,this)">
+              <svg viewBox="0 0 24 24">
+                <circle cx="5" cy="12" r="1" />
+                <circle cx="12" cy="12" r="1" />
+                <circle cx="19" cy="12" r="1" />
+              </svg>
+            </button>
+            <div class="menu-popover" hidden>
+              <a href="<?= e($editUrl) ?>">Edit</a>
+              <button type="button" data-url="<?= e($publicUrl) ?>" onclick="copyJobLink(this)">Copy link</button>
+              <?php if ($job['status'] !== 'published' || $expired): ?>
+                <button type="button" onclick="confirmJobAction(this)" data-id="<?= (int)$job['id'] ?>" data-value="publish" data-action="Publish" data-job="<?= e($job['job_title']) ?>">Publish</button>
+              <?php else: ?>
+                <button type="button" onclick="confirmJobAction(this)" data-id="<?= (int)$job['id'] ?>" data-value="draft" data-action="Move to draft" data-job="<?= e($job['job_title']) ?>">Move to draft</button>
+              <?php endif; ?>
+              <button type="button" onclick="confirmJobAction(this)" data-id="<?= (int)$job['id'] ?>" data-value="clone" data-action="Clone" data-job="<?= e($job['job_title']) ?>">Clone</button>
+              <button type="button" onclick="confirmJobAction(this)" data-id="<?= (int)$job['id'] ?>" data-value="close" data-action="Close" data-job="<?= e($job['job_title']) ?>">Close</button>
+              <button class="danger" type="button" onclick="confirmJobAction(this)" data-id="<?= (int)$job['id'] ?>" data-value="delete" data-action="Delete" data-job="<?= e($job['job_title']) ?>" data-danger="true">Delete</button>
+            </div>
+          </div>
+        </td>
+      </tr>
+  <?php endforeach;
+  }
+  return ob_get_clean();
+}
+
+function renderJobsPagination(int $page, int $totalPages, int $totalRows, int $perPage): string
+{
+  ob_start(); ?>
+  <p><?= number_format($totalRows) ?> total jobs</p>
+  <div><a class="<?= $page <= 1 ? 'disabled' : '' ?>" data-page="<?= $page - 1 ?>" aria-label="Previous page">‹</a><span>Page <?= $page ?> of <?= $totalPages ?></span><a class="<?= $page >= $totalPages ? 'disabled' : '' ?>" data-page="<?= $page + 1 ?>" aria-label="Next page">›</a><select aria-label="Rows per page" onchange="reloadJobs(1, this.value)"><?php foreach ([10, 15, 25, 50] as $size): ?><option value="<?= $size ?>" <?= $perPage === $size ? 'selected' : '' ?>><?= $size ?> / page</option><?php endforeach; ?></select></div>
+<?php return ob_get_clean();
+}
+
+$fSearch = trim($_GET['q'] ?? '');
+$fStatus = $_GET['status'] ?? '';
+$fCountry = $_GET['country'] ?? '';
+$hasFilters = $fSearch !== '' || $fStatus !== '' || $fCountry !== '';
+$page = max(1, (int)($_GET['page'] ?? 1));
+$requestedPerPage = (int)($_GET['per_page'] ?? 10);
+$perPage = in_array($requestedPerPage, [10, 15, 25, 50], true) ? $requestedPerPage : 10;
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['action'])) {
+  if (!validCsrfToken($_POST['csrf_token'] ?? null)) {
+    flash('error', 'Your session expired. Please try again.');
+    redirect(ADMIN_URL . '/pages/jobs.php');
+  }
+  $ids = array_values(array_filter(array_map('intval', (array)($_POST['ids'] ?? []))));
+  $action = $_POST['action'];
+  if ($ids && in_array($action, ['publish', 'draft', 'close', 'archive', 'delete'], true)) {
+    try {
+      $marks = implode(',', array_fill(0, count($ids), '?'));
+      if ($action === 'delete') {
+        db()->prepare("DELETE FROM jobs WHERE id IN ($marks)")->execute($ids);
+      } else {
+        $status = $action === 'publish' ? 'published' : ($action === 'close' ? 'closed' : $action);
+        $sql = "UPDATE jobs SET status=?" . ($status === 'published' ? ', published_at=COALESCE(published_at,NOW())' : '') . " WHERE id IN ($marks)";
+        db()->prepare($sql)->execute(array_merge([$status], $ids));
+      }
+      logActivity($action . '_jobs', 'job', null, 'IDs: ' . implode(',', $ids));
+      flash('success', count($ids) . ' job' . (count($ids) === 1 ? '' : 's') . ' updated.');
+    } catch (Exception $e) {
+      flash('error', 'The selected jobs could not be updated.');
+    }
+  } else {
+    flash('warn', 'Select at least one job and an action.');
+  }
+  redirect(ADMIN_URL . '/pages/jobs.php' . (currentJobFilters() ? '?' . http_build_query(currentJobFilters()) : ''));
+}
+
+$where = ['1=1'];
 $params = [];
-
-if ($fStatus) {
-  $where[] = 'j.status = ?';
+if ($fStatus === 'published') $where[] = "(j.status='published' AND (j.close_date IS NULL OR j.close_date >= CURDATE()))";
+elseif ($fStatus === 'closed') $where[] = "(j.status='closed' OR (j.status='published' AND j.close_date IS NOT NULL AND j.close_date < CURDATE()))";
+elseif ($fStatus) {
+  $where[] = 'j.status=?';
   $params[] = $fStatus;
 }
 if ($fCountry) {
-  $where[] = 'j.country = ?';
+  $where[] = 'j.country=?';
   $params[] = $fCountry;
 }
-if ($fType) {
-  $where[] = 'j.job_type = ?';
-  $params[] = $fType;
-}
-if ($fWork) {
-  $where[] = 'j.workplace_type = ?';
-  $params[] = $fWork;
-}
 if ($fSearch) {
-  $where[]  = '(j.job_title LIKE ? OR j.job_code LIKE ? OR c.client_name LIKE ?)';
+  $where[] = '(j.job_title LIKE ? OR j.job_code LIKE ? OR c.client_name LIKE ?)';
   $like = '%' . $fSearch . '%';
-  $params[] = $like;
-  $params[] = $like;
-  $params[] = $like;
+  array_push($params, $like, $like, $like);
 }
+$whereSql = implode(' AND ', $where);
 
-$whereSQL = implode(' AND ', $where);
-
+$jobs = [];
+$totalRows = 0;
+$totalPages = 1;
 try {
   $pdo = db();
-  $totalRows = $pdo->prepare("SELECT COUNT(DISTINCT j.id)
-    FROM jobs j
-    LEFT JOIN clients c
-        ON (
-            c.id = j.client_id
-            OR c.client_code = REGEXP_REPLACE(j.client_code, '[^0-9]', '')
-        )
-    WHERE $whereSQL");
-  $totalRows->execute($params);
-  $totalRows = (int)$totalRows->fetchColumn();
+  $counter = $pdo->prepare("SELECT COUNT(DISTINCT j.id) FROM jobs j LEFT JOIN clients c ON c.id=j.client_id WHERE $whereSql");
+  $counter->execute($params);
+  $totalRows = (int)$counter->fetchColumn();
   $totalPages = max(1, (int)ceil($totalRows / $perPage));
+  $page = min($page, $totalPages);
   $offset = ($page - 1) * $perPage;
-
-  $stmt = $pdo->prepare(
-    "SELECT
+  $query = $pdo->prepare("SELECT
       j.*,
       REGEXP_REPLACE(j.client_code, '[^0-9]', '') AS client_code,
       a.name AS posted_by,
@@ -92,896 +193,353 @@ try {
                 c.id = j.client_id
                 OR LEFT(j.client_code, 4) = c.client_code
             )
-    WHERE $whereSQL
+    WHERE $whereSql
     ORDER BY j.created_at DESC
-    LIMIT $perPage OFFSET $offset"
-  );
-  $stmt->execute($params);
-  $jobs = $stmt->fetchAll();
-
-  // For filter dropdowns
-  $allTypes = $pdo->query("SELECT DISTINCT job_type FROM jobs ORDER BY job_type")->fetchAll(PDO::FETCH_COLUMN);
-  $allWork  = $pdo->query("SELECT DISTINCT workplace_type FROM jobs ORDER BY workplace_type")->fetchAll(PDO::FETCH_COLUMN);
+    LIMIT $perPage OFFSET $offset");
+  $query->execute($params);
+  $jobs = $query->fetchAll();
 } catch (Exception $e) {
-  error_log('[jobs] query failed: ' . $e->getMessage());
-  flash('error', 'Could not load jobs. Please try again.');
-  $jobs = [];
-  $totalRows = 0;
-  $totalPages = 1;
-  $allTypes = [];
-  $allWork = [];
+  error_log('Jobs page query failed: ' . $e->getMessage());
+  $offset = 0;
 }
 
-// ── Global status counts (for the summary cards) ─────────────
-$jobStats = ['published' => 0, 'draft' => 0, 'closed' => 0];
-try {
-  foreach (db()->query("SELECT status, COUNT(*) AS c FROM jobs GROUP BY status") as $r) {
-    if (array_key_exists($r['status'], $jobStats)) {
-      $jobStats[$r['status']] = (int) $r['c'];
-    }
-  }
-} catch (Exception $e) {
-  error_log('[jobs] stats query failed: ' . $e->getMessage());
-}
-$totalJobsAll = array_sum($jobStats);
-
-// ── Bulk / single actions ────────────────────────────────────
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['action'])) {
-  csrf_verify();
-
-  $ids     = array_filter(array_map('intval', (array)($_POST['ids'] ?? [])));
-  $action  = $_POST['action'];
-
-  if (!empty($ids)) {
-    $placeholders = implode(',', array_fill(0, count($ids), '?'));
-    try {
-      switch ($action) {
-        case 'publish':
-          db()->prepare("UPDATE jobs SET status='published', published_at=NOW() WHERE id IN ($placeholders)")
-            ->execute($ids);
-          flash('success', count($ids) . ' job(s) published.');
-          break;
-        case 'draft':
-          db()->prepare("UPDATE jobs SET status='draft' WHERE id IN ($placeholders)")
-            ->execute($ids);
-          flash('success', count($ids) . ' job(s) moved to draft.');
-          break;
-        case 'close':
-          db()->prepare("UPDATE jobs SET status='closed' WHERE id IN ($placeholders)")
-            ->execute($ids);
-          flash('success', count($ids) . ' job(s) closed.');
-          break;
-        case 'delete':
-          db()->prepare("DELETE FROM jobs WHERE id IN ($placeholders)")
-            ->execute($ids);
-          flash('success', count($ids) . ' job(s) deleted.');
-          break;
-      }
-      logActivity($action . '_jobs', 'job', null, 'IDs: ' . implode(',', $ids));
-    } catch (Exception $e) {
-      error_log('[jobs] bulk action failed: ' . $e->getMessage());
-      flash('error', 'The action could not be completed. Please try again.');
-    }
-  }
-  // Preserve all filters when redirecting back
-  redirect(ADMIN_URL . '/pages/jobs.php?' . http_build_query(getCurrentFilters()));
+if (($_GET['ajax'] ?? '') === '1') {
+  header('Content-Type: application/json; charset=utf-8');
+  echo json_encode([
+    'count' => $totalRows,
+    'page' => $page,
+    'totalPages' => $totalPages,
+    'rows' => renderJobsTableBody($jobs),
+    'pagination' => renderJobsPagination($page, $totalPages, $totalRows, $perPage),
+  ]);
+  exit;
 }
 
-// ── Helpers ──────────────────────────────────────────────────
-function pageUrl(int $pg): string
-{
-  $p = $_GET;
-  $p['page'] = $pg;
-  return '?' . http_build_query($p);
-}
-
-// Status badge color/label map.
-function jobStatusBadge(string $status, bool $isExpired): string
-{
-  if ($isExpired) {
-    return '<span class="badge badge-sm gap-1.5 border-base-300 bg-base-200 text-base-content/50"><span class="size-1.5 rounded-full bg-base-content/30"></span>Expired</span>';
-  }
-  $map = [
-    'published' => ['border-success/25 bg-success/10 text-success', 'bg-success'],
-    'draft'     => ['border-warning/25 bg-warning/10 text-warning', 'bg-warning'],
-    'closed'    => ['border-base-300 bg-base-200 text-base-content/60', 'bg-base-content/40'],
-    'archived'  => ['border-error/25 bg-error/10 text-error', 'bg-error'],
-  ];
-  [$classes, $dot] = $map[$status] ?? ['border-base-300 bg-base-200 text-base-content/60', 'bg-base-content/40'];
-  return '<span class="badge badge-sm gap-1.5 border ' . $classes . '"><span class="size-1.5 rounded-full ' . $dot . '"></span>' . ucfirst(e($status)) . '</span>';
-}
-
-function wpBadgeClass(?string $wp): string
-{
-  $w = strtolower(trim((string) $wp));
-  return match ($w) {
-    'remote' => 'badge-info',
-    'hybrid' => 'badge-warning',
-    'onsite' => 'badge-success',
-    default  => 'badge-neutral',
-  };
-}
-
-$pageTitle   = 'All Jobs';
-$jobsUrl = ADMIN_URL . '/pages/jobs.php' . (count(getCurrentFilters()) > 0 ? '?' . http_build_query(getCurrentFilters()) : '');
-$breadcrumbs = [['Dashboard', ADMIN_URL . '/index.php'], ['All Jobs', $jobsUrl]];
-
-
-include dirname(__DIR__) . '/includes/header.php';
+$successMessage = flash('success');
+$errorMessage = flash('error');
+$warnMessage = flash('warn');
 ?>
+<!DOCTYPE html>
+<html lang="en">
 
-<div class="min-w-0 space-y-6">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Jobs — <?= e(SITE_NAME) ?> Recruitment</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="<?= ADMIN_URL ?>/dashboard.css" rel="stylesheet">
+  <link href="<?= ADMIN_URL ?>/jobs.css" rel="stylesheet">
+  <link href="<?= ADMIN_URL ?>/jobs-actions.css" rel="stylesheet">
+</head>
 
-  <!-- ═══════════ PAGE INTRO ═══════════ -->
-  <section class="flex flex-wrap items-start justify-between gap-4">
-    <div class="max-w-xl">
-      <h2 class="text-[21px] font-bold leading-tight tracking-tight text-base-content">
-        Job postings
-      </h2>
-    </div>
-    <div class="flex items-center gap-2">
-      <a href="<?= ADMIN_URL ?>/pages/post_job.php" class="<?= PRIMARY_BUTTON_CLASS ?> shadow-pop hover:-translate-y-px hover:opacity-100 hover:shadow-lg"
-        onclick="event.preventDefault(); openJobForm(this.href + (this.href.includes('?') ? '&' : '?') + 'ajax=1')">
-        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.25">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-        </svg>
-        Post a job
+<body>
+  <button class="mobile-menu" id="mobileMenu" type="button" aria-label="Open navigation" aria-expanded="false"><svg viewBox="0 0 24 24">
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </svg></button>
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <aside class="sidebar" id="dashboardSidebar">
+    <a class="brand" href="<?= ADMIN_URL ?>/index.php" aria-label="Accelon Consulting dashboard"><img src="https://www.accelonconsulting.com/wp-content/uploads/2025/07/Accelon-logo.webp" alt="Accelon Consulting" style="display:block;width:auto;height:50px;padding-left:15px;;max-width:170px;object-fit:contain"></a>
+    <nav class="nav" aria-label="Admin navigation">
+      <a href="<?= ADMIN_URL ?>/index.php">
+        <svg viewBox="0 0 24 24">
+          <rect x="4" y="4" width="6" height="6" rx="1" />
+          <rect x="14" y="4" width="6" height="6" rx="1" />
+          <rect x="4" y="14" width="6" height="6" rx="1" />
+          <rect x="14" y="14" width="6" height="6" rx="1" />
+        </svg>Dashboard
       </a>
-    </div>
-  </section>
-
-  <!-- ══ FILTERS ══ -->
-  <form
-    method="GET"
-    class="rounded-2xl border border-base-300 bg-base-100 p-4 shadow-card">
-    <div class="flex flex-wrap items-center gap-3">
-
-      <!-- Search -->
-      <label class="input input-sm h-10 min-w-[220px] flex-1 items-center gap-2 border-transparent bg-base-200 focus-within:border-primary focus-within:bg-base-100">
-        <svg class="size-4 shrink-0 text-base-content/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
-        </svg>
-        <input type="search" name="q" class="grow bg-transparent text-[13px] outline-none placeholder:text-base-content/35"
-          placeholder="Search title, code or client…" value="<?= e($fSearch) ?>" />
-      </label>
-
-      <!-- Status -->
-      <select name="status" aria-label="Filter by status" onchange="this.form.submit()"
-        class="select select-sm h-10 min-h-10 w-auto min-w-[140px] border-transparent bg-base-200 text-[12.5px] font-medium focus:border-primary focus:bg-base-100 focus:outline-none">
-        <option value="">All statuses</option>
-        <?php foreach (['published', 'draft', 'closed', 'archived'] as $s): ?>
-          <option value="<?= e($s) ?>" <?= $fStatus === $s ? 'selected' : '' ?>><?= ucfirst($s) ?></option>
-        <?php endforeach; ?>
-      </select>
-
-      <!-- Country -->
-      <select name="country" aria-label="Filter by country" onchange="this.form.submit()"
-        class="select select-sm h-10 min-h-10 w-auto min-w-[140px] border-transparent bg-base-200 text-[12.5px] font-medium focus:border-primary focus:bg-base-100 focus:outline-none">
-        <option value="">All countries</option>
-        <?php foreach (['India', 'United States', 'Canada'] as $c): ?>
-          <option value="<?= e($c) ?>" <?= $fCountry === $c ? 'selected' : '' ?>><?= e($c) ?></option>
-        <?php endforeach; ?>
-      </select>
-
-      <!-- Job Type -->
-      <select name="job_type" aria-label="Filter by job type" onchange="this.form.submit()"
-        class="select select-sm h-10 min-h-10 w-auto min-w-[140px] border-transparent bg-base-200 text-[12.5px] font-medium focus:border-primary focus:bg-base-100 focus:outline-none">
-        <option value="">All job types</option>
-        <?php foreach ($allTypes as $t): ?>
-          <option value="<?= e($t) ?>" <?= $fType === $t ? 'selected' : '' ?>><?= e($t) ?></option>
-        <?php endforeach; ?>
-      </select>
-
-      <!-- Workplace -->
-      <select name="workplace" aria-label="Filter by workplace" onchange="this.form.submit()"
-        class="select select-sm h-10 min-h-10 w-auto min-w-[140px] border-transparent bg-base-200 text-[12.5px] font-medium focus:border-primary focus:bg-base-100 focus:outline-none">
-        <option value="">All workplaces</option>
-        <?php foreach ($allWork as $w): ?>
-          <option value="<?= e($w) ?>" <?= $fWork === $w ? 'selected' : '' ?>><?= e($w) ?></option>
-        <?php endforeach; ?>
-      </select>
-
-      <!-- Actions -->
-      <div class="flex items-center gap-2">
-        <!-- <button type="submit" class="<?= PRIMARY_BUTTON_CLASS ?>">
-          <svg class="size-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
+      <a class="active" href="<?= ADMIN_URL ?>/pages/jobs.php">
+        <svg viewBox="0 0 24 24">
+          <path d="M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7M5 7h14a1 1 0 0 1 1 1v11H4V8a1 1 0 0 1 1-1Zm7 0v12" />
+        </svg>Jobs
+      </a>
+      <a href="<?= ADMIN_URL ?>/pages/admins.php">
+        <svg viewBox="0 0 24 24">
+          <path d="M15.5 8a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0ZM5 20a7 7 0 0 1 14 0M18 5v6M15 8h6" />
+        </svg>Admin
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="admin-row">
+        <span class="admin-avatar"><?= e(strtoupper(substr($currentAdmin['name'] ?? 'A', 0, 1))) ?></span>
+        <span class="admin-copy">
+          <strong><?= e($currentAdmin['name'] ?? 'Admin') ?></strong>
+          <small><?= e(ucfirst($currentAdmin['role'] ?? 'admin')) ?></small>
+        </span>
+        <a class="signout" href="<?= ADMIN_URL ?>/logout.php" title="Sign out">
+          <svg viewBox="0 0 24 24">
+            <path d="M10 5H6v14h4m4-4 4-3-4-3m4 3H9" />
           </svg>
-          Filter
-        </button> -->
-        <a href="<?= ADMIN_URL ?>/pages/jobs.php" id="clearFilters" class="<?= SECONDARY_BUTTON_CLASS ?>">Clear</a>
+        </a>
       </div>
-
+      <a class="new-job" href="<?= ADMIN_URL ?>/pages/post_job.php#country-basics"><span>+</span> Create Job</a>
     </div>
-  </form>
+  </aside>
 
-  <!-- ══ BULK ACTIONS + TABLE ══ -->
-  <form method="POST" id="bulkForm">
-    <?= csrf_field() ?>
-    <section class="overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-card">
+  <main class="main jobs-main">
+    <div class="jobs-content">
+      <header class="jobs-heading">
+        <h1>Jobs</h1>
+        <a class="primary-action" href="<?= ADMIN_URL ?>/pages/post_job.php#country-basics"><span>+</span> Create Job</a>
+      </header>
+      <?php if ($successMessage || $errorMessage || $warnMessage): $message = $successMessage ?: ($errorMessage ?: $warnMessage);
+        $type = $successMessage ? 'success' : ($errorMessage ? 'error' : 'warn'); ?><div class="notice notice-<?= $type ?>"><?= $message ?></div><?php endif; ?>
 
-      <!-- Toolbar -->
-      <div class="flex flex-col gap-3 border-b border-base-300 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <div class="mr-auto flex items-center gap-3">
-          <div class="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
-            <svg class="size-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 14.15v4.098a2.25 2.25 0 01-2.25 2.25h-12a2.25 2.25 0 01-2.25-2.25V14.15M16.5 6.75V5.25A2.25 2.25 0 0014.25 3h-4.5A2.25 2.25 0 007.5 5.25v1.5m6 0V7.5c0 .828-.672 1.5-1.5 1.5h-3c-.828 0-1.5-.672-1.5-1.5V6.75m6 0h3.688c.622 0 1.19.368 1.441.94l1.5 3.438a2.25 2.25 0 01.17.894v2.028a2.25 2.25 0 01-2.25 2.25h-.75M4.5 13.55v2.028c0 .32.068.635.17.894l1.5 3.437a2.25 2.25 0 001.44 1.44h.75m6.64-7.85h3.71" />
-            </svg>
+      <form method="GET" class="filters" id="jobsFilterForm" action="<?= ADMIN_URL ?>/pages/jobs.php">
+        <input type="hidden" name="per_page" value="<?= $perPage ?>">
+        <label class="search-box"><svg viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-4-4" />
+          </svg><input id="jobSearch" type="search" name="q" value="<?= e($fSearch) ?>" placeholder="Search jobs..." autocomplete="off"></label>
+        <select name="status" aria-label="Status" data-auto-filter>
+          <option value="">All Statuses</option><?php foreach (['draft' => 'Draft', 'published' => 'Published', 'archived' => 'Pending Review', 'closed' => 'Closed'] as $value => $label): ?><option value="<?= $value ?>" <?= $fStatus === $value ? 'selected' : '' ?>><?= $label ?></option><?php endforeach; ?>
+        </select>
+        <select name="country" aria-label="Country" data-auto-filter>
+          <option value="">All Countries</option><?php foreach (['United States', 'Canada', 'India'] as $country): ?><option value="<?= e($country) ?>" <?= $fCountry === $country ? 'selected' : '' ?>><?= jobsFlag($country) ?> <?= e($country) ?></option><?php endforeach; ?>
+        </select>
+        <a class="clear-button" href="<?= ADMIN_URL ?>/pages/jobs.php">Clear</a>
+      </form>
+
+      <form method="POST" id="bulkForm" onsubmit="return confirmBulkAction()">
+        <?= csrfField() ?>
+        <div class="table-card">
+          <div class="bulk-bar">
+            <span>
+              <strong><?= number_format($totalRows) ?></strong> total jobs
+            </span>
+            <div>
+              <select name="action" id="bulkAction">
+                <option value="">Bulk Actions</option>
+                <option value="publish">Publish</option>
+                <option value="draft">Move to Draft</option>
+                <option value="close">Close</option>
+                <option value="delete">Delete</option>
+              </select>
+              <button type="submit" id="bulkApplyBtn" disabled>Apply</button>
+            </div>
           </div>
-          <div>
-            <h2 class=" text-[15px] font-bold tracking-tight text-base-content">All jobs</h2>
-            <p class="text-[11.5px] text-base-content/50">
-              Showing <strong class="font-semibold text-base-content"><?= count($jobs) ?></strong>
-              of <strong class="font-semibold text-base-content"><?= $totalRows ?></strong> jobs
-            </p>
-          </div>
-        </div>
-        <div class="flex items-center gap-2">
-          <select name="action" id="bulkAction" aria-label="Bulk action"
-            class="select select-sm h-9 min-h-9 border-transparent bg-base-200 text-[12.5px] font-medium focus:border-primary focus:bg-base-100 focus:outline-none">
-            <option value="">Bulk action…</option>
-            <option value="publish">Publish</option>
-            <option value="draft">Move to draft</option>
-            <option value="close">Close</option>
-            <option value="delete">Delete</option>
-          </select>
-          <button type="button" onclick="openBulkActionModal()" id="bulkApplyBtn" disabled
-            class="<?= SECONDARY_BUTTON_CLASS ?> disabled:opacity-50">
-            Apply
-          </button>
-        </div>
-      </div>
-
-      <!-- Table -->
-      <div class="overflow-x-auto">
-        <table class="<?= TABLE_CLASS ?>">
-          <thead class="<?= TABLE_HEAD_CLASS ?>">
-            <tr>
-              <th class="w-10 border-b border-base-300 px-4 py-3">
-                <input type="checkbox" id="checkAll" title="Select all" class="checkbox checkbox-sm rounded">
-              </th>
-              <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Job code</th>
-              <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Client</th>
-              <th class="min-w-[260px] border-b border-base-300 px-4 py-3 text-[11px] font-bold uppercase tracking-wide whitespace-nowrap">Title</th>
-              <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Country</th>
-              <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Type</th>
-              <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Workplace</th>
-              <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Experience</th>
-              <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Open date</th>
-              <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Status</th>
-              <th class="<?= TABLE_HEAD_ROW_CLASS ?>">Posted by</th>
-              <th class="<?= TABLE_HEAD_ROW_CLASS ?>"><span class="sr-only">Actions</span></th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php if (empty($jobs)): ?>
-              <tr>
-                <td colspan="12">
-                  <div class="py-14 text-center">
-                    <div class="mx-auto grid size-16 place-items-center rounded-full border-2 border-dashed border-base-300 bg-base-200/50 text-base-content/40">
-                      <svg class="size-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 14.15v4.098a2.25 2.25 0 01-2.25 2.25h-12a2.25 2.25 0 01-2.25-2.25V14.15M16.5 6.75V5.25A2.25 2.25 0 0014.25 3h-4.5A2.25 2.25 0 007.5 5.25v1.5m6 0V7.5c0 .828-.672 1.5-1.5 1.5h-3c-.828 0-1.5-.672-1.5-1.5V6.75m6 0h3.688c.622 0 1.19.368 1.441.94l1.5 3.438a2.25 2.25 0 01.17.894v2.028a2.25 2.25 0 01-2.25 2.25h-.75M4.5 13.55v2.028c0 .32.068.635.17.894l1.5 3.437a2.25 2.25 0 001.44 1.44h.75m6.64-7.85h3.71" />
-                      </svg>
-                    </div>
-                    <h4 class="mt-4 text-[15px] font-bold text-base-content">
-                      <?= $totalRows === 0 && count(getCurrentFilters()) > 0 ? 'No jobs match your filters' : 'No jobs yet' ?>
-                    </h4>
-                    <p class="mx-auto mt-1 max-w-xs text-[12.5px] leading-relaxed text-base-content/50">
-                      <?= $totalRows === 0 && count(getCurrentFilters()) > 0
-                        ? 'Try changing or clearing the filters above.'
-                        : 'Post your first job to see it listed here.' ?>
-                    </p>
-                    <?php if (count(getCurrentFilters()) > 0): ?>
-                      <a href="<?= ADMIN_URL ?>/pages/jobs.php" class="<?= SECONDARY_BUTTON_CLASS ?> mt-4">Clear filters</a>
-                    <?php else: ?>
-                      <a href="<?= ADMIN_URL ?>/pages/post_job.php" class="<?= PRIMARY_BUTTON_CLASS ?> mt-4 shadow-pop"
-                        onclick="event.preventDefault(); openJobForm(this.href + (this.href.includes('?') ? '&' : '?') + 'ajax=1')">Post a job</a>
-                    <?php endif; ?>
-                  </div>
-                </td>
-              </tr>
-            <?php else: ?>
-              <?php foreach ($jobs as $j): ?>
-                <?php $isExpired = !empty($j['close_date']) && strtotime($j['close_date']) < strtotime('today'); ?>
-                <?php
-                $jobDetailUrl = ADMIN_URL . '/pages/post_job.php?edit=' . e($j['id']);
-                if ($j['client_code']) {
-                  $parts = explode('-', $j['client_code']);
-                  $jobCode = $parts[1] ?? '';
-                  if ($jobCode) {
-                    $jobDetailUrl .= '&form_jobcode=' . e($jobCode);
-                  }
-                }
-                ?>
-                <tr class="cursor-pointer border-b border-base-300/60 transition-colors last:border-b-0 hover:bg-base-200/60"
-                  onclick="window.open('<?= $jobDetailUrl ?>', '_blank')">
-                  <td class="px-4 py-3.5 align-middle" onclick="event.stopPropagation()">
-                    <input type="checkbox" name="ids[]" value="<?= $j['id'] ?>" class="row-check checkbox checkbox-sm rounded" aria-label="Select job <?= e($j['job_code']) ?>">
-                  </td>
-                  <td class="px-4 py-3.5 align-middle">
-                    <code class="badge badge-soft badge-primary rounded-md font-mono text-[11px] font-semibold">
-                      <?= e($j['job_code']) ?>
-                    </code>
-                    <?php if ($j['client_code']): ?>
-                      <div class="mt-1 text-[11px] text-base-content/45"> Job code: <?= e($j['client_code']) ?></div>
-                    <?php endif; ?>
-                  </td>
-                  <td class="px-4 py-3.5 align-middle font-medium text-base-content/70"><?= e($j['client_name'] ?? '—') ?></td>
-                  <td class="px-4 py-3.5 align-middle">
-                    <strong class="block max-w-[320px] truncate text-[13px] font-semibold text-base-content"><?= e($j['job_title']) ?></strong>
-                    <?php if ($j['city'] || $j['state_province']): ?>
-                      <div class="mt-1 max-w-[320px] truncate text-[11px] text-base-content/45">
-                        <?= e(implode(', ', array_filter([$j['city'], $j['state_province']]))) ?>
-                      </div>
-                    <?php endif; ?>
-                  </td>
-                  <td class="px-4 py-3.5 align-middle text-base-content/65"><?= e($j['country']) ?></td>
-                  <td class="px-4 py-3.5 align-middle text-base-content/65"><?= e($j['job_type']) ?></td>
-                  <td class="px-4 py-3.5 align-middle">
-                    <span class="badge badge-soft badge-sm whitespace-nowrap <?= wpBadgeClass($j['workplace_type']) ?> capitalize"><?= e($j['workplace_type']) ?></span>
-                  </td>
-                  <td class="px-4 py-3.5 align-middle text-base-content/65"><?= e($j['experience'] ?? '—') ?></td>
-                  <td class="whitespace-nowrap px-4 py-3.5 align-middle text-[12px] tabular-nums text-base-content/55">
-                    <?= $j['open_date'] ? date('d M Y', strtotime($j['open_date'])) : '—' ?>
-                  </td>
-                  <td class="px-4 py-3.5 align-middle">
-                    <?= jobStatusBadge($j['status'], $isExpired) ?>
-                  </td>
-                  <td class="whitespace-nowrap px-4 py-3.5 align-middle">
-                    <span class="inline-flex items-center gap-1.5 text-[12px] text-base-content/55">
-                      <svg class="size-3.5 shrink-0 text-base-content/35" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                      </svg>
-                      <?= e($j['posted_by'] ?? '—') ?>
-                    </span>
-                  </td>
-                  <td class="px-4 py-3.5 align-middle" onclick="event.stopPropagation()">
-                    <div class="flex items-center justify-end gap-1">
-                      <?php if ($isExpired): ?>
-                        <span class="tooltip tooltip-left" data-tip="Cannot edit — close date has passed">
-                          <span class="btn btn-square btn-sm h-8 min-h-8 w-8 cursor-not-allowed rounded-full bg-base-200 text-base-content/30" aria-disabled="true">
-                            <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                              <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
-                            </svg>
-                          </span>
-                        </span>
-                      <?php else: ?>
-                        <div class="tooltip tooltip-left" data-tip="Edit">
-                          <a href="<?= buildFilterUrl(ADMIN_URL . '/pages/post_job.php', ['edit' => $j['id']]) ?>" title="Edit"
-                            onclick="event.preventDefault(); event.stopPropagation(); openJobForm(this.href + (this.href.includes('?') ? '&' : '?') + 'ajax=1')" aria-label="Edit job"
-                            class="btn btn-sm btn-square h-8 min-h-8 w-8 rounded-lg btn-outline border-base-300 bg-base-100 text-base-content/60 transition-all bg-primary/10 text-primary">
-                            <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                              <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
-                            </svg>
-                          </a>
-                        </div>
-                        <?php if ($j['status'] !== 'published'): ?>
-                          <div class="tooltip tooltip-left" data-tip="Publish">
-                            <a href="<?= buildFilterUrl(ADMIN_URL . '/pages/job_action.php', ['id' => $j['id'], 'a' => 'publish']) ?>" title="Publish"
-                              onclick="event.stopPropagation()" aria-label="Publish job"
-                              class="btn btn-sm btn-square h-8 min-h-8 w-8 rounded-lg btn-outline border-base-300 bg-base-100 text-base-content/60 transition-all bg-success/10 text-success">
-                              <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z" />
-                              </svg>
-                            </a>
-                          </div>
-                        <?php else: ?>
-                          <div class="tooltip tooltip-left" data-tip="Close">
-                            <a href="<?= buildFilterUrl(ADMIN_URL . '/pages/job_action.php', ['id' => $j['id'], 'a' => 'close']) ?>" title="Close"
-                              onclick="event.stopPropagation()" aria-label="Close job"
-                              class="btn btn-sm btn-square h-8 min-h-8 w-8 rounded-lg btn-outline border-base-300 bg-base-100 text-base-content/60 transition-all bg-warning/10 text-warning">
-                              <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                                <rect x="6" y="6" width="12" height="12" rx="1.5" />
-                              </svg>
-                            </a>
-                          </div>
-                        <?php endif; ?>
-                      <?php endif; ?>
-                      <div class="tooltip tooltip-left" data-tip="Clone">
-                        <button
-                          type="button"
-                          title="Clone job"
-                          aria-label="Clone job"
-                          onclick="openCloneModal(
-                          '<?= e($j['id']) ?>',
-                          '<?= e($j['job_title']) ?>',
-                          '<?= e(buildFilterUrl(ADMIN_URL . '/pages/post_job.php', ['clone' => $j['id']])) ?>'
-                        )"
-                          class="btn btn-sm btn-square h-8 min-h-8 w-8 rounded-lg btn-outline border-base-300 bg-base-100 text-base-content/60 hover:border-secondary hover:bg-secondary hover:text-secondary-content">
-                          <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
-                          </svg>
-                        </button>
-                      </div>
-                      <div class="tooltip tooltip-left" data-tip="Delete">
-                        <button
-                          type="button"
-                          title="Delete"
-                          aria-label="Delete job"
-                          onclick="openDeleteModal(
-                          '<?= e($j['id']) ?>',
-                          '<?= e($j['job_title']) ?>',
-                          '<?= e(buildFilterUrl(ADMIN_URL . '/pages/job_action.php', ['id' => $j['id'], 'a' => 'delete'])) ?>'
-                        )"
-                          class="btn btn-sm btn-square h-8 min-h-8 w-8 rounded-lg btn-outline border-base-300 bg-base-100 text-base-content/60 transition-all bg-error/10  hover:bg-error/10 text-error">
-                          <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  </td>
+          <div class="jobs-table-wrap">
+            <table class="jobs-table">
+              <thead>
+                <tr>
+                  <th class="check-column"><input id="checkAll" type="checkbox" aria-label="Select all jobs"></th>
+                  <th>Job</th>
+                  <th>Country</th>
+                  <th>Status</th>
+                  <th>Workplace</th>
+                  <th>Experience</th>
+                  <th>Type</th>
+                  <th>Posted By</th>
+                  <th>Created</th>
+                  <th class="actions-column"><span class="sr-only">Actions</span></th>
                 </tr>
-              <?php endforeach; ?>
-            <?php endif; ?>
-          </tbody>
-        </table>
-
-      </div>
-    </section>
-  </form>
-
-  <!-- Delete Modal -->
-  <dialog id="deleteModal" class="modal">
-    <div class="modal-box w-[calc(100%-2rem)] max-w-md rounded-3xl border border-base-300/70 bg-base-100 p-0 shadow-xl">
-      <!-- Header -->
-      <div class="flex items-center justify-between gap-3 px-5 pb-1 pt-5">
-        <div class="min-w-0">
-          <h3 class=" text-[16px] font-bold tracking-tight text-base-content">Delete job posting?</h3>
-          <p class="mt-0.5 text-[11.5px] text-base-content/50">This action is permanent.</p>
+              </thead>
+              <tbody>
+                <?= renderJobsTableBody($jobs) ?>
+              </tbody>
+            </table>
+          </div>
         </div>
-        <button
-          type="button"
-          onclick="deleteModal.close()"
-          class="btn btn-sm btn-circle btn-ghost size-8 min-h-8 shrink-0 text-base-content/50 hover:bg-base-200 hover:text-base-content"
-          aria-label="Close">
-          <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-      <div class="px-5 py-5">
-        <div class="rounded-2xl border border-error/15 bg-error/5 p-4">
-          <p class="text-[13px] leading-relaxed text-base-content">
-            You're about to delete <strong id="deleteJobName" class="text-error"></strong>.
-          </p>
-          <ul class="mt-2.5 space-y-1.5 text-[12px] leading-relaxed text-base-content/70">
-            <li class="flex items-start gap-2">
-              <span class="mt-[7px] size-1 shrink-0 rounded-full bg-error/60" aria-hidden="true"></span>
-              The posting is removed from the careers page immediately.
-            </li>
-            <li class="flex items-start gap-2">
-              <span class="mt-[7px] size-1 shrink-0 rounded-full bg-error/60" aria-hidden="true"></span>
-              This cannot be undone.
-            </li>
-          </ul>
-        </div>
-      </div>
-      <div class="modal-action m-0 flex flex-col-reverse gap-2 border-t border-base-200/80 bg-base-200/40 px-5 py-4 sm:flex-row sm:justify-end">
-        <button
-          type="button"
-          onclick="deleteModal.close()"
-          class="btn h-10 min-h-10 w-full rounded-full border border-base-300 bg-base-100 px-5 text-sm font-semibold text-base-content/80 hover:bg-base-200 hover:text-base-content sm:w-auto">
-          Cancel
-        </button>
-        <a
-          id="confirmDeleteBtn"
-          href="#"
-          class="btn btn-error h-10 min-h-10 w-full rounded-full px-6 text-sm font-semibold sm:w-auto">
-          Delete job
-        </a>
+      </form>
+
+      <footer class="pagination">
+        <?= renderJobsPagination($page, $totalPages, $totalRows, $perPage) ?>
+      </footer>
+    </div>
+  </main>
+  <div class="copy-toast" id="copyToast" role="status">Job link copied</div>
+  <dialog class="action-dialog" id="jobActionDialog">
+    <div class="action-dialog-card">
+      <div class="action-dialog-icon" id="actionDialogIcon">?</div>
+      <h2 id="actionDialogTitle">Confirm action</h2>
+      <p id="actionDialogCopy"></p>
+      <div><button type="button" onclick="document.getElementById('jobActionDialog').close()">Cancel</button>
+        <form method="POST" action="<?= ADMIN_URL ?>/pages/job_action.php" style="display:inline"><input type="hidden" name="csrf_token" value="<?= e(csrfToken()) ?>"><input type="hidden" name="id" id="actionJobId"><input type="hidden" name="a" id="actionJobValue"><button id="actionDialogConfirm" type="submit">Confirm</button></form>
       </div>
     </div>
-    <form method="dialog" class="modal-backdrop bg-black/40 backdrop-blur-sm">
-      <button>close</button>
-    </form>
+    <form method="dialog" class="action-dialog-backdrop"><button aria-label="Close dialog">close</button></form>
   </dialog>
-
-  <!-- Clone Modal -->
-  <dialog id="cloneModal" class="modal">
-    <div class="modal-box w-[calc(100%-2rem)] max-w-md rounded-3xl border border-base-300/70 bg-base-100 p-0 shadow-xl">
-      <div class="flex items-center justify-between gap-3 px-5 pb-1 pt-5">
-        <div class="min-w-0">
-          <h3 class=" text-[16px] font-bold tracking-tight text-base-content">Clone job posting</h3>
-          <p class="mt-0.5 truncate text-[11.5px] text-base-content/50">
-            Copy of <strong id="cloneJobName" class="text-primary"></strong>
-          </p>
-        </div>
-        <button
-          type="button"
-          onclick="cloneModal.close()"
-          class="btn btn-sm btn-circle btn-ghost size-8 min-h-8 shrink-0 text-base-content/50 hover:bg-base-200 hover:text-base-content"
-          aria-label="Close">
-          <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-      <div class="px-5 py-5">
-        <div class="rounded-2xl border border-primary/15 bg-primary/5 p-4">
-          <p class="text-[13px] leading-relaxed text-base-content">
-            A new draft job will be created with a fresh job number, copying all details from this posting.
-          </p>
-          <p class="mt-2 text-[11.5px] text-base-content/50">
-            Nothing changes on the original job — you can edit the copy before publishing it.
-          </p>
-        </div>
-      </div>
-      <div class="modal-action m-0 flex flex-col-reverse gap-2 border-t border-base-200/80 bg-base-200/40 px-5 py-4 sm:flex-row sm:justify-end">
-        <button
-          type="button"
-          onclick="cloneModal.close()"
-          class="btn btn-ghost h-10 min-h-10 w-full rounded-full px-5 text-sm font-semibold text-base-content/70 hover:bg-base-200 hover:text-base-content sm:w-auto">
-          Cancel
-        </button>
-        <a
-          id="confirmCloneBtn"
-          href="#"
-          onclick="event.preventDefault(); var url = this.href; cloneModal.close(); setTimeout(function(){ openJobForm(url); }, 150);"
-          class="btn btn-primary h-10 min-h-10 w-full rounded-full px-6 text-sm font-semibold shadow-pop sm:w-auto">
-          Clone job
-        </a>
+  <dialog class="action-dialog" id="bulkDialog">
+    <div class="action-dialog-card">
+      <div class="action-dialog-icon" id="bulkDialogIcon">?</div>
+      <h2 id="bulkDialogTitle">Confirm action</h2>
+      <p id="bulkDialogCopy"></p>
+      <div><button type="button" onclick="document.getElementById('bulkDialog').close()">Cancel</button>
+        <button type="button" id="bulkDialogConfirm">Confirm</button>
       </div>
     </div>
-
-    <form method="dialog" class="modal-backdrop bg-black/40 backdrop-blur-sm">
-      <button>close</button>
-    </form>
+    <form method="dialog" class="action-dialog-backdrop"><button aria-label="Close dialog">close</button></form>
   </dialog>
+  <script>
+    const menu = document.getElementById('mobileMenu'),
+      sidebar = document.getElementById('dashboardSidebar'),
+      overlay = document.getElementById('sidebarOverlay');
 
-  <!-- Bulk action modal -->
-  <dialog id="bulkActionModal" class="modal">
-    <div
-      class="modal-box w-[calc(100%-2rem)] max-w-md rounded-3xl border border-base-300/70 bg-base-100 p-0 shadow-xl">
-      <!-- Header -->
-      <div class="flex items-center justify-between gap-3 px-5 pb-1 pt-5">
-        <div class="min-w-0">
-          <h3 class=" text-[16px] font-bold tracking-tight text-base-content">Apply bulk action</h3>
-          <p class="mt-0.5 text-[11.5px] text-base-content/50">Confirm before continuing.</p>
-        </div>
-        <button
-          type="button"
-          onclick="bulkActionModal.close()"
-          class="btn btn-sm btn-circle btn-ghost size-8 min-h-8 shrink-0 text-base-content/50 hover:bg-base-200 hover:text-base-content"
-          aria-label="Close">
-          <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
+    function setMenu(open) {
+      sidebar.classList.toggle('open', open);
+      overlay.classList.toggle('open', open);
+      menu.setAttribute('aria-expanded', String(open))
+    }
+    menu.addEventListener('click', () => setMenu(!sidebar.classList.contains('open')));
+    overlay.addEventListener('click', () => setMenu(false));
 
-      <!-- Body -->
-      <div class="px-5 py-5">
-        <div class="rounded-2xl border border-warning/20 bg-warning/5 p-4">
-          <p class="text-[13px] leading-relaxed text-base-content">
-            You're about to apply
-            <strong id="selectedAction" class="capitalize text-warning"></strong>
-            to <strong id="selectedJobCount" class="tabular-nums">0</strong>
-            selected job<span id="selectedJobPlural">s</span>.
-          </p>
-          <p class="mt-2 text-[11.5px] leading-relaxed text-base-content/60">
-            Please review your selection before continuing — this updates every selected posting at once.
-          </p>
-        </div>
-      </div>
-
-      <!-- Footer -->
-      <div class="modal-action m-0 flex flex-col-reverse gap-2 border-t border-base-200/80 bg-base-200/40 px-5 py-4 sm:flex-row sm:justify-end">
-        <button
-          type="button"
-          onclick="bulkActionModal.close()"
-          class="btn btn-ghost h-10 min-h-10 w-full rounded-full px-5 text-sm font-semibold text-base-content/70 hover:bg-base-200 hover:text-base-content sm:w-auto">
-          Cancel
-        </button>
-        <button
-          type="button"
-          onclick="submitBulkAction()"
-          id="bulkConfirmBtn"
-          class="btn btn-primary h-10 min-h-10 w-full rounded-full px-6 text-sm font-semibold shadow-pop sm:w-auto">
-          Apply action
-        </button>
-      </div>
-    </div>
-
-    <!-- Backdrop -->
-    <form method="dialog" class="modal-backdrop bg-black/40 backdrop-blur-sm">
-      <button type="submit">close</button>
-    </form>
-  </dialog>
-
-  <!-- ══ JOB FORM MODAL ══ -->
-  <dialog id="jobFormModal" class="modal">
-    <div class="modal-box w-[calc(100%-2rem)] max-w-3xl max-h-[90vh] overflow-y-auto rounded-3xl border border-base-300/70 bg-base-100 p-0 shadow-xl">
-      <div class="flex items-center justify-between gap-3 px-5 pb-1 pt-5">
-        <div class="min-w-0">
-          <h3 class=" text-[16px] font-bold tracking-tight text-base-content">Post a Job</h3>
-        </div>
-        <button
-          type="button"
-          onclick="closeJobForm()"
-          class="btn btn-sm btn-circle btn-ghost size-8 min-h-8 shrink-0 text-base-content/50 hover:bg-base-200 hover:text-base-content"
-          aria-label="Close">
-          <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-      <div id="jobFormContent" class="px-5 py-5">
-        <div class="flex items-center justify-center py-20">
-          <span class="loading loading-spinner loading-lg text-primary"></span>
-        </div>
-      </div>
-      <!-- Footer -->
-      <div class=" modal-action m-0 flex flex-col-reverse gap-2 border-t border-base-200/80 bg-base-200/40 px-5 py-4 sm:flex-row sm:justify-end">
-        <button
-          type="button"
-          onclick="closeJobForm()"
-          class="btn btn-ghost h-10 min-h-10 w-full rounded-full px-5 text-sm font-semibold text-base-content/70 hover:bg-base-200 hover:text-base-content sm:w-auto">
-          Cancel
-        </button>
-        <button
-          type="button"
-          id="jobFormDraftBtn"
-          onclick="submitJobFormAction('draft')"
-          class="btn h-10 min-h-10 w-full rounded-full border-base-300 bg-base-100 px-6 text-sm font-semibold hover:bg-base-200 sm:w-auto">
-          Save as Draft
-        </button>
-        <button
-          type="button"
-          id="jobFormPublishBtn"
-          onclick="submitJobFormAction('publish')"
-          class="btn btn-primary h-10 min-h-10 w-full rounded-full px-6 text-sm font-semibold shadow-pop sm:w-auto">
-          Publish Job
-        </button>
-      </div>
-    </div>
-    <form method="dialog" class="modal-backdrop bg-black/40 backdrop-blur-sm">
-      <button type="submit">close</button>
-    </form>
-  </dialog>
-
-  <!-- ══ PAGINATION ══ -->
-  <?php if ($totalPages > 1): ?>
-    <div class="flex items-center justify-end">
-      <div class="join">
-        <?php if ($page > 1): ?>
-          <a href="<?= pageUrl($page - 1) ?>"
-            class="btn btn-sm join-item border-base-300 bg-base-100 text-base-content/70 hover:bg-base-200">‹ Prev</a>
-        <?php endif; ?>
-
-        <?php
-        $range = range(max(1, $page - 2), min($totalPages, $page + 2));
-        foreach ($range as $pg):
-        ?>
-          <a href="<?= pageUrl($pg) ?>"
-            class="btn btn-sm join-item <?= $pg === $page ? 'btn-primary' : 'border-base-300 bg-base-100 text-base-content/70 hover:bg-base-200' ?>">
-            <?= $pg ?>
-          </a>
-        <?php endforeach; ?>
-
-        <?php if ($page < $totalPages): ?>
-          <a href="<?= pageUrl($page + 1) ?>"
-            class="btn btn-sm join-item border-base-300 bg-base-100 text-base-content/70 hover:bg-base-200">Next ›</a>
-        <?php endif; ?>
-      </div>
-    </div>
-  <?php endif; ?>
-
-</div>
-
-<script>
-  /* ── Row selection & bulk UI ─────────────────────────────── */
-  function selectedJobCount() {
-    return document.querySelectorAll('input[name="ids[]"]:checked').length;
-  }
-
-  function updateBulkUi() {
-    var btn = document.getElementById('bulkApplyBtn');
-    if (btn) btn.disabled = selectedJobCount() === 0;
-  }
-
-  function openDeleteModal(id, jobName, deleteUrl) {
-    document.getElementById('deleteJobName').textContent = jobName;
-    document.getElementById('confirmDeleteBtn').href = deleteUrl;
-    deleteModal.showModal();
-  }
-
-  function openCloneModal(id, jobName, cloneUrl) {
-    document.getElementById('cloneJobName').textContent = jobName;
-    document.getElementById('confirmCloneBtn').href = cloneUrl;
-    cloneModal.showModal();
-  }
-
-  function openBulkActionModal() {
-    var count = selectedJobCount();
-    var actionEl = document.getElementById('bulkAction');
-    if (count === 0 || !actionEl.value) return;
-
-    var labels = {
-      publish: 'Publish',
-      draft: 'Move to draft',
-      close: 'Close',
-      delete: 'Delete'
-    };
-    document.getElementById('selectedJobCount').textContent = count;
-    document.getElementById('selectedJobPlural').textContent = count === 1 ? '' : 's';
-    document.getElementById('selectedAction').textContent = labels[actionEl.value] || actionEl.value;
-
-    bulkActionModal.showModal();
-  }
-
-  function submitBulkAction() {
-    bulkActionModal.close();
-    document.getElementById('bulkForm').submit();
-  }
-
-  // Check all + live bulk button state
-  document.getElementById('checkAll')?.addEventListener('change', function() {
-    document.querySelectorAll('.row-check').forEach(cb => cb.checked = this.checked);
-    updateBulkUi();
-  });
-  document.addEventListener('change', function(e) {
-    if (e.target.classList && e.target.classList.contains('row-check')) updateBulkUi();
-  });
-
-  updateBulkUi();
-
-  /* ── Job Form Modal ─────────────────────────────────────── */
-  var jobFormModal = document.getElementById('jobFormModal');
-  var jobFormContent = document.getElementById('jobFormContent');
-
-  function executeScripts(container) {
-    container.querySelectorAll('script').forEach(function(old) {
-      var s = document.createElement('script');
-      if (old.src) {
-        s.src = old.src;
-        s.async = false;
-      } else {
-        s.textContent = old.textContent;
-      }
-      old.parentNode.replaceChild(s, old);
+    function updateBulkButton() {
+      document.getElementById('bulkApplyBtn').disabled = !document.querySelectorAll('.row-check:checked').length;
+    }
+    document.querySelectorAll('.row-check').forEach(box => box.addEventListener('change', updateBulkButton));
+    document.getElementById('checkAll')?.addEventListener('change', function() {
+      document.querySelectorAll('.row-check').forEach(box => box.checked = this.checked);
+      updateBulkButton()
     });
-  }
 
-  function openJobForm(url) {
-    jobFormContent.innerHTML = '<div class="flex items-center justify-center py-20"><span class="loading loading-spinner loading-lg text-primary"></span></div>';
-    jobFormModal.showModal();
+    document.querySelector('.jobs-table tbody')?.addEventListener('click', function(event) {
+      const row = event.target.closest('.job-row');
+      if (!row || !row.dataset.edit) return;
+      if (event.target.closest('a, button, input, select')) return;
+      window.open(row.dataset.edit, '_blank', 'noopener')
+    });
 
-    fetch(url, {
-        headers: {
-          'X-Requested-With': 'XMLHttpRequest'
-        }
-      })
-      .then(function(r) {
-        return r.text();
-      })
-      .then(function(html) {
-        if (html.trim().charAt(0) === '{') {
-          var data = JSON.parse(html);
-          if (data.redirect) window.location.href = data.redirect;
-          return;
-        }
-        jobFormContent.innerHTML = html;
-        executeScripts(jobFormContent);
-
-        /* Hide the form's own sticky action bar — replaced by modal footer */
-        var actionBar = jobFormContent.querySelector('.sticky');
-        if (actionBar) actionBar.style.display = 'none';
-
-        /* Update footer button labels based on mode */
-        var isEdit = jobFormContent.querySelector('input[name="edit"]') !== null;
-        var isClone = jobFormContent.querySelector('input[name="clone_source_id"]') !== null;
-        var publishBtn = document.getElementById('jobFormPublishBtn');
-        var draftBtn = document.getElementById('jobFormDraftBtn');
-        if (publishBtn) {
-          publishBtn.textContent = isClone ? 'Publish' : (isEdit ? 'Update & Publish' : 'Publish Job');
-        }
-        if (draftBtn) {
-          draftBtn.textContent = isClone ? 'Draft' : 'Save as Draft';
-        }
-      })
-      .catch(function() {
-        jobFormContent.innerHTML = '<div class="p-8 text-center text-error">Failed to load form. Please try again.</div>';
-      });
-  }
-
-  function closeJobForm() {
-    jobFormModal.close();
-    document.getElementById('jobFormContent').innerHTML = '';
-  }
-
-  function submitJobForm(e) {
-    e.preventDefault();
-    submitJobFormAction(null);
-  }
-
-  function submitJobFormAction(action) {
-    var form = document.getElementById('jobForm');
-    if (!form) return;
-
-    /* Sync Quill editors before submission */
-    if (typeof syncAllQuillEditors === 'function') {
-      syncAllQuillEditors();
+    function confirmBulkAction() {
+      const count = document.querySelectorAll('.row-check:checked').length,
+        action = document.getElementById('bulkAction').value;
+      if (!count || !action) {
+        alert('Select at least one job and an action.');
+        return false
+      }
+      const labels = {
+        publish: 'Publish',
+        draft: 'Move to draft',
+        archive: 'Move to pending review',
+        close: 'Close',
+        delete: 'Delete'
+      };
+      const label = labels[action] || action,
+        danger = action === 'delete';
+      document.getElementById('bulkDialogTitle').textContent = label + ' jobs?';
+      document.getElementById('bulkDialogCopy').textContent = 'Apply “' + label + '” to ' + count + ' selected job' + (count === 1 ? '' : 's') + '?';
+      document.getElementById('bulkDialogIcon').textContent = danger ? '!' : '?';
+      const confirm = document.getElementById('bulkDialogConfirm');
+      confirm.textContent = label;
+      confirm.classList.toggle('danger', danger);
+      document.getElementById('bulkDialog').showModal();
+      return false
+    }
+    document.getElementById('bulkDialogConfirm')?.addEventListener('click', () => {
+      document.getElementById('bulkForm').submit();
+      document.getElementById('bulkDialog').close()
+    });
+    async function copyJobLink(button) {
+      try {
+        await navigator.clipboard.writeText(button.dataset.url)
+      } catch (e) {
+        const area = document.createElement('textarea');
+        area.value = button.dataset.url;
+        document.body.appendChild(area);
+        area.select();
+        document.execCommand('copy');
+        area.remove()
+      }
+      const toast = document.getElementById('copyToast');
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 1800)
     }
 
-    /* Set the submit_action value */
-    var input = form.querySelector('input[name="submit_action"]');
-    if (!input) {
-      input = document.createElement('input');
-      input.type = 'hidden';
-      input.name = 'submit_action';
-      form.appendChild(input);
-    }
-    if (action) input.value = action;
-
-    var publishBtn = document.getElementById('jobFormPublishBtn');
-    var draftBtn = document.getElementById('jobFormDraftBtn');
-    if (publishBtn) {
-      publishBtn.disabled = true;
-      publishBtn.textContent = 'Saving...';
-    }
-    if (draftBtn) {
-      draftBtn.disabled = true;
-    }
-
-    var formData = new FormData(form);
-    var actionUrl = form.action + (form.action.indexOf('?') > -1 ? '&' : '?') + 'ajax=1';
-
-    fetch(actionUrl, {
-        method: 'POST',
-        body: formData,
-        headers: {
-          'X-Requested-With': 'XMLHttpRequest'
+    function closeActionMenus(except = null) {
+      document.querySelectorAll('.menu-popover:not([hidden])').forEach(popover => {
+        if (popover !== except) {
+          popover.hidden = true;
+          popover.previousElementSibling?.setAttribute('aria-expanded', 'false')
         }
       })
-      .then(function(r) {
-        return r.text();
-      })
-      .then(function(text) {
-        var trimmed = text.trim();
-        if (trimmed.charAt(0) === '{') {
-          var data = JSON.parse(trimmed);
-          if (data.ok) {
-            closeJobForm();
-            window.location.reload();
-          } else {
-            alert(data.message || 'Something went wrong. Please try again.');
-            if (publishBtn) {
-              publishBtn.disabled = false;
-              publishBtn.textContent = 'Publish Job';
-            }
-            if (draftBtn) {
-              draftBtn.disabled = false;
-            }
-          }
-        } else {
-          /* Validation errors — re-rendered form HTML */
-          var content = document.getElementById('jobFormContent');
-          content.innerHTML = text;
-          executeScripts(content);
-          /* Hide the form's own sticky action bar again */
-          var actionBar = content.querySelector('.sticky');
-          if (actionBar) actionBar.style.display = 'none';
-          if (publishBtn) {
-            publishBtn.disabled = false;
-            publishBtn.textContent = 'Publish Job';
-          }
-          if (draftBtn) {
-            draftBtn.disabled = false;
-          }
-        }
-      })
-      .catch(function() {
-        if (publishBtn) {
-          publishBtn.disabled = false;
-          publishBtn.textContent = 'Publish Job';
-        }
-        if (draftBtn) {
-          draftBtn.disabled = false;
-        }
-        alert('Something went wrong. Please try again.');
-      });
-  }
-</script>
+    }
 
-<?php include dirname(__DIR__) . '/includes/footer.php'; ?>
+    function toggleActionMenu(event, button) {
+      event.stopPropagation();
+      const popover = button.nextElementSibling,
+        willOpen = popover.hidden;
+      closeActionMenus(popover);
+      if (willOpen) {
+        const rect = button.getBoundingClientRect();
+        popover.style.top = (rect.bottom + 4) + 'px';
+        popover.style.left = Math.max(8, rect.right - 145) + 'px'
+      }
+      popover.hidden = !willOpen;
+      button.setAttribute('aria-expanded', String(willOpen))
+    }
+
+    function confirmJobAction(button) {
+      closeActionMenus();
+      const dialog = document.getElementById('jobActionDialog'),
+        danger = button.dataset.danger === 'true',
+        action = button.dataset.action;
+      document.getElementById('actionDialogTitle').textContent = action + ' job?';
+      document.getElementById('actionDialogCopy').textContent = action + ' “' + button.dataset.job + '”?';
+      document.getElementById('actionDialogIcon').textContent = danger ? '!' : '?';
+      document.getElementById('actionJobId').value = button.dataset.id;
+      document.getElementById('actionJobValue').value = button.dataset.value;
+      const confirm = document.getElementById('actionDialogConfirm');
+      confirm.textContent = action;
+      confirm.classList.toggle('danger', danger);
+      dialog.showModal()
+    }
+
+    function jobsQuery(page, perPage) {
+      const form = document.getElementById('jobsFilterForm'),
+        data = new URLSearchParams();
+      data.set('q', document.getElementById('jobSearch').value.trim());
+      data.set('status', form.elements['status']?.value || '');
+      data.set('country', form.elements['country']?.value || '');
+      data.set('per_page', perPage || document.querySelector('.pagination select')?.value || form.elements['per_page']?.value || '10');
+      data.set('page', page || 1);
+      data.set('ajax', '1');
+      return data
+    }
+
+    function reloadJobs(page, perPage) {
+      const url = '<?= ADMIN_URL ?>/pages/jobs.php?' + jobsQuery(page, perPage).toString();
+      fetch(url)
+        .then(response => {
+          if (!response.ok) throw new Error('request failed');
+          return response.json()
+        })
+        .then(data => {
+          document.querySelector('.jobs-table tbody').innerHTML = data.rows;
+          document.querySelector('.bulk-bar strong').textContent = Number(data.count).toLocaleString() + ' total jobs';
+          const pagination = document.querySelector('.pagination');
+          pagination.innerHTML = data.pagination;
+          if (perPage) pagination.querySelector('select').value = String(perPage);
+          document.querySelectorAll('.row-check').forEach(box => box.addEventListener('change', updateBulkButton));
+          updateBulkButton()
+        })
+        .catch(() => {})
+    }
+
+    document.querySelector('.pagination')?.addEventListener('click', event => {
+      const link = event.target.closest('a[data-page]');
+      if (!link || link.classList.contains('disabled')) return;
+      event.preventDefault();
+      reloadJobs(parseInt(link.dataset.page, 10))
+    });
+
+    const filterForm = document.getElementById('jobsFilterForm'),
+      jobSearch = document.getElementById('jobSearch');
+    let searchTimer;
+    document.querySelectorAll('[data-auto-filter]').forEach(select => select.addEventListener('change', () => reloadJobs(1)));
+    jobSearch.addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => reloadJobs(1), 350)
+    });
+    document.addEventListener('click', event => {
+      if (!event.target.closest('.actions-menu')) closeActionMenus()
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape') closeActionMenus()
+    });
+    window.addEventListener('resize', () => closeActionMenus());
+    window.addEventListener('scroll', () => closeActionMenus(), true);
+  </script>
+</body>
+
+</html>

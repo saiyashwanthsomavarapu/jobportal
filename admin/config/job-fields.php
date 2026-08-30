@@ -5,7 +5,6 @@ return [
     'job_code',
     'job_code_prefix',
     'job_code_number',
-    'client_code',
     'job_title',
     'city',
     'state_province',
@@ -32,5 +31,5 @@ return [
     'open_date',
     'close_date',
     'status',
-    "client_id"
+    'client_id'
 ];

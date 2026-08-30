@@ -48,9 +48,9 @@ function db(): PDO
                 PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"
             ]);
         } catch (PDOException $e) {
-
-            die('<div style="font-family:monospace;color:red;padding:20px">
-            DB Connection failed: ' . htmlspecialchars($e->getMessage()) . '</div>');
+            error_log('Database connection failed: ' . $e->getMessage());
+            http_response_code(500);
+            die('The service is temporarily unavailable. Please try again later.');
         }
     }
 
@@ -71,7 +71,7 @@ function redirect(string $url): void
     exit;
 }
 
-function flash(string $key, string $msg = null): ?string
+function flash(string $key, ?string $msg = null): ?string
 {
     if ($msg !== null) {
         $_SESSION['flash'][$key] = $msg;
@@ -82,10 +82,7 @@ function flash(string $key, string $msg = null): ?string
     return $val;
 }
 
-// ─────────────────────────────────────────────────────────────
-// CSRF PROTECTION
-// ─────────────────────────────────────────────────────────────
-function csrf_token(): string
+function csrfToken(): string
 {
     if (empty($_SESSION['csrf_token'])) {
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -93,25 +90,16 @@ function csrf_token(): string
     return $_SESSION['csrf_token'];
 }
 
-function csrf_field(): string
+function csrfField(): string
 {
-    return '<input type="hidden" name="csrf_token" value="' . e(csrf_token()) . '">';
+    return '<input type="hidden" name="csrf_token" value="' . e(csrfToken()) . '">';
 }
 
-/**
- * Abort state-changing POSTs that don't carry a valid token.
- * Call at the very top of the POST handler, before any output.
- */
-function csrf_verify(): void
+function validCsrfToken(?string $token): bool
 {
-    $posted = $_POST['csrf_token'] ?? '';
-    if (
-        !is_string($posted) || $posted === ''
-        || !hash_equals(csrf_token(), $posted)
-    ) {
-        flash('error', 'For your security this request was blocked. Please go back and try again.');
-        redirect(strtok($_SERVER['REQUEST_URI'] ?? '/', '?'));
-    }
+    return is_string($token)
+        && !empty($_SESSION['csrf_token'])
+        && hash_equals($_SESSION['csrf_token'], $token);
 }
 
 function slugify(string $text): string
@@ -150,7 +138,7 @@ function nextJobCode(string $prefix): array
 /**
  * Log admin activity
  */
-function logActivity(string $action, string $entity = null, int $entityId = null, string $notes = null): void
+function logActivity(string $action, ?string $entity = null, ?int $entityId = null, ?string $notes = null): void
 {
     try {
         db()->prepare(

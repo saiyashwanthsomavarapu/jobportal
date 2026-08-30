@@ -1,4 +1,5 @@
 <?php
+
 /**
  * jobs-embed.php
  * Place this file at: gustaine.com/jobportal/jobs-embed.php
@@ -29,7 +30,7 @@ try {
             id,
             job_title,
             slug,
-            client_code,
+            job_code,
             job_type,
             workplace_type,
             city,
@@ -45,18 +46,13 @@ try {
     $jobs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     foreach ($jobs as &$job) {
-        $parts = explode('-', $job['client_code'] ?? '');
-        $job['job_code'] = $parts[1] ?? '';
-
-        // Detail URL — matches your existing job-detail.php link structure exactly
-        $job['detail_url'] = 'https://www.accelonconsulting.com/jobportal/job-detail.php'
-            . '?form_jobcode='  . rawurlencode($job['job_code'])
-            . '&slug='          . rawurlencode($job['slug']);
+        // Public detail pages use the stable slug and do not depend on legacy client codes.
+        $job['detail_url'] = 'http://localhost:8080/jobportal/job-detail.php'
+            . '?slug=' . rawurlencode($job['slug']);
     }
     unset($job);
 
     echo json_encode(['success' => true, 'jobs' => $jobs], JSON_UNESCAPED_UNICODE);
-
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode(['success' => false, 'error' => 'Server error']);

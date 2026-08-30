@@ -16,7 +16,7 @@ if (!$slug) {
 }
 
 $stmt = $pdo->prepare("
-    SELECT j.*, a.name AS posted_by
+    SELECT j.*, a.name AS posted_by, REGEXP_REPLACE(j.client_code, '[^0-9]', '') AS client_code
     FROM jobs j
     LEFT JOIN admin_users a ON a.id = j.created_by
     WHERE j.slug = ? AND j.status = 'published'
@@ -217,6 +217,31 @@ $days = daysLeft($job['close_date']);
     .rich-content span[style*="mso-"] {
       display: none;
     }
+
+    /* Style the Fillout popup trigger like the branded Apply Now button */
+    .apply-area [data-fillout-embed-type="popup"] {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: .5rem;
+      width: 100% !important;
+      height: 3.5rem !important;
+      padding-inline: 1rem !important;
+      background-color: var(--color-primary) !important;
+      color: var(--color-primary-content) !important;
+      border: none !important;
+      border-radius: .75rem !important;
+      font-family: inherit;
+      font-size: 1rem !important;
+      font-weight: 600 !important;
+      line-height: 1.5rem;
+      cursor: pointer;
+      transition: background-color .16s ease;
+    }
+
+    .apply-area [data-fillout-embed-type="popup"]:hover {
+      background-color: var(--color-accent-dark) !important;
+    }
   </style>
 </head>
 
@@ -245,12 +270,12 @@ $days = daysLeft($job['close_date']);
     <div class="lg:col-span-2 min-w-0 flex flex-col gap-5">
 
       <div class="card bg-surface border border-line shadow-[var(--shadow-card)] overflow-hidden">
-        <div class="h-1 bg-gradient-to-r from-primary to-secondary"></div>
+        <div class="h-1 bg-linear-to-r from-primary to-secondary"></div>
         <div class="card-body p-6 md:p-9">
 
           <?php if ($job['industry'] || $job['job_type']): ?>
             <div class="font-head text-[11px] font-bold tracking-[.1em] text-primary uppercase mb-2">
-              <?= e($job['industry'] ?: '') ?><?= $job['industry'] && $job['job_type'] ? ' · ' : '' ?><?= e($job['job_type'] ?: '') ?>
+              <?= e($job['job_type'] ?: '') ?>
             </div>
           <?php endif; ?>
 
@@ -294,7 +319,7 @@ $days = daysLeft($job['close_date']);
 
                 <span class="text-xs text-base-content/50">
                   Job Code:
-                </span><span class="text-ink font-semibold"><?= e(explode('-', $job['client_code'])[1] ?? '') ?></span>
+                </span><span class="text-ink font-semibold"><?= e($job['client_code']) ?></span>
               </span>
             <?php endif; ?>
 

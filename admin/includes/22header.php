@@ -10,7 +10,7 @@ $pageTitle = $pageTitle ?? 'Dashboard';
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title><?= e($pageTitle) ?> — <?= SITE_NAME ?></title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.snow.min.css" rel="stylesheet">
 <style>
 /* ════════════════════════════════════════════
@@ -38,7 +38,7 @@ $pageTitle = $pageTitle ?? 'Dashboard';
   --r2:12px;
   --sidebar:240px;
   --topbar:58px;
-  --font-h:'Syne',sans-serif;
+  --font-h:'Manrope',sans-serif;
   --font:'DM Sans',sans-serif;
   --shadow:0 4px 24px rgba(0,0,0,.35);
 }
@@ -430,9 +430,13 @@ td{padding:12px 14px;vertical-align:middle;color:var(--text)}
         } catch(Exception $e){}
       ?>
     </a>
-    <a href="<?= ADMIN_URL ?>/pages/post_job.php"
+    <a href="<?= ADMIN_URL ?>/pages/admins.php"
+       class="sb-item <?= (basename($_SERVER['PHP_SELF'])==='admins.php')?'active':'' ?>">
+      <span class="sb-icon">👤</span> Admin
+    </a>
+    <a href="<?= ADMIN_URL ?>/pages/post_job.php#country-basics"
        class="sb-item <?= (basename($_SERVER['PHP_SELF'])==='post_job.php')?'active':'' ?>">
-      <span class="sb-icon">＋</span> Post a Job
+      <span class="sb-icon">＋</span> Create Job
     </a>
     <a href="<?= ADMIN_URL ?>/pages/jobs.php?status=draft"
        class="sb-item">
@@ -443,12 +447,6 @@ td{padding:12px 14px;vertical-align:middle;color:var(--text)}
           if ($dc > 0) echo '<span class="sb-badge draft">'.$dc.'</span>';
         } catch(Exception $e){}
       ?>
-    </a>
-
-    <span class="sb-section">Settings</span>
-    <a href="<?= ADMIN_URL ?>/pages/admins.php"
-       class="sb-item <?= (basename($_SERVER['PHP_SELF'])==='admins.php')?'active':'' ?>">
-      <span class="sb-icon">👤</span> Admin Users
     </a>
   </nav>
 
@@ -481,7 +479,7 @@ td{padding:12px 14px;vertical-align:middle;color:var(--text)}
   </div>
   <div class="topbar-actions">
     <a href="<?= SITE_URL ?>" target="_blank" class="topbar-btn outline">↗ View Site</a>
-    <a href="<?= ADMIN_URL ?>/pages/post_job.php" class="topbar-btn">＋ Post Job</a>
+    <a href="<?= ADMIN_URL ?>/pages/post_job.php#country-basics" class="topbar-btn">＋ Create Job</a>
   </div>
 </div>
 

@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap"
+        href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap"
         rel="stylesheet">
 
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
@@ -24,7 +24,7 @@
         }
 
         .font-head {
-            font-family: var(--font-head, "Syne", sans-serif);
+            font-family: var(--font-head, "Manrope", sans-serif);
         }
     </style>
 </head>
@@ -63,11 +63,11 @@
                 </div>
 
                 <!-- Error code -->
-                <div style="font-family: 'Syne', sans-serif; font-size: 4rem; font-weight: 800; letter-spacing: -0.05em; color: rgba(61, 107, 168, 0.15); line-height: 1;">
+                <div style="font-family: 'Manrope', sans-serif; font-size: 4rem; font-weight: 800; letter-spacing: -0.05em; color: rgba(61, 107, 168, 0.15); line-height: 1;">
                     404
                 </div>
 
-                <h1 style="font-family: 'Syne', sans-serif; margin-top: 0.5rem; font-size: 1.75rem; font-weight: 700; color: #111827;">
+                <h1 style="font-family: 'Manrope', sans-serif; margin-top: 0.5rem; font-size: 1.75rem; font-weight: 700; color: #111827;">
                     Job not found
                 </h1>
 

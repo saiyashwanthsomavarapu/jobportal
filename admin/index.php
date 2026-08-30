@@ -1,827 +1,260 @@
 <?php
+require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/DB/queries.php';
 
-require_once __DIR__ . "/auth.php";
-require_once __DIR__ . "/utils/classes.php";
-
-$pageTitle = "Dashboard";
-
-$breadcrumbs = [["Dashboard", null]];
-
-/* Dashboard Data */
-
-$total = 0;
-$published = 0;
-$drafts = 0;
-$closed = 0;
-$thisMonth = 0;
-$recent = [];
-$byCountry = [];
+$total = $published = $drafts = $closed = 0;
+$recent = $byCountry = [];
 
 try {
   $pdo = db();
 
-  /* Job Statistics */
+  // Dashboard stats
+  $counts = $pdo->query($COUNT_BY_STATUS)->fetch() ?: [];
 
-  $total = (int) $pdo
-    ->query(
-      "
-        SELECT COUNT(*)
-        FROM jobs
-    "
-    )
-    ->fetchColumn();
+  $total = (int)($counts['total'] ?? 0);
+  $published = (int)($counts['published'] ?? 0);
+  $drafts = (int)($counts['drafts'] ?? 0);
+  $closed = (int)($counts['closed'] ?? 0);
 
-  $published = (int) $pdo
-    ->query(
-      "
-        SELECT COUNT(*)
-        FROM jobs
-        WHERE status = 'published'
-          AND (
-                close_date IS NULL
-                OR close_date >= CURDATE()
-              )
-    "
-    )
-    ->fetchColumn();
-
-  $drafts = (int) $pdo
-    ->query(
-      "
-        SELECT COUNT(*)
-        FROM jobs
-        WHERE status = 'draft'
-    "
-    )
-    ->fetchColumn();
-
-  $closed = (int) $pdo
-    ->query(
-      "
-        SELECT COUNT(*)
-        FROM jobs
-        WHERE status = 'closed'
-          OR (
-                status = 'published'
-                AND close_date IS NOT NULL
-                AND close_date < CURDATE()
-              )
-    "
-    )
-    ->fetchColumn();
-
-  /* Recent Jobs */
-
-  $recent = $pdo
-    ->query(
-      "
-       SELECT 
-        j.*,
-        REGEXP_REPLACE(j.client_code, '[^0-9]', '') AS cleaned_client_code,
-        a.name AS posted_by
-      FROM jobs j
-      LEFT JOIN admin_users a 
-      ON a.id = j.created_by
-      WHERE j.status = 'published'
-      ORDER BY j.created_at DESC
-      LIMIT 8;
-    "
-    )
-    ->fetchAll();
-
-  /* Published Jobs By Country */
-
-  $byCountry = $pdo
-    ->query(
-      "
-        SELECT
-            country,
-            COUNT(*) AS cnt
-        FROM jobs
-        WHERE status = 'published'
-          AND country IS NOT NULL
-          AND country != ''
-        GROUP BY country
-        ORDER BY cnt DESC
-    "
-    )
-    ->fetchAll();
-
-  /* Jobs Created This Month */
-
-  $thisMonth = (int) $pdo
-    ->query(
-      "
-        SELECT COUNT(*)
-        FROM jobs
-        WHERE
-            MONTH(created_at) = MONTH(CURRENT_DATE())
-            AND YEAR(created_at) = YEAR(CURRENT_DATE())
-    "
-    )
-    ->fetchColumn();
+  // Recent jobs
+  $recent = $pdo->query($RECENT_JOBS)->fetchAll();
+  // Jobs by country
+  $byCountry = $pdo->query($JOBS_COUNT_BY_COUNTRY)->fetchAll();
 } catch (Exception $e) {
-  $total = 0;
-  $published = 0;
-  $drafts = 0;
-  $closed = 0;
-  $thisMonth = 0;
-
-  $recent = [];
-  $byCountry = [];
+  // Preserve a useful dashboard shell when the database is temporarily unavailable.
+  $total = $published = $drafts = $closed = 0;
 }
 
-/* Helpers */
-
-function dashStatusStyles(string $status): array
+function dashboardFlag(?string $country): string
 {
-  return match ($status) {
-    "published" => [
-      "badge" => "border-emerald-200 bg-emerald-50 text-emerald-700",
-      "dot" => "bg-emerald-500",
-    ],
-    "draft" => [
-      "badge" => "border-amber-200 bg-amber-50 text-amber-700",
-      "dot" => "bg-amber-500",
-    ],
-    "closed" => [
-      "badge" => "border-gray-200 bg-gray-50 text-gray-600",
-      "dot" => "bg-gray-400",
-    ],
-    "archived" => [
-      "badge" => "border-red-200 bg-red-50 text-red-700",
-      "dot" => "bg-red-500",
-    ],
-    default => [
-      "badge" => "border-gray-200 bg-gray-50 text-gray-600",
-      "dot" => "bg-gray-400",
-    ],
+  return match (strtolower(trim((string)$country))) {
+    'united states', 'usa', 'us' => '🇺🇸',
+    'canada' => '🇨🇦',
+    'india' => '🇮🇳',
+    default => '🌐',
   };
 }
 
-function timeAgo(string $datetime): string
+function dashboardStatus(array $job): array
 {
-  $timestamp = strtotime($datetime);
-
-  if (!$timestamp) {
-    return "—";
-  }
-
-  $diff = time() - $timestamp;
-
-  if ($diff < 60) {
-    return "just now";
-  }
-
-  if ($diff < 3600) {
-    return floor($diff / 60) . "m ago";
-  }
-
-  if ($diff < 86400) {
-    return floor($diff / 3600) . "h ago";
-  }
-
-  if ($diff < 86400 * 7) {
-    return floor($diff / 86400) . "d ago";
-  }
-
-  return date("d M", $timestamp);
+  $status = strtolower((string)($job['status'] ?? 'draft'));
+  if ($status === 'published' && !empty($job['close_date']) && strtotime($job['close_date']) < strtotime('today')) $status = 'closed';
+  return match ($status) {
+    'published' => ['Published', 'status-published'],
+    'closed' => ['Closed', 'status-closed'],
+    'archived' => ['Pending Review', 'status-pending'],
+    default => ['Draft', 'status-draft'],
+  };
 }
 
-/* Greeting */
-
-$hour = (int) date("G");
-
-$greeting =
-  $hour < 12
-  ? "Good morning"
-  : ($hour < 17
-    ? "Good afternoon"
-    : "Good evening");
-
-$firstName = "Admin";
-
-if (!empty($currentAdmin["name"])) {
-  $firstName = explode(" ", trim($currentAdmin["name"]))[0];
-}
-
-/* Country Data */
-
-$totalPublished = array_sum(
-  array_map(fn($item) => (int) $item["cnt"], $byCountry)
-);
-
-$countryColors = [
-  "#2563eb",
-  "#10b981",
-  "#f59e0b",
-  "#8b5cf6",
-  "#ef4444",
-  "#06b6d4",
+$stats = [
+  ['Total Jobs', $total, 'blue', 'briefcase', ADMIN_URL . '/pages/jobs.php'],
+  ['Published', $published, 'green', 'globe', ADMIN_URL . '/pages/jobs.php?status=published'],
+  ['Drafts', $drafts, 'yellow', 'document', ADMIN_URL . '/pages/jobs.php?status=draft'],
+  ['Closed', $closed, 'gray', 'archive', ADMIN_URL . '/pages/jobs.php?status=closed'],
 ];
-
-/* Include Header */
-
-include __DIR__ . "/includes/header.php";
 ?>
+<!DOCTYPE html>
+<html lang="en">
 
-<div class="min-w-0 space-y-6">
-  <!-- HEADER -->
-  <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-    <div>
-      <h1 class="mt-2 text-2xl font-bold tracking-tight text-base-content sm:text-[26px]">
-        <?= e($greeting) ?>, <?= e($firstName) ?>
-      </h1>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Dashboard — <?= e(SITE_NAME) ?> Recruitment</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="<?= ADMIN_URL ?>/dashboard.css" rel="stylesheet">
+  <style>
+    .stats-grid .stat-card {
+      min-height: 98px;
+      padding: 22px;
+      justify-content: space-between;
+      gap: 20px
+    }
 
-      <p class="mt-1 text-sm text-base-content/55">
-        Here's a quick overview of your job postings.
-      </p>
+    .stats-grid .stat-card div span {
+      font-size: 16px
+    }
+
+    .stats-grid .stat-card strong {
+      margin-top: 8px;
+      font-size: 32px
+    }
+
+    .stats-grid .stat-icon {
+      width: 42px;
+      height: 42px;
+      flex: 0 0 42px;
+      border-radius: 11px;
+      margin-top: 10px
+    }
+
+    .stats-grid .stat-icon svg {
+      width: 40px
+    }
+
+    @media(max-width:620px) {
+      .stats-grid .stat-card {
+        min-height: 94px;
+        padding: 16px;
+        gap: 12px
+      }
+
+      .stats-grid .stat-card div span {
+        font-size: 13px
+      }
+
+      .stats-grid .stat-card strong {
+        margin-top: 6px;
+        font-size: 27px
+      }
+
+      .stats-grid .stat-icon {
+        width: 34px;
+        height: 34px;
+        flex-basis: 34px;
+        border-radius: 9px
+      }
+
+      .stats-grid .stat-icon svg {
+        width: 18px
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <button class="mobile-menu" id="mobileMenu" type="button" aria-label="Open navigation" aria-expanded="false"><svg viewBox="0 0 24 24">
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </svg></button>
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <aside class="sidebar" id="dashboardSidebar">
+    <a class="brand" href="<?= ADMIN_URL ?>/index.php" aria-label="Accelon Consulting dashboard"><img src="https://www.accelonconsulting.com/wp-content/uploads/2025/07/Accelon-logo.webp" alt="Accelon Consulting" style="display:block;width:auto;height:50px;max-width:170px;padding-left:15px;object-fit:contain"></a>
+    <nav class="nav" aria-label="Admin navigation">
+      <a class="active" href="<?= ADMIN_URL ?>/index.php"><svg viewBox="0 0 24 24">
+          <rect x="4" y="4" width="6" height="6" rx="1" />
+          <rect x="14" y="4" width="6" height="6" rx="1" />
+          <rect x="4" y="14" width="6" height="6" rx="1" />
+          <rect x="14" y="14" width="6" height="6" rx="1" />
+        </svg>Dashboard</a>
+      <a href="<?= ADMIN_URL ?>/pages/jobs.php"><svg viewBox="0 0 24 24">
+          <path d="M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7M5 7h14a1 1 0 0 1 1 1v11H4V8a1 1 0 0 1 1-1Zm7 0v12" />
+        </svg>Jobs</a>
+      <a href="<?= ADMIN_URL ?>/pages/admins.php"><svg viewBox="0 0 24 24">
+          <path d="M15.5 8a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0ZM5 20a7 7 0 0 1 14 0M18 5v6M15 8h6" />
+        </svg>Admin</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="admin-row"><span class="admin-avatar"><?= e(strtoupper(substr($currentAdmin['name'] ?? 'A', 0, 1))) ?></span><span class="admin-copy"><strong><?= e($currentAdmin['name'] ?? 'Admin') ?></strong><small><?= e(ucfirst($currentAdmin['role'] ?? 'admin')) ?></small></span><a class="signout" href="<?= ADMIN_URL ?>/logout.php" title="Sign out" aria-label="Sign out"><svg viewBox="0 0 24 24">
+            <path d="M10 5H6v14h4m4-4 4-3-4-3m4 3H9" />
+          </svg></a></div>
+      <a class="new-job" href="<?= ADMIN_URL ?>/pages/post_job.php#country-basics"><span>+</span> Create Job</a>
     </div>
-  </div>
-
-  <!-- ACTION CARDS -->
-  <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-    <!-- TOTAL -->
-    <a
-      href="<?= ADMIN_URL ?>/pages/jobs.php"
-      class="group relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md">
-      <div class="absolute inset-x-0 top-0 h-[3px] bg-blue-600"></div>
-      <div class="flex items-start justify-between gap-4">
-        <div class="min-w-0">
-          <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-            Total Jobs
-          </p>
-          <p class="mt-2 text-[29px] font-extrabold  text-gray-900">
-            <?= number_format($total) ?>
-          </p>
-          <div class="mt-3 flex items-center gap-2">
-            <span class="rounded-md bg-blue-50 px-2 py-1 text-[10px] font-semibold text-blue-700">
-              +<?= number_format($thisMonth) ?>
+  </aside>
+  <main class="main">
+    <header class="page-header">
+      <h1>Dashboard</h1>
+    </header>
+    <div class="dashboard-content">
+      <section class="stats-grid" aria-label="Job statistics">
+        <?php foreach ($stats as [$label, $value, $tone, $icon, $url]): ?>
+          <a class="stat-card" href="<?= e($url) ?>">
+            <div><span><?= e($label) ?></span><strong><?= number_format($value) ?></strong></div><span class="stat-icon tone-<?= $tone ?>">
+              <?php if ($icon === 'briefcase'): ?><svg viewBox="0 0 24 24">
+                  <path d="M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7M5 7h14v12H5V7Zm7 0v12" />
+                </svg>
+              <?php elseif ($icon === 'globe'): ?><svg viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="8" />
+                  <path d="M4 12h16M12 4c2 2.3 3 5 3 8s-1 5.7-3 8c-2-2.3-3-5-3-8s1-5.7 3-8Z" />
+                </svg>
+              <?php elseif ($icon === 'document'): ?><svg viewBox="0 0 24 24">
+                  <path d="M7 4h7l4 4v12H7V4Zm7 0v4h4M10 12h5m-5 3h5" />
+                </svg>
+              <?php elseif ($icon === 'clock'): ?><svg viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="8" />
+                  <path d="M12 7v5l3 2" />
+                </svg>
+              <?php else: ?><svg viewBox="0 0 24 24">
+                  <path d="M5 8h14l-1 11H6L5 8Zm-1-3h16v3H4V5Zm6 7h4" />
+                </svg><?php endif; ?>
             </span>
-            <span class="text-[11px] text-gray-400">
-              this month
-            </span>
+          </a>
+        <?php endforeach; ?>
+      </section>
+      <section class="dashboard-grid">
+        <div class="panel recent-panel">
+          <div class="panel-heading">
+            <h2>Recent Jobs</h2><a href="<?= ADMIN_URL ?>/pages/jobs.php">View all <span>→</span></a>
           </div>
+          <?php if (!$recent): ?><div class="empty-state"><strong>No jobs yet</strong><span>New job postings will appear here.</span></div>
+          <?php else: ?><div class="job-table-wrap">
+              <table class="job-table">
+                <thead>
+                  <tr>
+                    <th>Job</th>
+                    <th>Location</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <?php foreach ($recent as $job): [$statusLabel, $statusClass] = dashboardStatus($job); ?>
+                    <tr tabindex="0" role="link"
+                      onclick="window.location.href='<?= ADMIN_URL ?>/pages/post_job.php?edit=<?= (int)$job['id'] ?>#page-top'"
+                      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}">
+                      <td>
+                        <strong><?= e($job['job_title']) ?></strong>
+                        <small>
+                          <code><?= e($job['job_code']) ?></code>
+                          <i>·</i> Job Code: <?= e($job["client_code"] ?: 'General') ?></small>
+                      </td>
+                      <td><span class="location"><b><?= dashboardFlag($job['country']) ?></b><?= e($job['city'] ?: $job['country']) ?></span><small><?= e($job['workplace_type'] ?: '—') ?></small></td>
+                      <td><span><?= e($job['job_type'] ?: '—') ?></span><?php if ((int)$job['views'] > 0): ?><small class="views"><svg viewBox="0 0 24 24">
+                              <circle cx="9" cy="8" r="3" />
+                              <path d="M3.5 19c.5-4 2.3-6 5.5-6s5 2 5.5 6M16 9.5c2.4.3 3.7 1.9 4 4.5" />
+                            </svg><?= (int)$job['views'] ?></small><?php endif; ?></td>
+                      <td><span class="status <?= $statusClass ?>"><?= e($statusLabel) ?></span></td>
+                      <td><time datetime="<?= e($job['created_at']) ?>"><?= date('M j, Y', strtotime($job['created_at'])) ?></time></td>
+                    </tr>
+                  <?php endforeach; ?>
+                </tbody>
+              </table>
+            </div><?php endif; ?>
         </div>
-
-        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-[19px] w-[19px]"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            stroke-width="1.7">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M9 12h6m-6 4h6M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2Z" />
-          </svg>
-        </div>
-      </div>
-
-      <div class="mt-4 flex items-center justify-between border-t border-gray-100 pt-3">
-        <span class="text-[10px] text-gray-400">
-          All job postings
-        </span>
-        <span class="flex items-center gap-1 text-[10px] font-semibold text-blue-600 transition-all group-hover:gap-1.5">
-          View all
-          <span>→</span>
-        </span>
-      </div>
-    </a>
-
-    <!-- PUBLISHED -->
-    <a
-      href="<?= ADMIN_URL ?>/pages/jobs.php?status=published"
-      class="group relative overflow-hidden rounded-2xl border border-gray-200 p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md">
-      <div class="absolute inset-x-0 top-0 h-[3px] bg-emerald-500"></div>
-      <div class="flex items-start justify-between gap-4">
-        <div>
-          <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-            Published
-          </p>
-          <p class="mt-2 text-[29px] font-extrabold leading-none text-gray-900">
-            <?= number_format($published) ?>
-          </p>
-          <div class="mt-3 flex items-center gap-2 text-[11px] text-gray-400">
-            <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-            Live on site
+        <aside class="panel country-panel">
+          <div class="panel-heading">
+            <h2>Jobs by Country</h2>
           </div>
-        </div>
-        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-[19px] w-[19px]"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            stroke-width="1.7">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653Z" />
-          </svg>
-        </div>
-      </div>
-
-      <div class="mt-4 flex items-center justify-between border-t border-gray-100 pt-3">
-        <span class="text-[10px] text-gray-400">
-          Active postings
-        </span>
-        <span class="flex items-center gap-1 text-[10px] font-semibold text-emerald-600 transition-all group-hover:gap-1.5">
-          Manage
-          <span>→</span>
-        </span>
-      </div>
-    </a>
-
-    <!-- DRAFT -->
-    <a
-      href="<?= ADMIN_URL ?>/pages/jobs.php?status=draft"
-      class="group relative overflow-hidden rounded-2xl border border-gray-200 p-5  shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-amber-200 hover:shadow-md">
-      <div class="absolute inset-x-0 top-0 h-[3px] bg-amber-500"></div>
-      <div class="flex items-start justify-between gap-4">
-        <div>
-          <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-            Drafts
-          </p>
-          <p class="mt-2 text-[29px] font-extrabold leading-none text-gray-900">
-            <?= number_format($drafts) ?>
-          </p>
-          <div class="mt-3 flex items-center gap-2 text-[11px] text-gray-400">
-            <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
-            Pending review
-          </div>
-        </div>
-        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-[19px] w-[19px]"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            stroke-width="1.7">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931Z" />
-          </svg>
-        </div>
-      </div>
-      <div class="mt-4 flex items-center justify-between border-t border-gray-100 pt-3">
-        <span class="text-[10px] text-gray-400">
-          Needs attention
-        </span>
-        <span class="flex items-center gap-1 text-[10px] font-semibold text-amber-600 transition-all group-hover:gap-1.5">
-          Review
-          <span>→</span>
-        </span>
-      </div>
-    </a>
-
-    <!-- CLOSED -->
-    <a
-      href="<?= ADMIN_URL ?>/pages/jobs.php?status=closed"
-      class="group relative overflow-hidden rounded-2xl border border-gray-200 p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md">
-      <div class="absolute inset-x-0 top-0 h-[3px] bg-gray-200"></div>
-      <div class="flex items-start justify-between gap-4">
-        <div>
-          <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-            Closed
-          </p>
-          <p class="mt-2 text-[29px] font-extrabold leading-none text-gray-900">
-            <?= number_format($closed) ?>
-          </p>
-          <div class="mt-3 flex items-center gap-2 text-[11px] text-gray-400">
-            <span class="h-1.5 w-1.5 rounded-full bg-gray-400"></span>
-            No longer active
-          </div>
-        </div>
-        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-500">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-[19px] w-[19px]"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            stroke-width="1.7">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </div>
-      </div>
-      <div class="mt-4 flex items-center justify-between border-t border-gray-100 pt-3">
-        <span class="text-[10px] text-gray-400">
-          Historical postings
-        </span>
-        <span class="flex items-center gap-1 text-[10px] font-semibold text-gray-500 transition-all group-hover:gap-1.5">
-          View
-          <span>→</span>
-        </span>
-      </div>
-    </a>
-  </div>
-
-  <!-- RECENT JOBS + COUNTRY -->
-  <div class="grid grid-cols-1 items-start gap-5 xl:grid-cols-[1.6fr_1fr]">
-    <!-- RECENT JOBS -->
-    <div
-      class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-      <!-- Header -->
-      <div class="flex items-center justify-between border-b border-gray-200 px-5 py-4 sm:px-6">
-        <div>
-          <div class=" text-[17px] font-bold text-gray-900">
-            Recent Jobs
-          </div>
-          <div class="mt-1 text-[11px] text-gray-500">
-            Latest job postings
-          </div>
-        </div>
-        <a
-          href="<?= ADMIN_URL ?>/pages/jobs.php"
-          class="group flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-[11px] font-semibold text-gray-500 transition hover:bg-gray-50 hover:text-gray-900">
-          View All
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            stroke-width="2">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M9 5l7 7-7 7" />
-          </svg>
-        </a>
-      </div>
-
-      <?php if (empty($recent)): ?>
-        <div class="flex min-h-[320px] items-center justify-center px-6 py-12">
-          <div class="text-center">
-            <div class="<?= SVG_DIV ?>">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="<?= SVG_ICON ?>"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                stroke-width="1.5">
-                <circle
-                  cx="12"
-                  cy="12"
-                  r="9" />
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M12 7v5l3 2" />
-              </svg>
-            </div>
-            <p class="mt-3 text-[13px] font-medium text-gray-700">
-              No jobs yet
-            </p>
-            <p class="mt-1 text-[11px] text-gray-400">
-              Create your first job posting.
-            </p>
-            <a
-              href="<?= ADMIN_URL ?>/pages/post_job.php"
-              class="mt-4 inline-flex items-center rounded-lg bg-blue-600 px-3.5 py-2 text-[11px] font-semibold text-gray-900 hover:bg-blue-700">
-              Post a Job
-            </a>
-          </div>
-        </div>
-
-      <?php else: ?>
-        <div class="divide-y divide-gray-100">
-          <?php foreach ($recent as $job): ?>
-            <?php $statusStyles = dashStatusStyles((string) $job["status"]); ?>
-            <a
-              href="<?= ADMIN_URL ?>/pages/post_job.php?edit=<?= (int) $job["id"] ?>"
-              class=" group block px-5 py-4 transition hover:bg-[#f59e0b]/20 sm:px-6">
-              <div class="flex items-start gap-3.5">
-                <!-- Icon -->
-                <div class="<?= SVG_DIV ?>">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="<?= SVG_ICON ?>"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    stroke-width="1.7">
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      d="M9 12h6m-6 4h6M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2Z" />
-                  </svg>
-                </div>
-                <!-- Content -->
-                <div class="min-w-0 flex-1">
-                  <div class="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
-                    <div class="flex min-w-0 items-center gap-2">
-                      <h3 class="truncate text-sm font-semibold text-gray-800 transition">
-                        <?= e($job["job_title"]) ?>
-                      </h3>
-                    </div>
-                    <span class="shrink-0 text-sm text-gray-400 ">
-
-                      <span
-                        class="me-2 inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold <?= $statusStyles["badge"] ?>">
-                        <span class="h-1.5 w-1.5 rounded-full <?= $statusStyles["dot"] ?> "></span>
-                        <?= e(ucfirst($job["status"])) ?>
-                      </span>
-                      <?= timeAgo($job["created_at"]) ?>
-                    </span>
-                  </div>
-                  <div class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-gray-500">
-                    <code class="badge badge-soft badge-primary rounded-md font-mono text-[11px] font-semibold">
-                      <?= e($job['job_code']) ?>
-                    </code>
-
-                    <?php if (!empty($job["client_code"])): ?>
-                      <span class="text-gray-300">
-                        •
-                      </span>
-                      <span class="font-extrabold text-xs">
-                        Job code: <?= e($job["client_code"]) ?>
-                      </span>
-                    <?php endif; ?>
-
-                    <?php if (!empty($job["country"])): ?>
-                      <span class="text-gray-300">
-                        •
-                      </span>
-                      <span class="truncate font-extrabold text-xs">
-                        <?= e($job["city"] ?? "") ?>
-                        <?= !empty($job["city"]) ? ", " : "" ?>
-                        <?= e($job["country"]) ?>
-                      </span>
-                    <?php endif; ?>
-
-                  </div>
-                  <!-- <div class="mt-2">
-                    <span
-                      class="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold <?= $statusStyles["badge"] ?>">
-                      <span class="h-1.5 w-1.5 rounded-full <?= $statusStyles["dot"] ?> "></span>
-                      <?= e(ucfirst($job["status"])) ?>
-                    </span>
-                  </div> -->
-                </div>
-                <!-- Arrow -->
-                <div class="hidden self-center sm:block">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-4 w-4 text-gray-300 transition group-hover:translate-x-0.5 group-hover:text-gray-500"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    stroke-width="1.8">
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      d="M9 5l7 7-7 7" />
-                  </svg>
-                </div>
-              </div>
-            </a>
-          <?php endforeach; ?>
-        </div>
-      <?php endif; ?>
+          <?php if (!$byCountry): ?><div class="empty-country">No jobs with a country yet.</div><?php else: ?><div class="countries">
+              <?php foreach ($byCountry as $row): $count = (int)$row['cnt'];
+                                                                                                  $percentage = $total ? round($count / $total * 100) : 0; ?>
+                <a href="<?= ADMIN_URL ?>/pages/jobs.php?country=<?= urlencode($row['country']) ?>">
+                  <div><span><b><?= dashboardFlag($row['country']) ?></b><?= e($row['country'] === 'United States' ? 'USA' : $row['country']) ?></span><small><?= number_format($count) ?> job<?= $count === 1 ? '' : 's' ?></small></div><span class="country-track"><i style="width:<?= max(4, min(100, $percentage)) ?>%"></i></span>
+                </a>
+              <?php endforeach; ?>
+            </div><?php endif; ?>
+        </aside>
+      </section>
     </div>
+  </main>
+  <script>
+    const menu = document.getElementById('mobileMenu'),
+      sidebar = document.getElementById('dashboardSidebar'),
+      overlay = document.getElementById('sidebarOverlay');
 
-    <!-- JOBS BY COUNTRY -->
-    <div
-      class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-      <div class="flex items-start justify-between">
-        <div>
-          <div class=" text-[17px] font-bold text-gray-900">
-            Jobs by Country
-          </div>
-          <div class="mt-1 text-[11px] text-gray-500">
-            Published job distribution
-          </div>
-        </div>
+    function setMenu(open) {
+      sidebar.classList.toggle('open', open);
+      overlay.classList.toggle('open', open);
+      menu.setAttribute('aria-expanded', String(open));
+    }
+    menu.addEventListener('click', () => setMenu(!sidebar.classList.contains('open')));
+    overlay.addEventListener('click', () => setMenu(false));
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') setMenu(false)
+    });
+  </script>
+</body>
 
-        <div class="<?= SVG_DIV ?>">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="<?= SVG_ICON ?>"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            stroke-width="1.6">
-            <circle
-              cx="12"
-              cy="12"
-              r="9" />
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M3 12h18M12 3c2.5 2.8 3.75 5.8 3.75 9S14.5 18.2 12 21c-2.5-2.8-3.75-5.8-3.75-9S9.5 5.8 12 3Z" />
-          </svg>
-        </div>
-      </div>
-
-      <?php if (empty($byCountry)): ?>
-        <div class="flex min-h-[320px] items-center justify-center text-center">
-          <div>
-            <div class="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-gray-50">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                stroke-width="1.5">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-              </svg>
-            </div>
-            <p class="mt-3 text-[13px] font-medium text-gray-700">
-              No published jobs
-            </p>
-            <p class="mt-1 text-[11px] text-gray-400">
-              Country distribution will appear here.
-            </p>
-          </div>
-        </div>
-      <?php else: ?>
-
-        <div class="mt-6 space-y-5">
-          <?php foreach (array_slice($byCountry, 0, 6) as $index => $row): ?>
-            <?php
-            $count = (int) $row["cnt"];
-
-            $percentage =
-              $totalPublished > 0
-              ? round(($count / $totalPublished) * 100)
-              : 0;
-
-            $color = $countryColors[$index % count($countryColors)];
-            ?>
-            <div>
-              <div class="mb-2 flex items-center justify-between gap-3">
-                <div class="flex min-w-0 items-center gap-2">
-                  <span
-                    class="h-2.5 w-2.5 shrink-0 rounded-full"
-                    style="background-color:<?= $color ?>">
-                  </span>
-                  <span class="truncate text-[12px] font-medium text-gray-700">
-                    <?= e($row["country"]) ?>
-                  </span>
-                </div>
-                <div class="shrink-0 text-[11px] text-gray-400">
-                  <span class="font-semibold text-gray-800">
-                    <?= number_format($count) ?>
-                  </span>
-                  <span class="mx-1 text-gray-300">
-                    •
-                  </span>
-                  <?= $percentage ?>%
-                </div>
-              </div>
-              <div class="h-2 overflow-hidden rounded-full bg-gray-100">
-                <div
-                  class="h-full rounded-full transition-all"
-                  style="width:<?= max(
-                                  $percentage,
-                                  $count > 0 ? 2 : 0
-                                ) ?>%;background-color:<?= $color ?>;">
-                </div>
-              </div>
-            </div>
-          <?php endforeach; ?>
-
-        </div>
-
-        <?php if (count($byCountry) > 6): ?>
-          <div class="mt-5 border-t border-gray-100 pt-4">
-            <a
-              href="<?= ADMIN_URL ?>/pages/jobs.php?status=published"
-              class="group flex items-center justify-between">
-              <span class="text-[11px] text-gray-400">
-                <?= count($byCountry) - 6 ?> more countries
-              </span>
-              <span class="flex items-center gap-1 text-[10px] font-semibold text-blue-600 transition-all group-hover:gap-1.5">
-                View published jobs
-                <span>
-                  →
-                </span>
-              </span>
-            </a>
-          </div>
-        <?php endif; ?>
-      <?php endif; ?>
-
-    </div>
-  </div>
-  <!--  OPTIONAL QUICK ACTIONS -->
-  <!-- <div>
-    <div class="mb-3">
-      <div class="font-head text-[14px] font-bold text-gray-900">
-        Quick Actions
-      </div>
-      <div class="mt-1 text-[11px] text-gray-500">
-        Common tasks
-      </div>
-    </div>
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-      <a
-        href="<?= ADMIN_URL ?>/pages/post_job.php"
-        class="group rounded-xl border border-gray-200 p-4 transition hover:border-blue-200 hover:bg-gray-50"
-        >
-        <div class="flex items-center gap-3">
-          <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="1.7">
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M12 5v14M5 12h14" />
-            </svg>
-          </div>
-          <div>
-            <div class="text-[12px] font-semibold text-gray-900">
-              Create Job
-            </div>
-            <div class="mt-0.5 text-[10px] text-gray-400">
-              Add a new opportunity
-            </div>
-          </div>
-        </div>
-      </a>
-
-      <a
-        href="<?= ADMIN_URL ?>/pages/jobs.php?status=draft"
-        class="group rounded-xl border border-gray-200 p-4 transition hover:border-amber-200 hover:bg-gray-50"
-        >
-        <div class="flex items-center gap-3">
-          <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="1.7">
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931Z" />
-            </svg>
-          </div>
-          <div>
-            <div class="text-[12px] font-semibold text-gray-900">
-              Review Drafts
-            </div>
-            <div class="mt-0.5 text-[10px] text-gray-400">
-              <?= number_format($drafts) ?> waiting for review
-            </div>
-          </div>
-        </div>
-      </a>
-
-      <a
-        href="<?= ADMIN_URL ?>/pages/jobs.php"
-        class="group rounded-xl border border-gray-200 p-4 transition hover:border-gray-300 hover:bg-gray-50"
-        >
-        <div class="flex items-center gap-3">
-          <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-50 text-gray-500">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="1.7">
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </div>
-          <div>
-            <div class="text-[12px] font-semibold text-gray-900">
-              Manage Jobs
-            </div>
-            <div class="mt-0.5 text-[10px] text-gray-400">
-              Search and update postings
-            </div>
-          </div>
-        </div>
-      </a>
-    </div>
-  </div> -->
-</div>
-
-<?php include __DIR__ . "/includes/footer.php";
-?>
+</html>

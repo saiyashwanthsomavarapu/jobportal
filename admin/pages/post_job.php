@@ -5,10 +5,6 @@ require_once dirname(__DIR__) . "/utils/classes.php";
 
 $pdo = db();
 
-/* AJAX detection — must be set early so POST handlers can return JSON */
-$isAjax = !empty($_GET["ajax"]) ||
-  (strtolower($_SERVER["HTTP_X_REQUESTED_WITH"] ?? "") === "xmlhttprequest");
-
 /* LOAD JOB FOR EDIT / CLONE */
 
 $editId = (int) ($_GET["edit"] ?? 0);
@@ -68,15 +64,15 @@ if ($editId > 0) {
 if ($isEdit) {
   $pageTitle = "Edit Job: " . ($job["job_code"] ?? "");
 } elseif ($isClone) {
-  $pageTitle = "Clone Job &rarr; " . $cloneNewCode;
+  $pageTitle = "Clone Job -> " . $cloneNewCode;
 } else {
-  $pageTitle = "Post a Job";
+  $pageTitle = "Create Job";
 }
 
 $breadcrumbs = [
   ["Dashboard", ADMIN_URL . "/index.php"],
   ["All Jobs", ADMIN_URL . "/pages/jobs.php"],
-  [$isEdit ? "Edit Job" : ($isClone ? "Clone Job" : "Post a Job"), null],
+  [$isEdit ? "Edit Job" : ($isClone ? "Clone Job" : "Create Job"), null],
 ];
 
 /* LOAD CLIENTS */
@@ -84,7 +80,7 @@ try {
   $clientsList = $pdo
     ->query(
       "
-            SELECT id, client_name, client_code
+            SELECT id, client_name
             FROM clients
             ORDER BY client_name ASC
         "
@@ -98,13 +94,22 @@ try {
 
 $countryData = require __DIR__ . "/../config/countries.php";
 $countries = $countryData;
+$countryFlags = [
+  'India' => '🇮🇳',
+  'United States' => '🇺🇸',
+  'Canada' => '🇨🇦',
+  'Mexico' => '🇲🇽',
+];
 
 $jobFields = require __DIR__ . "/../config/job-fields.php";
 
 $workplaceTypes = ["Onsite", "Hybrid", "Remote"];
 
+$expFromOpts = array_map("strval", range(0, 10));
 
-$salaryTypes = ["Annual", "Monthly", "Per Hour"];
+$expToOpts = array_merge(array_map("strval", range(4, 15)), ["15+"]);
+
+$salaryTypes = ["Annual", "Monthly", "Per Hour", "Yearly"];
 
 
 /* HELPERS */
@@ -243,7 +248,13 @@ function buildJobParams(array $fields, array $data): array
   return $params;
 }
 
-function validateJob(array $data, string $clientSuffix): array
+function richTextHasContent(string $html): bool
+{
+  $text = html_entity_decode(strip_tags(str_replace(['<br>', '<br/>', '<br />', '&nbsp;'], ' ', $html)));
+  return trim($text) !== '';
+}
+
+function validateJob(array $data, bool $draftOnly = false): array
 {
   $errors = [];
 
@@ -251,17 +262,17 @@ function validateJob(array $data, string $clientSuffix): array
     $errors[] = "Country is required.";
   }
 
-  if (
-    $clientSuffix !== "" &&
-    (strlen($clientSuffix) < 4 || strlen($clientSuffix) > 5)
-  ) {
-    $errors[] = "Client Code suffix must be 4 or 5 digits.";
+  if (empty($data['client_id'])) {
+    $errors[] = 'Company or Client name is required.';
   }
 
   if (!$data["job_title"]) {
     $errors[] = "Job Title is required.";
-  } elseif (mb_strlen($data["job_title"]) > 150) {
-    $errors[] = "Job Title must be 150 characters or fewer.";
+  }
+
+  // Drafts intentionally allow incomplete employment, compensation and content fields.
+  if ($draftOnly) {
+    return $errors;
   }
 
   if ($data["workplace_type"] !== "Remote") {
@@ -282,10 +293,6 @@ function validateJob(array $data, string $clientSuffix): array
     $errors[] = "Job Type is required.";
   }
 
-  if (!$data["experience_range"]) {
-    $errors[] = "Experience range is required.";
-  }
-
   if (!$data["salary_boe"]) {
     if (!$data["salary_from"]) {
       $errors[] = 'Salary / Rate "From" value is required.';
@@ -302,15 +309,6 @@ function validateJob(array $data, string $clientSuffix): array
     if (!$data["salary_type"]) {
       $errors[] = "Salary Type is required.";
     }
-
-    /* Range sanity: "From" must not exceed "To" */
-    if (
-      $data["salary_from"] !== "" &&
-      $data["salary_to"] !== "" &&
-      (float) $data["salary_from"] > (float) $data["salary_to"]
-    ) {
-      $errors[] = 'Salary "From" cannot be greater than "To".';
-    }
   }
 
   if (!$data["open_date"]) {
@@ -321,11 +319,39 @@ function validateJob(array $data, string $clientSuffix): array
     $errors[] = "Close Date is required.";
   }
 
-  if (!$data["our_terms"] || strip_tags($data["our_terms"]) === "") {
-    $errors[] = "Why Join Us is required.";
+  if (!richTextHasContent((string) $data['job_description'])) {
+    $errors[] = 'Job Description is required.';
+  }
+  if (!richTextHasContent((string) $data['key_skills'])) {
+    $errors[] = 'Required Skills are required.';
+  }
+
+  if (!richTextHasContent((string) $data["our_terms"])) {
+    $errors[] = "Benefits are required.";
   }
 
   return $errors;
+}
+
+function extractReferenceFields(string $html): array
+{
+  if (!preg_match('/<!--job-reference:([A-Za-z0-9+\/=]+)-->/s', $html, $match)) return [];
+  $decoded = base64_decode($match[1], true);
+  if ($decoded === false) return [];
+  $fields = json_decode($decoded, true);
+  return is_array($fields) ? $fields : [];
+}
+
+function stripReferenceFields(string $html): string
+{
+  return trim((string) preg_replace('/\s*<!--job-reference:[A-Za-z0-9+\/=]+-->\s*/s', '', $html));
+}
+
+function attachReferenceFields(string $html, array $fields): string
+{
+  $clean = stripReferenceFields($html);
+  $encoded = base64_encode(json_encode($fields, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+  return $clean . "\n<!--job-reference:" . $encoded . "-->";
 }
 
 // ============================================================
@@ -334,20 +360,28 @@ function validateJob(array $data, string $clientSuffix): array
 
 $errors = [];
 
-$old = $isEdit || $isClone ? $job : ($_POST ?: []);
+$referenceMeta = ($isEdit || $isClone) ? extractReferenceFields((string) ($job['our_terms'] ?? '')) : [];
+if ($isEdit || $isClone) {
+  $referenceMeta['department'] = $job['industry'] ?? '';
+  if (!isset($referenceMeta['work_location'])) $referenceMeta['work_location'] = $job['postal_code'] ?? '';
+  $job['our_terms'] = stripReferenceFields((string) ($job['our_terms'] ?? ''));
+}
+$old = $isEdit || $isClone ? array_merge($job, $referenceMeta) : ($_POST ?: []);
 
 // ============================================================
 // PROCESS FORM
 // ============================================================
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-  csrf_verify();
+  if (!validCsrfToken($_POST['csrf_token'] ?? null)) {
+    flash('error', 'Your session expired. Please try again.');
+    redirect(ADMIN_URL . '/pages/jobs.php');
+  }
 
-  /* Client code */
-  $ccSuffix = trim($_POST["client_code_suffix"] ?? "");
 
-  // Digits only
-  $ccSuffix = preg_replace("/[^0-9]/", "", $ccSuffix);
+
+  $submitAction = $_POST['submit_action'] ?? 'save';
+  $isDraftSubmission = $submitAction === 'draft';
 
   /* Dates */
 
@@ -371,13 +405,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
   /* Build data */
   $data = [
-    // Edit preserves country/job code.
-    // New/Clone gets values from form.
-    "country" => $isEdit ? $job["country"] ?? "" : trim($_POST["country"] ?? ""),
+    // The job code stays locked while all form dropdowns remain editable.
+    "country" => trim($_POST["country"] ?? ($isEdit ? ($job["country"] ?? "") : "")),
     "job_code" => $isEdit ? $job["job_code"] ?? "" : trim($_POST["job_code_display"] ?? ""),
     "job_code_prefix" => $isEdit ? $job["job_code_prefix"] ?? "" : trim($_POST["job_code_prefix"] ?? ""),
     "job_code_number" => $isEdit ? $job["job_code_number"] ?? 0 : (int) ($_POST["job_code_number"] ?? 0),
-    "client_code" => $ccSuffix,
     "job_title" => trim($_POST["job_title"] ?? ""),
     "city" => trim($_POST["city"] ?? ""),
     "state_province" => trim($_POST["state_province"] ?? ""),
@@ -387,9 +419,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     "timezone" => trim($_POST["timezone"] ?? ""),
     "job_type" => trim($_POST["job_type"] ?? ""),
     "job_type_other" => trim($_POST["job_type_other"] ?? ""),
-    "exp_from" => "",
-    "exp_to" => "",
-    "experience_range" => trim($_POST["experience_range"] ?? ""),
+    "exp_from" => trim($_POST["exp_from"] ?? null),
+    "exp_to" => trim($_POST["exp_to"] ?? null),
     "experience" => "",
     "salary_boe" => isset($_POST["salary_boe"]) ? 1 : 0,
     "salary_from" => preg_replace(
@@ -407,8 +438,22 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     "salary_type" => trim($_POST["salary_type"] ?? ""),
     "salary_currency" => trim($_POST["salary_currency"] ?? ""),
     "salary_rate" => "",
-    "industry" => "",
+    "industry" => trim($_POST["department"] ?? ""),
     "industry_other" => "",
+    "reference_fields" => [
+      "hiring_manager" => trim($_POST["hiring_manager"] ?? ""),
+      "work_location" => trim($_POST["work_location"] ?? ""),
+      "number_of_openings" => max(1, (int) ($_POST["number_of_openings"] ?? 1)),
+      "responsibilities" => $_POST["responsibilities"] ?? "",
+      "preferred_skills" => $_POST["preferred_skills"] ?? "",
+      "visa_sponsorship_available" => isset($_POST["visa_sponsorship_available"]) ? 1 : 0,
+      "equal_opportunity_statement" => $_POST["equal_opportunity_statement"] ?? "",
+      "french_language_requirement" => isset($_POST["french_language_requirement"]) ? 1 : 0,
+      "security_clearance_requirement" => isset($_POST["security_clearance_requirement"]) ? 1 : 0,
+      "experience_required" => trim($_POST["experience_required"] ?? ""),
+      "notice_period_preference" => trim($_POST["notice_period_preference"] ?? ""),
+      "educational_qualification" => trim($_POST["educational_qualification"] ?? "")
+    ],
     "job_description" => $_POST["job_description"] ?? "",
     "key_skills" => $_POST["key_skills"] ?? "",
     "our_terms" => $_POST["our_terms"] ?? "",
@@ -416,19 +461,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     "close_date" => $autoCloseDate,
     "status" => ($_POST["submit_action"] ?? "") === "publish"
       ? "published"
-      : "draft",
+      : (($_POST["submit_action"] ?? "") === "draft"
+        ? "draft"
+        : ($isEdit ? ($job["status"] ?? "draft") : "draft")),
     "client_id" => trim($_POST["client_id"] ?? 0),
   ];
 
-  /* Experience — parse range string into from/to */
-  $expRange = $data["experience_range"] ?? "";
-  if (preg_match('/^(\d+)[\s]*[-–][\s]*(\d+\+?)$/', $expRange, $m)) {
-    $data["exp_from"] = $m[1];
-    $data["exp_to"] = $m[2];
-  } elseif (preg_match('/^(\d+)\+?$/', $expRange, $m)) {
-    $data["exp_from"] = $m[1];
-    $data["exp_to"] = $m[1] . "+";
-  }
+  /* Experience */
+
   $data["experience"] = buildExperience($data["exp_from"], $data["exp_to"]);
 
   /* Salary */
@@ -443,12 +483,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   }
 
   /*  Validation */
-  $errors = validateJob($data, $ccSuffix);
+  $errors = validateJob($data, $isDraftSubmission);
 
   /* SAVE */
 
   if (empty($errors)) {
     try {
+      $data["our_terms"] = attachReferenceFields($data["our_terms"], $data["reference_fields"]);
       /* Generate job code for New / Clone */
       if (!$isEdit) {
         generateJobCode($isClone, $data);
@@ -546,35 +587,24 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         /* New job */ else {
           logActivity("create_job", "job", $newId, $data["job_code"]);
 
-          flash(
-            "success",
-            "Job posted! Code: <strong>" .
-              e($data["job_code"]) .
-              "</strong>"
-          );
+          $successMessage = $isDraftSubmission
+            ? "Draft saved! Code: <strong>" . e($data["job_code"]) . "</strong>"
+            : "Job posted! Code: <strong>" . e($data["job_code"]) . "</strong>";
+          flash("success", $successMessage);
         }
       }
 
       /* Redirect after successful save */
-      if ($isAjax) {
-        header("Content-Type: application/json");
-        echo json_encode(["ok" => true, "message" => "Job saved successfully."]);
-        exit;
-      }
       redirect(ADMIN_URL . "/pages/jobs.php");
     } catch (Exception $e) {
-      error_log("[post_job] save failed: " . $e->getMessage());
-      if ($isAjax) {
-        header("Content-Type: application/json");
-        echo json_encode(["ok" => false, "message" => "Something went wrong while saving. Please try again."]);
-        exit;
-      }
-      $errors[] = "Something went wrong while saving. Please try again.";
+      error_log('Job save failed: ' . $e->getMessage());
+      $errors[] = "The job could not be saved. Please try again.";
     }
   }
 
   // Preserve entered values after validation error.
-  $old = array_merge((array) $old, $data);
+  $data["our_terms"] = stripReferenceFields((string) ($data["our_terms"] ?? ""));
+  $old = array_merge((array) $old, $_POST, $data, $data['reference_fields'] ?? []);
 }
 
 /* FORM VALUE HELPERS */
@@ -593,18 +623,17 @@ function oldSel(string $key, string $value): string
     : "";
 }
 
-/* EXPERIENCE VALUES — derive saved range string for the single dropdown */
-$savedExpRange = "";
+/* EXPERIENCE VALUES */
+$savedExpFrom = "";
+$savedExpTo = "";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-  $savedExpRange = $_POST["experience_range"] ?? "";
+  $savedExpFrom = $_POST["exp_from"] ?? "";
+  $savedExpTo = $_POST["exp_to"] ?? "";
 } elseif (($isEdit || $isClone) && !empty($job["experience"])) {
   $experience = parseExperience($job["experience"]);
-  $from = $experience["from"];
-  $to = $experience["to"];
-  if ($from !== "" && $to !== "") {
-    $savedExpRange = $from . "-" . $to;
-  }
+  $savedExpFrom = $experience["from"];
+  $savedExpTo = $experience["to"];
 }
 
 /* SALARY VALUES */
@@ -681,32 +710,58 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   }
 }
 
-/* CLIENT CODE VALUES */
-
-$savedCcSuffix = "";
-
-if ($_SERVER["REQUEST_METHOD"] === "POST") {
-  $savedCcSuffix = trim($_POST["client_code_suffix"] ?? "");
-} elseif (($isEdit || $isClone) && !empty($job["client_code"])) {
-  // Preserve existing client code.
-  $savedCcSuffix = $job["client_code"] ?? "";
-}
-/* HEADER */
-if (!$isAjax) {
-  include dirname(__DIR__) . "/includes/header.php";
-}
+include dirname(__DIR__) . "/includes/header.php";
 ?>
 
-<div class="min-w-0 space-y-4">
+<?php
+$postJobPageClass = "mx-auto min-w-0 max-w-[768px] space-y-6 font-['Plus_Jakarta_Sans',system-ui,sans-serif]";
+$postJobCardClass = "scroll-mt-4 overflow-hidden rounded-xl border border-base-300 bg-base-100 p-5 shadow-sm";
+$postJobHeadingClass = "mb-5 flex items-center gap-2.5 border-b border-base-300 pb-3.5";
+$postJobHeadingTextClass = "text-base font-semibold leading-6 text-base-content";
+$postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounded-lg";
+?>
+
+<div class="<?= $postJobPageClass ?>">
+
+  <?php if ($isEdit && !empty($job)): ?>
+    <?php
+    $editStatus = strtolower($job['status'] ?? 'draft');
+    $editStatusLabels = ['published' => 'Published', 'draft' => 'Draft', 'closed' => 'Closed', 'archived' => 'Pending Review'];
+    $editStatusStyles = [
+      'published' => 'bg-success/10 text-success border-success/20',
+      'draft' => 'bg-warning/10 text-warning border-warning/20',
+      'closed' => 'bg-error/10 text-error border-error/20',
+      'archived' => 'bg-secondary/10 text-secondary border-secondary/20',
+    ];
+    $editStatusLabel = $editStatusLabels[$editStatus] ?? ucfirst($editStatus);
+    $editStatusClass = $editStatusStyles[$editStatus] ?? 'bg-base-200 text-base-content/70 border-base-300';
+    ?>
+    <header class="flex min-h-[104px] items-start justify-between gap-6 rounded-xl border border-base-300 bg-base-100 p-6 shadow-sm max-sm:flex-col max-sm:gap-4">
+      <div class="min-w-0">
+        <div class="flex flex-wrap items-center gap-2">
+          <h1 class="text-2xl font-bold leading-8 text-base-content">Edit Job</h1>
+          <span class="inline-flex min-h-[22px] items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold <?= $editStatusClass ?>"><?= e($editStatusLabel) ?></span>
+        </div>
+        <p class="mt-1 font-mono text-sm leading-5 text-base-content/60"><?= e($job['job_code'] ?? '') ?></p>
+      </div>
+      <?php if ($editStatus !== 'archived'): ?>
+        <form method="POST" action="<?= ADMIN_URL ?>/pages/job_action.php" class="shrink-0">
+          <?= csrfField() ?>
+          <input type="hidden" name="id" value="<?= (int) $job['id'] ?>">
+          <button class="btn h-9 min-h-9 rounded-md border-base-300 bg-base-100 px-4 text-sm font-medium hover:bg-base-200" type="submit" name="a" value="archive">Archive</button>
+        </form>
+      <?php endif; ?>
+    </header>
+  <?php endif; ?>
 
   <?php if (!empty($errors)): ?>
-    <div role="alert" class="alert alert-error alert-soft items-start">
-      <svg class="mt-0.5 size-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+    <div class="mb-6 flex items-start gap-2.5 rounded-xl border border-error/25 bg-error/10 px-4 py-3.5 text-[13px] font-medium text-error">
+      <svg class="h-[18px] w-[18px] flex-shrink-0 mt-px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.008v.008H12v-.008zM21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
-      <div class="min-w-0">
-        <p class="font-semibold">Please fix the following:</p>
-        <ul class="mt-1 list-disc space-y-0.5 pl-4 text-[12.5px]">
+      <div>
+        <p class="mb-1 font-semibold text-base-content">Please fix the following:</p>
+        <ul class="list-disc space-y-0.5 pl-4">
           <?php foreach ($errors as $err) {
             echo "<li>" . e($err) . "</li>";
           } ?>
@@ -715,344 +770,1169 @@ if (!$isAjax) {
     </div>
   <?php endif; ?>
 
-  <form method="POST" id="jobForm" class="space-y-4"
-    action="<?= ($isAjax ? ADMIN_URL . '/pages/post_job.php' : '')
-              . ($isEdit
-                ? "?edit=" . $editId
-                : ($isClone
-                  ? "?clone=" . $cloneId
-                  : "")) ?>">
-
-    <?= csrf_field() ?>
+  <form method="POST" id="jobForm" class="space-y-5"
+    action="<?= $isEdit
+              ? "?edit=" . $editId
+              : ($isClone
+                ? "?clone=" . $cloneId
+                : "") ?>">
+    <?= csrfField() ?>
+    <?php
+    $formClientId = (int) ($old['client_id'] ?? 0);
+    if (!$formClientId) {
+      foreach ($clientsList as $client) {
+        if (strcasecmp((string) $client['client_name'], 'Accelon') === 0) {
+          $formClientId = (int) $client['id'];
+          break;
+        }
+      }
+    }
+    if (!$formClientId && !empty($clientsList)) $formClientId = (int) $clientsList[0]['id'];
+    ?>
+    <input type="hidden" name="client_id" value="<?= $formClientId ?>">
 
     <?php if ($isClone): ?>
+      <!-- Hidden flag so POST handler knows this is a clone submission -->
       <input type="hidden" name="clone_source_id" value="<?= $cloneId ?>">
-      <div class="flex items-start gap-3 rounded-2xl border border-warning/25 bg-warning/[.07] px-4 py-3.5">
-        <svg class="mt-0.5 size-4.5 shrink-0 text-warning" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+      <div class="flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3.5 text-sm text-base-content">
+        <svg class="h-5 w-5 text-warning flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
           <path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
         </svg>
-        <div class="min-w-0 text-[13px] leading-relaxed">
-          <strong class="text-base-content">Cloning <?= e($job["job_code"]) ?> — <?= e($job["job_title"]) ?></strong><br>
-          <span class="text-[12px] text-base-content/60">New job number <strong class="text-success"><?= e($cloneNewCode) ?></strong> has been reserved. All fields are pre-filled from the source — edit as needed, then save.</span>
+        <div>
+          <strong class="text-base-content">Cloning job <?= e($job["job_code"]) ?> — <?= e($job["job_title"]) ?></strong><br>
+          <span class="text-xs text-base-content/60">A new Job Number <strong class="text-success"><?= e($cloneNewCode) ?></strong> has been reserved. All fields are pre-filled from the source — edit as needed, then save.</span>
         </div>
       </div>
     <?php endif; ?>
 
-    <!-- Hidden plumbing -->
-    <input type="hidden" name="job_code_display" id="jobCodeDisplay"
-      value="<?= $isEdit ? e($job["job_code"]) : ($isClone ? e($cloneNewCode) : "") ?>">
-    <input type="hidden" name="job_code_prefix" id="jobCodePrefix" value="AC">
-    <input type="hidden" name="job_code_number" id="jobCodeNumber"
-      value="<?= $isEdit ? e($job["job_code_number"]) : ($isClone ? e($cloneNewNumber) : "") ?>">
-
-    <!-- ── Location ── -->
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      <div class="min-w-0">
-        <label for="country" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">
-          Country <span class="text-error">*</span>
-          <?php if ($isEdit): ?><span class="font-normal normal-case tracking-normal text-base-content/40">(locked)</span><?php endif; ?>
-        </label>
-        <select name="country" id="country" class="<?= SELECT_CLASS ?>" onchange="onCountryChange()" required
-          <?= $isEdit ? 'disabled' : '' ?>>
-          <option value="">Select</option>
-          <?php foreach ($countryData as $c => $d): ?>
-            <option value="<?= e($c) ?>" <?= oldSel('country', $c) ?>><?= e($c) ?></option>
-          <?php endforeach; ?>
-        </select>
-        <?php if ($isEdit): ?>
-          <input type="hidden" name="country" value="<?= e($job['country'] ?? '') ?>">
-        <?php endif; ?>
-      </div>
-
-      <div class="min-w-0">
-        <label for="workplaceType" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">
-          Workplace <span class="text-error">*</span>
-        </label>
-        <select name="workplace_type" id="workplaceType" class="<?= SELECT_CLASS ?>" onchange="toggleLocationFields()" required>
-          <option value="">Select</option>
-          <?php foreach ($workplaceTypes as $wt): ?>
-            <option value="<?= e($wt) ?>" <?= oldSel('workplace_type', $wt) ?>><?= e($wt) ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-
-      <div class="min-w-0">
-        <label for="city" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">
-          City <span class="text-error">*</span>
-        </label>
-        <input type="text" name="city" id="city" class="<?= INPUT_CLASS ?>" placeholder="e.g. Bangalore" value="<?= old('city') ?>" required />
-      </div>
-
-      <div class="min-w-0">
-        <label for="stateSelect" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">
-          State <span class="text-error">*</span>
-        </label>
-        <select name="state_province" id="stateSelect" class="<?= SELECT_CLASS ?>" onchange="onStateChange()" required>
-          <option value="">Select country</option>
-        </select>
-      </div>
-
-      <input type="hidden" name="timezone" id="timezoneSelect" value="<?= old('timezone') ?>">
-    </div>
-
-    <!-- ── Job Title ── -->
-    <div>
-      <label for="jobTitle" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">
-        Job Title <span class="text-error">*</span>
-      </label>
-      <input type="text" name="job_title" id="jobTitle" class="<?= INPUT_CLASS ?>" placeholder="e.g. Senior Full Stack Developer" value="<?= old('job_title') ?>" maxlength="150" required />
-    </div>
-
-    <!-- ── Role + Experience ── -->
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      <div class="min-w-0">
-        <label for="jobTypeSelect" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">
-          Job Type <span class="text-error">*</span>
-        </label>
-        <select name="job_type" id="jobTypeSelect" class="<?= SELECT_CLASS ?>" onchange="toggleOther(this, 'otherJobType')" required>
-          <option value="">Select</option>
-        </select>
-        <div id="otherJobType" class="mt-2 hidden">
-          <input type="text" name="job_type_other" id="jobTypeOther" class="<?= INPUT_CLASS ?>" placeholder="e.g. Contract" value="<?= old('job_type_other') ?>">
+    <!-- ═══ REFERENCE CARD 1: COUNTRY & BASICS ═════════════════ -->
+    <div id="country-basics" class="<?= $postJobCardClass ?> border-t-4 border-t-primary">
+      <div class="<?= $postJobHeadingClass ?>">
+        <div class="<?= $postJobIconBaseClass ?> bg-primary/10 text-primary">
+          <svg class="<?= SVG_ICON ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+            <circle cx="12" cy="12" r="9"></circle>
+            <path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"></path>
+          </svg>
         </div>
+        <h2 class="<?= $postJobHeadingTextClass ?>">Country &amp; Basics</h2>
       </div>
 
-      <div class="min-w-0">
-        <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">
-          Experience <span class="text-error">*</span>
-        </label>
-        <select name="experience_range" id="experienceRange" class="<?= SELECT_CLASS ?>" required>
-          <option value="">Select range</option>
-          <option value="0-2" <?= oldSel('experience_range', '0-2') ?>>0 – 2 years</option>
-          <option value="3-5" <?= oldSel('experience_range', '3-5') ?>>3 – 5 years</option>
-          <option value="5-10" <?= oldSel('experience_range', '5-10') ?>>5 – 10 years</option>
-          <option value="10+" <?= oldSel('experience_range', '10+') ?>>10+ years</option>
-        </select>
+      <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Country <span class="text-error">*</span></legend>
+          <select name="country" id="country" class="<?= SELECT_CLASS ?> cursor-pointer" onchange="onCountryChange()" required>
+            <option value="">Select country</option>
+            <?php foreach ($countryData as $c => $d): ?>
+              <option value="<?= e($c) ?>" <?= oldSel('country', $c) ?>><?= e(($countryFlags[$c] ?? '') . ' ' . $c) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </fieldset>
+
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Job Code <span class="text-error">*</span></legend>
+          <input type="text" class="<?= INPUT_CLASS ?>" value="<?= $isEdit ? e($job['job_code']) : ($isClone ? e($cloneNewCode) : 'Assigned on save') ?>" readonly tabindex="-1">
+          <input type="hidden" name="job_code_display" id="jobCodeDisplay" value="<?= $isEdit ? e($job['job_code']) : ($isClone ? e($cloneNewCode) : '') ?>">
+          <input type="hidden" name="job_code_prefix" id="jobCodePrefix" value="AC">
+          <input type="hidden" name="job_code_number" id="jobCodeNumber" value="<?= $isEdit ? e($job['job_code_number']) : ($isClone ? e($cloneNewNumber) : '') ?>">
+        </fieldset>
+
+        <fieldset class="fieldset sm:col-span-2">
+          <legend class="fieldset-legend">Job Title <span class="text-error">*</span></legend>
+          <input type="text" name="job_title" class="<?= INPUT_CLASS ?>" placeholder="e.g. UX Designer" value="<?= old('job_title') ?>" required>
+        </fieldset>
+
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Department</legend>
+          <input type="text" name="department" class="<?= INPUT_CLASS ?>" placeholder="e.g. Design" value="<?= old('department') ?>">
+        </fieldset>
+
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Hiring Manager</legend>
+          <input type="text" name="hiring_manager" id="basicsLastField" class="<?= INPUT_CLASS ?>" placeholder="Hiring manager name" value="<?= old('hiring_manager') ?>">
+        </fieldset>
       </div>
     </div>
 
-    <!-- ── Client ── -->
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      <div class="min-w-0">
-        <label for="client_id" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">
-          Client <span class="text-error">*</span>
-        </label>
-        <select name="client_id" id="client_id" class="<?= SELECT_CLASS ?>" required>
-          <option value="">Select client</option>
-          <?php foreach ($clientsList as $client): ?>
-            <option value="<?= e($client['id']) ?>" <?= oldSel('client_id', $client['id']) ?>><?= e($client['client_name']) ?></option>
-          <?php endforeach; ?>
-        </select>
+    <!-- ═══ REFERENCE CARD 2: EMPLOYMENT DETAILS ════════════════ -->
+    <div id="employment-details" class="<?= $postJobCardClass ?> border-t-4 border-t-success">
+      <div class="<?= $postJobHeadingClass ?>">
+        <div class="<?= $postJobIconBaseClass ?> bg-success/10 text-success">
+          <svg class="<?= SVG_ICON ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+            <path d="M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7M5 7h14a1 1 0 0 1 1 1v11H4V8a1 1 0 0 1 1-1Z"></path>
+            <path d="M9 11v4M15 11v4"></path>
+          </svg>
+        </div>
+        <h2 class="<?= $postJobHeadingTextClass ?>">Employment Details</h2>
       </div>
 
-      <div class="min-w-0">
-        <label for="clientCodeSuffix" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">
-          Client Ref
-        </label>
-        <input type="text" name="client_code_suffix" id="clientCodeSuffix" class="<?= INPUT_CLASS ?>" placeholder="12345" maxlength="5" pattern="\d{4,5}" value="<?= e(preg_replace("/[^0-9]/", "", $savedCcSuffix)) ?>" oninput="this.value=this.value.replace(/[^0-9]/g,'')" title="4 or 5 digit number" />
-      </div>
-    </div>
-
-    <!-- ── Compensation ── -->
-    <div class="space-y-3">
-      <label for="salaryBoe" class="flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-all <?= $savedSalBoe ? 'border-success/40 bg-success/[.06]' : 'border-base-300 bg-base-200/30 hover:border-primary/30' ?>">
-        <input type="checkbox" name="salary_boe" id="salaryBoe" value="1" class="toggle toggle-sm toggle-success" onchange="toggleSalaryBoe()" <?= $savedSalBoe ? 'checked' : '' ?>>
-        <span class="text-[13px] font-semibold text-base-content">Based on Experience</span>
-      </label>
-
-      <div id="salaryBoeText" class="<?= $savedSalBoe ? '' : 'hidden' ?>">
-        <div class="alert alert-success alert-soft py-2 text-[12px]">Salary will be shown as "Based on Experience".</div>
-      </div>
-
-      <div id="salaryInputsWrap" class="<?= $savedSalBoe ? 'hidden' : '' ?> space-y-3">
-        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div class="min-w-0">
-            <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">Min</label>
-            <div class="flex">
-              <input type="number" name="salary_from" id="salaryFrom" class="<?= INPUT_CLASS ?> min-w-0 flex-1 rounded-r-none" placeholder="35" value="<?= e($savedSalFrom) ?>" min="0" step="any" oninput="updateSalaryPreview()" <?= $savedSalBoe ? '' : 'required' ?>>
-              <select name="salary_unit_from" id="salaryUnitFrom" class="<?= SELECT_CLASS ?> w-20 shrink-0 rounded-l-none border-l-0" onchange="updateSalaryPreview()">
-                <option value="" <?= $savedSalUnitFrom === '' ? 'selected' : '' ?>>—</option>
-                <option value="L" <?= $savedSalUnitFrom === 'L' ? 'selected' : '' ?>>L</option>
-                <option value="K" <?= $savedSalUnitFrom === 'K' ? 'selected' : '' ?>>K</option>
-              </select>
-            </div>
+      <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Employment Type <span class="text-error">*</span></legend>
+          <select name="job_type" id="jobTypeSelect" class="<?= SELECT_CLASS ?> cursor-pointer" onchange="toggleOther(this, 'otherJobType')" required>
+            <option value="">Select employment type</option>
+            <?php
+            $initialCountry = (string) ($old['country'] ?? '');
+            foreach (($countryData[$initialCountry]['types'] ?? []) as $employmentType):
+            ?>
+              <option value="<?= e($employmentType) ?>" <?= oldSel('job_type', $employmentType) ?>><?= e($employmentType) ?></option>
+            <?php endforeach; ?>
+          </select>
+          <div id="otherJobType" class="mt-3 hidden">
+            <input type="text" name="job_type_other" id="jobTypeOther" class="<?= INPUT_CLASS ?>" placeholder="Specify employment type" value="<?= old('job_type_other') ?>">
           </div>
+        </fieldset>
 
-          <div class="min-w-0">
-            <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">Max</label>
-            <div class="flex">
-              <input type="number" name="salary_to" id="salaryTo" class="<?= INPUT_CLASS ?> min-w-0 flex-1 rounded-r-none" placeholder="45" value="<?= e($savedSalTo) ?>" min="0" step="any" oninput="updateSalaryPreview()" <?= $savedSalBoe ? '' : 'required' ?>>
-              <select name="salary_unit_to" id="salaryUnitTo" class="<?= SELECT_CLASS ?> w-20 shrink-0 rounded-l-none border-l-0" onchange="updateSalaryPreview()">
-                <option value="" <?= $savedSalUnitTo === '' ? 'selected' : '' ?>>—</option>
-                <option value="L" <?= $savedSalUnitTo === 'L' ? 'selected' : '' ?>>L</option>
-                <option value="K" <?= $savedSalUnitTo === 'K' ? 'selected' : '' ?>>K</option>
-              </select>
-            </div>
-          </div>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Work Mode <span class="text-error">*</span></legend>
+          <select name="workplace_type" id="workplaceType" class="<?= SELECT_CLASS ?> cursor-pointer" onchange="toggleLocationFields()" required>
+            <option value="">Select work mode</option>
+            <?php foreach ($workplaceTypes as $wt): ?><option value="<?= e($wt) ?>" <?= oldSel('workplace_type', $wt) ?>><?= e($wt) ?></option><?php endforeach; ?>
+          </select>
+        </fieldset>
 
-          <div class="min-w-0">
-            <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">Currency <span class="text-error">*</span></label>
-            <select name="salary_currency" id="salaryCurrency" class="<?= SELECT_CLASS ?>" required onchange="updateSalaryPreview()">
-              <option value="">Select</option>
+        <div class="grid grid-cols-1 gap-5 sm:col-span-2 sm:grid-cols-3">
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">Province / State</legend>
+            <select name="state_province" id="stateSelect" class="<?= SELECT_CLASS ?>">
+              <option value="">Select country first</option>
             </select>
-          </div>
+          </fieldset>
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">City</legend>
+            <input type="text" name="city" id="city" class="<?= INPUT_CLASS ?>" placeholder="e.g. Vancouver" value="<?= old('city') ?>">
+          </fieldset>
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">Work Location</legend>
+            <input type="text" name="work_location" class="<?= INPUT_CLASS ?>" placeholder="e.g. Office name" value="<?= old('work_location') ?>">
+          </fieldset>
+        </div>
 
+        <fieldset class="fieldset sm:col-span-2">
+          <legend class="fieldset-legend">Number of Openings</legend>
+          <input type="number" name="number_of_openings" id="employmentLastField" class="<?= INPUT_CLASS ?>" min="1" value="<?= old('number_of_openings', '1') ?>">
+        </fieldset>
+      </div>
+    </div>
+
+    <?php if (false): // Retained legacy card markup for reference; replaced by the two cards above. 
+    ?>
+      <!-- ═══ CARD 1: CLIENT & ROLE ═══════════════════════════════
+       Groups "who is this for" + "what is the role" — the two things a
+       recruiter decides before anything else. Country moved in here too
+       since it's part of defining the role, not a separate "step". -->
+      <div class="rounded-2xl border border-base-300 bg-base-100 p-6 shadow-sm">
+        <div class="mb-5 flex items-center gap-2.5 border-b border-[#e7e9f0] pb-3.5">
+          <div class="<?= SVG_DIV ?>">
+            <svg class="<?= SVG_ICON ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0112 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 01-.673-.38m0 0A2.18 2.18 0 013 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0013.5 3h-3a2.25 2.25 0 00-2.25 2.25v.894m7.5 0a48.667 48.667 0 00-7.5 0" />
+            </svg>
+          </div>
           <div class="min-w-0">
-            <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">Type <span class="text-error">*</span></label>
-            <select name="salary_type" id="salaryType" class="<?= SELECT_CLASS ?>" required onchange="updateSalaryPreview()">
-              <option value="">Select</option>
-              <?php foreach ($salaryTypes as $st): ?>
-                <option value="<?= e($st) ?>" <?= $savedSalType === $st ? 'selected' : '' ?>><?= e($st) ?></option>
+            <h2 class="text-sm font-bold text-base-content">
+              Client &amp; Role
+            </h2>
+            <p class="mt-0.5 text-xs text-base-content/50">
+              Select the client and define the position you're hiring for.
+            </p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <!-- Job Number — auto, locked (AC prefix global counter). Intentionally hidden;
+           the internal job number is assigned automatically and isn't a decision the
+           recruiter makes, so it stays out of the visible form (unchanged from original). -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-sm font-medium text-[#5b6072]">Job Number
+              <?php if ($isClone): ?>
+                <span class="text-[10px] font-normal text-[#d97706]"> ⧉ Cloned — new number assigned</span>
+              <?php else: ?>
+                <span class="text-[10px] font-normal text-[#0f9d63]"> ✓ Auto-generated</span>
+              <?php endif; ?>
+            </label>
+            <div class="flex items-center gap-2">
+              <div class="rounded-lg border border-[#e7e9f0] px-3 py-2.5 text-sm font-semibold text-[#5b6072]" style="background-color:#eef0f4 !important" id="jcPrefix">AC</div>
+              <span class="text-lg font-bold text-[#9aa0b4]">-</span>
+              <input type="text" class="<?= INPUT_CLASS ?>" id="jcNumDisplay"
+                value="<?= $isEdit
+                          ? e($job["job_code_number"])
+                          : ($isClone
+                            ? e($cloneNewNumber)
+                            : "Auto") ?>"
+                readonly tabindex="-1">
+            </div>
+            <input type="hidden" name="job_code_display" id="jobCodeDisplay"
+              value="<?= $isEdit ? e($job["job_code"]) : ($isClone ? e($cloneNewCode) : "") ?>">
+            <input type="hidden" name="job_code_prefix" id="jobCodePrefix"
+              value="<?= $isEdit || $isClone ? "AC" : "AC" ?>">
+            <input type="hidden" name="job_code_number" id="jobCodeNumber"
+              value="<?= $isEdit ? e($job["job_code_number"]) : ($isClone ? e($cloneNewNumber) : "") ?>">
+            <span class="text-xs text-[#9aa0b4]">Full number: <strong id="jcFull" class="text-[#0f9d63]">
+                <?= $isEdit
+                  ? e($job["job_code"])
+                  : ($isClone
+                    ? e($cloneNewCode)
+                    : "Assigned on save") ?>
+              </strong></span>
+          </div>
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">
+              Company or Client name
+              <span class="text-error">*</span>
+            </legend>
+            <select name="client_id" id="client_id" class="<?= SELECT_CLASS ?>" onchange="onCountryChange()" required>
+              <option value="">Select Client Name</option>
+
+              <?php foreach ($clientsList as $client): ?>
+                <option
+                  value="<?= e($client['id']) ?>"
+                  <?= oldSel('client_id', $client['id']) ?>>
+                  <?= e($client['client_name']) ?>
+                </option>
               <?php endforeach; ?>
             </select>
+          </fieldset>
+
+
+          <!-- Job Title -->
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">
+              Job Title
+              <span class="text-error">*</span>
+            </legend>
+
+            <input
+              type="text"
+              name="job_title"
+              class="<?= INPUT_CLASS ?>"
+              placeholder="e.g. Senior Full Stack Developer"
+              value="<?= old('job_title') ?>"
+              required />
+          </fieldset>
+
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">Department</legend>
+            <input type="text" name="department" class="<?= INPUT_CLASS ?>" placeholder="e.g. Engineering" value="<?= old('department') ?>">
+          </fieldset>
+
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">Hiring Manager</legend>
+            <input type="text" name="hiring_manager" class="<?= INPUT_CLASS ?>" placeholder="Hiring manager name" value="<?= old('hiring_manager') ?>">
+          </fieldset>
+
+          <!-- Country -->
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">
+              Country
+              <span class="text-error">*</span>
+            </legend>
+
+            <select name="country" id="country" class="<?= SELECT_CLASS ?>" onchange="onCountryChange()" required
+              <?= $isEdit ? 'disabled' : '' ?>>
+              <option value="">Select country</option>
+
+              <?php foreach ($countryData as $c => $d): ?>
+                <option
+                  value="<?= e($c) ?>"
+                  <?= oldSel('country', $c) ?>>
+                  <?= e($c) ?>
+                </option>
+              <?php endforeach; ?>
+            </select>
+
+            <?php if ($isEdit): ?>
+              <input
+                type="hidden"
+                name="country"
+                value="<?= e($job['country'] ?? '') ?>">
+            <?php endif; ?>
+          </fieldset>
+        </div>
+      </div>
+
+      <!-- ═══ CARD 2: LOCATION & WORK ARRANGEMENT ═══════════════════
+       Workplace Type now lives WITH City/State/Timezone because it directly
+       gates whether City/State are required (Remote hides them). Keeping
+       the controlling field and the fields it controls in the same card
+       makes that relationship visible instead of split across two cards. -->
+      <div class="rounded-2xl border border-base-300 bg-base-100 p-6 shadow-sm">
+        <div class="mb-6 flex items-center gap-3 border-b border-base-300 pb-4">
+          <div class="<?= SVG_DIV ?>">
+            <svg
+              class="<?= SVG_ICON ?>"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="1.75">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+            </svg>
+          </div>
+
+          <div class="min-w-0">
+            <h2 class="text-sm font-bold text-base-content">
+              Work Location
+            </h2>
+
+            <p class="mt-0.5 text-xs text-base-content/50">
+              Specify where the role is based and how the candidate will work.
+            </p>
+          </div>
+
+        </div>
+
+
+        <!-- Fields -->
+        <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+
+          <!-- Workplace Type -->
+          <!-- Workplace Type -->
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">
+              Work Mode <span class="text-error">*</span>
+            </legend>
+
+            <select
+              name="workplace_type"
+              id="workplaceType"
+              class="<?= SELECT_CLASS ?>"
+              onchange="toggleLocationFields()"
+              required>
+              <option value="">Select type</option>
+
+              <?php foreach ($workplaceTypes as $wt): ?>
+                <option
+                  value="<?= e($wt) ?>"
+                  <?= oldSel('workplace_type', $wt) ?>>
+                  <?= e($wt) ?>
+                </option>
+              <?php endforeach; ?>
+            </select>
+            <p class="label text-xs text-base-content/50">
+              Remote hides City/State below.
+            </p>
+          </fieldset>
+
+          <!-- City -->
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">
+              City <span class="text-error">*</span>
+            </legend>
+            <input
+              type="text"
+              name="city"
+              id="city"
+              class="<?= INPUT_CLASS ?>"
+              placeholder="e.g. Bangalore"
+              value="<?= old('city') ?>"
+              required />
+          </fieldset>
+
+
+          <!-- State / Province -->
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">
+              State / Province <span class="text-error">*</span>
+            </legend>
+            <select
+              name="state_province"
+              id="stateSelect"
+              class="<?= SELECT_CLASS ?>"
+              required>
+              <option value="">Select country first</option>
+            </select>
+          </fieldset>
+
+
+          <!-- Time Zone -->
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">
+              Time Zone <span class="text-error">*</span>
+            </legend>
+            <select
+              name="timezone"
+              id="timezoneSelect"
+              class="<?= SELECT_CLASS ?>"
+              required>
+              <option value="">Select country first</option>
+            </select>
+          </fieldset>
+
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">Work Location</legend>
+            <input type="text" name="work_location" class="<?= INPUT_CLASS ?>" placeholder="e.g. Downtown office" value="<?= old('work_location') ?>">
+          </fieldset>
+
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">Number of Openings</legend>
+            <input type="number" name="number_of_openings" class="<?= INPUT_CLASS ?>" min="1" value="<?= old('number_of_openings', '1') ?>">
+          </fieldset>
+        </div>
+      </div>
+
+      <!-- ═══ CARD 3: ROLE REQUIREMENTS ══════════════════════════════
+       Job Type and Experience are both "what kind of hire is this" —
+       neither is about location, so pulling them out of the old Work
+       Location card into their own group reads more coherently. -->
+      <div class="w-full rounded-2xl border border-base-300 bg-base-100 shadow-sm">
+        <!-- SECTION HEADER -->
+        <div class="flex items-center gap-3 border-b border-base-300 px-6 py-5">
+          <div class="<?= SVG_DIV ?>">
+            <svg
+              class="<?= SVG_ICON ?>"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="1.75">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M9 12.75L11.25 15 15 9.75
+              M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <h2 class="text-sm font-bold text-base-content">
+              Employment Details
+            </h2>
+            <p class="mt-0.5 text-xs text-base-content/50">
+              Define the role type and experience required for this position.
+            </p>
           </div>
         </div>
 
-        <!-- <div id="salaryPreview" class="rounded-lg bg-base-200/60 px-3 py-2 text-[12px] font-bold text-primary">
-          <?php
-          if ($savedSalFrom !== '' || $savedSalTo !== '') {
-            $fromDisp = $savedSalFrom !== '' ? $savedSalFrom . ($savedSalUnitFrom !== '' ? ' ' . $savedSalUnitFrom : '') : '';
-            $toDisp = $savedSalTo !== '' ? $savedSalTo . ($savedSalUnitTo !== '' ? ' ' . $savedSalUnitTo : '') : '';
-            $range = ($fromDisp !== '' && $toDisp !== '') ? $fromDisp . ' - ' . $toDisp : ($fromDisp ?: $toDisp);
-            echo e(implode(' | ', array_filter([$range, $savedSalCur, $savedSalType])));
-          } else {
-            echo '—';
-          }
-          ?>
-        </div> -->
-      </div>
-    </div>
+        <!-- CONTENT -->
+        <div class="p-6">
+          <div class="grid w-full grid-cols-1 gap-6 lg:grid-cols-2">
+            <!-- JOB TYPE -->
+            <fieldset class="fieldset w-full">
+              <legend class="fieldset-legend">
+                Employment Type
+                <span class="text-error">*</span>
+              </legend>
+              <select
+                name="job_type"
+                id="jobTypeSelect"
+                class="<?= SELECT_CLASS ?> h-11 w-full"
+                onchange="toggleOther(this, 'otherJobType')"
+                required>
+                <option value="">
+                  Select job type
+                </option>
+              </select>
+              <!-- OTHER JOB TYPE -->
+              <div
+                id="otherJobType"
+                class="mt-3 hidden">
+                <label
+                  for="jobTypeOther"
+                  class="mb-1.5 block text-xs font-medium text-base-content/60">
+                  Specify job type
+                </label>
+                <input
+                  type="text"
+                  name="job_type_other"
+                  id="jobTypeOther"
+                  class="<?= INPUT_CLASS ?> h-11 w-full"
+                  placeholder="e.g. Contract, Freelance"
+                  value="<?= old('job_type_other') ?>">
+              </div>
+            </fieldset>
 
-    <!-- ── Content (Quill editors) ── -->
-    <style>
-      .quill-editor-wrap .ql-toolbar {
-        border-radius: 12px 12px 0 0;
-      }
+            <!-- EXPERIENCE -->
+            <fieldset class="fieldset w-full">
+              <legend class="fieldset-legend">
+                Experience
+                <span class="text-error">*</span>
+              </legend>
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] ">
+                <!-- MINIMUM -->
+                <fieldset class="fieldset">
+                  <select name="exp_from" id="expFrom" class="<?= SELECT_CLASS ?> h-11 w-full" required onchange="updateExpPreview()">
+                    <option value="">
+                      Select min years
+                    </option>
+                    <?php foreach ($expFromOpts as $v): ?>
+                      <option
+                        value="<?= e($v) ?>"
+                        <?= $savedExpFrom === $v ? 'selected' : '' ?>>
+                        <?= e($v) ?>
+                      </option>
+                    <?php endforeach; ?>
+                  </select>
+                </fieldset>
 
-      .quill-editor-wrap .ql-container {
-        height: auto;
-        min-height: 160px;
-        border-radius: 0 0 12px 12px;
-        font-family: inherit;
-      }
+                <!-- RANGE SEPARATOR -->
+                <div class="hidden sm:flex items-center justify-center pb-1">
+                  <div class="flex h-8 w-8 items-center justify-center rounded-full bg-base-200 text-base-content/40">
+                    <span class="text-sm font-semibold">
+                      –
+                    </span>
+                  </div>
+                </div>
+                <!-- MAXIMUM -->
+                <fieldset class="fieldset">
+                  <select
+                    name="exp_to"
+                    id="expTo"
+                    class="<?= SELECT_CLASS ?> h-11 w-full"
+                    required
+                    onchange="updateExpPreview()">
+                    <option value="">
+                      Select max years
+                    </option>
+                    <?php foreach ($expToOpts as $v): ?>
+                      <option
+                        value="<?= e($v) ?>"
+                        <?= $savedExpTo === $v ? 'selected' : '' ?>>
+                        <?= e($v) ?>
+                      </option>
+                    <?php endforeach; ?>
+                  </select>
+                </fieldset>
+              </div>
 
-      .quill-editor-wrap .ql-editor {
-        height: auto;
-        min-height: 160px;
-        font-size: 13px;
-        line-height: 1.6;
-      }
-
-      .quill-editor-wrap .ql-editor.ql-blank::before {
-        font-style: normal;
-      }
-    </style>
-    <div class="space-y-3">
-      <div class="quill-editor-wrap">
-        <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">Job Description</label>
-        <input type="hidden" id="job_description" name="job_description" value="<?= old("job_description") ?>">
-        <div id="job_description_editor"><?= old("job_description") ?></div>
-      </div>
-      <div class="quill-editor-wrap">
-        <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">Requirements</label>
-        <input type="hidden" id="key_skills" name="key_skills" value="<?= old("key_skills") ?>">
-        <div id="key_skills_editor"><?= old("key_skills") ?></div>
-      </div>
-      <div class="quill-editor-wrap">
-        <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">Why Join Us <span class="text-error">*</span></label>
-        <input type="hidden" id="our_terms" name="our_terms" value="<?= old("our_terms") ?>">
-        <div id="our_terms_editor"><?= old("our_terms") ?></div>
-        <p class="mt-1 text-[11px] text-base-content/40">Auto-filled per country for new jobs.</p>
-      </div>
-    </div>
-
-    <!-- ── Summary ── -->
-    <div class="flex flex-wrap gap-1.5 text-[12px]">
-      <span class="inline-flex items-center rounded-full border border-base-300 bg-base-200/60 px-2.5 py-1 font-semibold text-base-content/60" id="summaryJobCode">
-        <?= $isEdit ? e($job["job_code"]) : ($isClone ? e($cloneNewCode) : '—') ?>
-      </span>
-      <span class="inline-flex items-center rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 font-semibold text-primary" id="summaryTitle">
-        <?= old('job_title') ?: '—' ?>
-      </span>
-      <span class="inline-flex items-center rounded-full border border-base-300 bg-base-200/60 px-2.5 py-1 text-base-content/50" id="summaryLocation">
-        <?= old('country') ?: '—' ?>
-      </span>
-      <span class="inline-flex items-center rounded-full border border-base-300 bg-base-200/60 px-2.5 py-1 text-base-content/50" id="summaryWorkplace">
-        <?= old('workplace_type') ?: '—' ?>
-      </span>
-      <span class="inline-flex items-center rounded-full border border-base-300 bg-base-200/60 px-2.5 py-1 text-base-content/50" id="summaryJobType">
-        <?= old('job_type') ?: '—' ?>
-      </span>
-      <span class="inline-flex items-center rounded-full border border-base-300 bg-base-200/60 px-2.5 py-1 text-base-content/50" id="summaryExp">
-        <?= $savedExpRange ? e($savedExpRange) . ' yrs' : '—' ?>
-      </span>
-      <span class="inline-flex items-center rounded-full border border-base-300 bg-base-200/60 px-2.5 py-1 text-base-content/50" id="summarySalary">
-        <?= $savedSalBoe ? 'BOE' : '—' ?>
-      </span>
-      <?php if ($isEdit): ?>
-        <span class="inline-flex items-center rounded-full <?= $job['status'] === 'published' ? 'border border-success/30 bg-success/10 text-success' : 'border border-warning/30 bg-warning/10 text-warning' ?> px-2.5 py-1 font-semibold">
-          <?= e(ucfirst($job['status'])) ?>
-        </span>
-      <?php endif; ?>
-    </div>
-
-    <!-- ── Actions ── -->
-    <div class="sticky bottom-3 z-30 flex flex-wrap items-center gap-2 rounded-2xl border border-base-300 bg-base-100/95 px-4 py-3 shadow-pop backdrop-blur">
-      <span class="mr-auto hidden text-[11.5px] text-base-content/50 sm:block"><span class="text-error">*</span> Required</span>
-
-      <button type="submit" name="submit_action" value="publish" class="btn btn-primary btn-sm h-9 min-h-9 rounded-full px-5 text-[12.5px] font-semibold shadow-pop">
-        <?= $isClone ? 'Publish' : ($isEdit ? 'Update &amp; Publish' : 'Publish Job') ?>
-      </button>
-
-      <button type="submit" name="submit_action" value="draft" class="btn btn-sm h-9 min-h-9 rounded-full border-base-300 bg-base-100 px-5 text-[12.5px] font-semibold hover:bg-base-200">
-        <?= $isClone ? 'Draft' : 'Save as Draft' ?>
-      </button>
-
-      <a href="<?= ADMIN_URL ?>/pages/jobs.php" class="btn btn-sm h-9 min-h-9 rounded-full border-base-300 bg-base-100 px-5 text-[12.5px] font-semibold hover:bg-base-200">
-        Cancel
-      </a>
-
-      <?php if ($isEdit): ?>
-        <button type="button" onclick="openDeleteJobModal()" class="btn btn-sm ml-auto h-9 min-h-9 gap-2 rounded-full border-error/30 bg-transparent px-4 text-[12.5px] font-semibold text-error hover:border-error hover:bg-error hover:text-error-content">
-          <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-          </svg>
-          Delete
-        </button>
-      <?php endif; ?>
-    </div>
-
-    <!-- Delete Modal -->
-    <dialog id="deleteJobModal" class="modal">
-      <div class="modal-box w-[calc(100%-2rem)] max-w-md rounded-3xl border border-base-300/70 bg-base-100 p-0 shadow-xl">
-        <div class="flex items-center justify-between gap-3 px-5 pb-1 pt-5">
-          <div class="min-w-0">
-            <h3 class=" text-[16px] font-bold tracking-tight text-base-content">Delete job?</h3>
-            <p class="mt-0.5 text-[11.5px] text-base-content/50">This action is permanent.</p>
+              <!-- EXPERIENCE PREVIEW -->
+              <div class="mt-4 flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/[.04] px-3.5 py-3">
+                <div class="<?= SVG_DIV ?>">
+                  <svg
+                    class="<?= SVG_ICON ?>"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    stroke-width="1.75">
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M13 16h-1v-4h-1m1-4h.01
+                    M21 12a9 9 0 11-18 0
+                    9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div class="min-w-0">
+                  <span class="block text-[11px] font-medium uppercase tracking-wide text-base-content/40">
+                    Experience Preview
+                  </span>
+                  <strong
+                    id="expPreview"
+                    class="mt-0.5 block break-words text-sm font-semibold text-primary">
+                    <?php if ($savedExpFrom !== '' && $savedExpTo !== ''): ?>
+                      <?= e($savedExpFrom . ' - ' . $savedExpTo . ' years') ?>
+                    <?php else: ?>
+                      Select experience range
+                    <?php endif; ?>
+                  </strong>
+                </div>
+              </div>
+            </fieldset>
           </div>
-          <button type="button" onclick="closeDeleteJobModal()" class="btn btn-sm btn-circle btn-ghost size-8 min-h-8 shrink-0 text-base-content/50 hover:bg-base-200 hover:text-base-content" aria-label="Close">
+        </div>
+      </div>
+
+    <?php endif; ?>
+
+    <!-- ═══ REFERENCE CARD 3: COMPENSATION ═════════════════════ -->
+    <div id="compensation" class="<?= $postJobCardClass ?> border-t-4 border-t-warning">
+      <div class="<?= $postJobHeadingClass ?>">
+        <div class="<?= $postJobIconBaseClass ?> bg-warning/10 text-warning">
+          <svg class="<?= SVG_ICON ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+            <path d="M12 3v18M16 7.5C16 5.6 14.2 4 12 4S8 5.3 8 7s1.3 2.7 4 3.5 4 1.8 4 3.5-1.8 3-4 3-4-1.6-4-3.5"></path>
+          </svg>
+        </div>
+        <h2 class="<?= $postJobHeadingTextClass ?>">Compensation</h2>
+      </div>
+      <div class="grid grid-cols-1 gap-5 sm:grid-cols-3">
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Salary Min</legend>
+          <input type="number" name="salary_from" id="salaryFrom" class="<?= INPUT_CLASS ?>" min="0" step="any" placeholder="95000" value="<?= e($savedSalFrom) ?>" required>
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Salary Max</legend>
+          <input type="number" name="salary_to" id="salaryTo" class="<?= INPUT_CLASS ?>" min="0" step="any" placeholder="130000" value="<?= e($savedSalTo) ?>" required>
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Currency</legend>
+          <?php
+          $countryCurrency = (string) (($countryData[(string) ($old['country'] ?? '')]['currency'][0] ?? ''));
+          $defaultCurrency = $savedSalCur !== '' ? $savedSalCur : $countryCurrency;
+          ?>
+          <input type="text" id="salaryCurrencyDisplay" class="<?= INPUT_CLASS ?> cursor-default bg-base-200 font-semibold text-base-content/80" value="<?= e($defaultCurrency) ?>" placeholder="Select country first" readonly tabindex="-1">
+          <input type="hidden" name="salary_currency" id="salaryCurrency" value="<?= e($defaultCurrency) ?>">
+        </fieldset>
+      </div>
+      <input type="hidden" name="salary_unit_from" id="salaryUnitFrom" value="">
+      <input type="hidden" name="salary_unit_to" id="salaryUnitTo" value="">
+      <input type="hidden" name="salary_type" id="salaryType" value="<?= e($savedSalType ?: 'Annual') ?>">
+    </div>
+
+    <?php if (false): // Replaced by the compact compensation card above. 
+    ?>
+      <!-- ═══ LEGACY CARD 3: COMPENSATION ═══════════════════════════
+       Salary now gets a full-width card of its own instead of sharing a
+       2-column grid with two invisible date fields — the old layout left
+       half the card visually empty since Open/Close Date are hidden
+       inputs, not visible content. -->
+      <div class="w-full rounded-2xl border border-base-300 bg-base-100 shadow-sm">
+        <!-- SECTION HEADER -->
+        <div class="flex items-center justify-between gap-4 border-b border-base-300 px-6 py-5">
+          <div class="flex items-center gap-3">
+            <div class="<?= SVG_DIV ?>">
+              <svg
+                class="<?= SVG_ICON ?>"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="1.75">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659
+                -1.106-.879-1.106-2.303 0-3.182s2.9-.879
+                4.006 0l.415.33M21 12a9 9 0 11-18 0
+                9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div>
+              <h2 class="text-sm font-bold text-base-content">
+                Compensation
+              </h2>
+              <p class="mt-0.5 text-xs text-base-content/50">
+                Define the salary, rate and compensation structure.
+              </p>
+            </div>
+          </div>
+          <span class="badge badge-primary badge-soft hidden sm:inline-flex">
+            Required
+          </span>
+        </div>
+
+        <!-- CONTENT -->
+        <div class="p-6">
+          <!-- SALARY / RATE HEADER -->
+          <div class="mb-5 flex items-start justify-between gap-4">
+            <div>
+              <h3 class="text-sm font-bold text-base-content">
+                Salary / Rate
+                <span class="text-error">*</span>
+              </h3>
+              <p class="mt-1 text-xs text-base-content/50">
+                Provide a salary range or let compensation be based on experience.
+              </p>
+            </div>
+            <span class="text-[11px] font-medium text-base-content/40">
+              Numeric values
+            </span>
+          </div>
+
+          <!-- BOE OPTION -->
+          <label
+            for="salaryBoe"
+            class="
+        group flex cursor-pointer items-center gap-4
+        rounded-xl border p-4
+        transition-all duration-200
+        <?= $savedSalBoe
+          ? 'border-success/40 bg-success/[.06]'
+          : 'border-base-300 bg-base-200/30 hover:border-primary/30 hover:bg-primary/[.03]' ?>">
+            <input
+              type="checkbox"
+              name="salary_boe"
+              id="salaryBoe"
+              value="1"
+              class="checkbox checkbox-primary checkbox-sm sm:checkbox-md"
+              onchange="toggleSalaryBoe()"
+              <?= $savedSalBoe ? 'checked' : '' ?>>
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="text-sm font-semibold text-base-content">
+                  Based on Experience
+                </span>
+                <span class="badge badge-success badge-sm">
+                  BOE
+                </span>
+              </div>
+              <p class="mt-1 text-xs leading-relaxed text-base-content/50">
+                Salary will be determined based on the candidate's
+                experience, skills and qualifications.
+              </p>
+            </div>
+            <svg class="hidden sm:block h-5 w-5 shrink-0<?= $savedSalBoe ? 'text-success' : 'text-base-content/20' ?>"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="1.75">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M9 12.75l2.25 2.25L15 10.5 M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </label>
+
+          <!-- BOE MESSAGE -->
+          <div id="salaryBoeText" class="<?= $savedSalBoe ? '' : 'hidden' ?> mt-3">
+            <div class="alert alert-success alert-soft py-3 text-xs">
+              <svg
+                class="h-4 w-4 shrink-0"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M9 12.75l2.25 2.25L15 10.5
+               M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>
+                Salary will be based on experience.
+              </span>
+            </div>
+          </div>
+
+          <!-- SALARY RANGE -->
+          <div id="salaryInputsWrap" class="<?= $savedSalBoe ? 'hidden' : '' ?> mt-7">
+            <div class="mb-4 flex items-center justify-between">
+              <div>
+                <h4 class="text-sm font-semibold text-base-content">
+                  Salary Range
+                </h4>
+                <p class="mt-0.5 text-xs text-base-content/50">
+                  Enter the expected minimum and maximum compensation.
+                </p>
+              </div>
+              <span class="hidden sm:block text-xs text-base-content/40">
+                Optional range
+              </span>
+            </div>
+            <div class="grid w-full grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_40px_minmax(0,1fr)] md:items-end">
+              <!-- FROM -->
+              <fieldset class="fieldset w-full">
+
+                <legend class="fieldset-legend">
+                  Minimum
+                </legend>
+                <div class="flex w-full">
+                  <input type="number" name="salary_from" id="salaryFrom" class="<?= INPUT_CLASS ?> h-11 min-w-0 flex-1 rounded-r-none"
+                    placeholder="35"
+                    value="<?= e($savedSalFrom) ?>"
+                    min="0"
+                    step="any"
+                    oninput="updateSalaryPreview()"
+                    <?= $savedSalBoe ? '' : 'required' ?>>
+                  <select
+                    name="salary_unit_from"
+                    id="salaryUnitFrom"
+                    class="<?= SELECT_CLASS ?> h-11 w-[105px] shrink-0 rounded-l-none border-l-0 sm:w-[120px]"
+                    onchange="updateSalaryPreview()">
+                    <option value="" <?= $savedSalUnitFrom === '' ? 'selected' : '' ?>> — </option>
+                    <option value="L" <?= $savedSalUnitFrom === 'L' ? 'selected' : '' ?>> L — Lakhs </option>
+                    <option value="K" <?= $savedSalUnitFrom === 'K' ? 'selected' : '' ?>> K — Thousands </option>
+                  </select>
+                </div>
+              </fieldset>
+
+              <!-- RANGE SEPARATOR -->
+              <div class="hidden md:flex items-center justify-center pb-1">
+                <div class="flex h-8 w-8 items-center justify-center rounded-full bg-base-200 text-base-content/40">
+                  <span class="text-sm font-semibold">–</span>
+                </div>
+              </div>
+
+              <!-- TO -->
+              <fieldset class="fieldset w-full">
+                <legend class="fieldset-legend">
+                  Maximum
+                </legend>
+                <div class="flex w-full">
+                  <input
+                    type="number"
+                    name="salary_to"
+                    id="salaryTo"
+                    class="<?= INPUT_CLASS ?> h-11 min-w-0 flex-1 rounded-r-none"
+                    placeholder="45"
+                    value="<?= e($savedSalTo) ?>"
+                    min="0"
+                    step="any"
+                    oninput="updateSalaryPreview()"
+                    <?= $savedSalBoe ? '' : 'required' ?>>
+                  <select
+                    name="salary_unit_to"
+                    id="salaryUnitTo"
+                    class="<?= SELECT_CLASS ?> h-11 w-[105px] shrink-0 rounded-l-none border-l-0 sm:w-[120px]"
+                    onchange="updateSalaryPreview()">
+                    <option value="" <?= $savedSalUnitTo === '' ? 'selected' : '' ?>> — </option>
+                    <option value="L" <?= $savedSalUnitTo === 'L' ? 'selected' : '' ?>> L — Lakhs </option>
+                    <option value="K" <?= $savedSalUnitTo === 'K' ? 'selected' : '' ?>> K — Thousands </option>
+                  </select>
+                </div>
+              </fieldset>
+            </div>
+          </div>
+          <!--  CURRENCY + TYPE -->
+          <div
+            id="salaryCurrencyTypeWrap"
+            class="mt-7 border-t border-base-300 pt-6">
+            <div class="grid w-full grid-cols-1 gap-5 md:grid-cols-2">
+              <!-- CURRENCY -->
+              <fieldset>
+                <legend class="fieldset-legend"
+                  for="salaryCurrency"
+                  class="mb-1.5 block text-xs font-semibold text-base-content/70">
+                  Currency
+                  <span class="text-error">*</span>
+                </legend>
+                <select
+                  name="salary_currency"
+                  id="salaryCurrency"
+                  class="<?= SELECT_CLASS ?> h-11 w-full"
+                  required
+                  onchange="updateSalaryPreview()">
+                  <option value=""> Select currency </option>
+                </select>
+              </fieldset>
+
+              <!-- SALARY TYPE -->
+              <fieldset class="fieldset">
+                <legend class="fieldset-legend"
+                  for="salaryType"
+                  class="mb-1.5 block text-xs font-semibold text-base-content/70">
+                  Salary Type
+                  <span class="text-error">*</span>
+                </legend>
+                <select
+                  name="salary_type"
+                  id="salaryType"
+                  class="<?= SELECT_CLASS ?> h-11 w-full"
+                  required
+                  onchange="updateSalaryPreview()">
+                  <option value=""> Select salary type </option>
+                  <?php foreach ($salaryTypes as $st): ?>
+                    <option
+                      value="<?= e($st) ?>"
+                      <?= $savedSalType === $st ? 'selected' : '' ?>>
+                      <?= e($st) ?>
+                    </option>
+                  <?php endforeach; ?>
+                </select>
+              </fieldset>
+            </div>
+
+
+            <!--  LIVE PREVIEW -->
+            <div class=" mt-6 flex flex-col gap-2 rounded-xl border border-primary/20 bg-primary/[.04] px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+              <div class="flex items-center gap-2">
+                <div class="<?= SVG_DIV ?>">
+                  <svg
+                    class="<?= SVG_ICON ?>"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    stroke-width="1.75">
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M13 16h-1v-4h-1m1-4h.01
+                  M21 12a9 9 0 11-18 0
+                  9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <span class="text-xs font-medium text-base-content/50">
+                  Salary Preview
+                </span>
+              </div>
+              <div
+                id="salaryPreview"
+                class="break-words text-sm font-bold text-primary sm:text-right">
+                <?php
+                if ($savedSalFrom !== '' || $savedSalTo !== '') {
+                  $fromDisp = $savedSalFrom !== ''
+                    ? $savedSalFrom . ($savedSalUnitFrom !== '' ? ' ' . $savedSalUnitFrom : '')
+                    : '';
+
+                  $toDisp = $savedSalTo !== ''
+                    ? $savedSalTo . ($savedSalUnitTo !== '' ? ' ' . $savedSalUnitTo : '')
+                    : '';
+
+                  $range = ($fromDisp !== '' && $toDisp !== '')
+                    ? $fromDisp . ' – ' . $toDisp
+                    : ($fromDisp ?: $toDisp);
+
+                  echo e(
+                    implode(
+                      ' | ',
+                      array_filter([
+                        $range,
+                        $savedSalCur,
+                        $savedSalType
+                      ])
+                    )
+                  );
+                } else {
+                  echo '—';
+                }
+                ?>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    <?php endif; ?>
+
+    <!-- Internal fields required by the existing recruitment workflow. -->
+    <!-- <div class="rounded-2xl border border-base-300 bg-base-100 p-6 shadow-sm">
+      <div class="mb-5 flex items-center gap-2.5 border-b border-[#e7e9f0] pb-3.5">
+        <div class="<?= SVG_DIV ?>">
+          <svg class="<?= SVG_ICON ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path d="M12 3a4 4 0 1 1 0 8 4 4 0 0 1 0-8ZM5 21a7 7 0 0 1 14 0M19 8h3M20.5 6.5v3"></path></svg>
+        </div>
+        <div><h2 class="text-sm font-bold text-base-content">Internal Recruitment Details</h2><p class="mt-0.5 text-xs text-base-content/50">Client assignment, timezone and experience requirements.</p></div>
+      </div>
+      <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Company or Client Name <span class="text-error">*</span></legend>
+          <select name="client_id" id="client_id" class="<?= SELECT_CLASS ?>" required>
+            <option value="">Select client name</option>
+            <?php foreach ($clientsList as $client): ?><option value="<?= e($client['id']) ?>" <?= oldSel('client_id', $client['id']) ?>><?= e($client['client_name']) ?></option><?php endforeach; ?>
+          </select>
+        </fieldset>
+
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Time Zone <span class="text-error">*</span></legend>
+          <select name="timezone" id="timezoneSelect" class="<?= SELECT_CLASS ?>" required><option value="">Select country first</option></select>
+        </fieldset>
+
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Experience <span class="text-error">*</span></legend>
+          <div class="grid grid-cols-2 gap-3">
+            <select name="exp_from" id="expFrom" class="<?= SELECT_CLASS ?>" required onchange="updateExpPreview()">
+              <option value="">Minimum years</option>
+              <?php foreach ($expFromOpts as $v): ?><option value="<?= e($v) ?>" <?= $savedExpFrom === $v ? 'selected' : '' ?>><?= e($v) ?></option><?php endforeach; ?>
+            </select>
+            <select name="exp_to" id="expTo" class="<?= SELECT_CLASS ?>" required onchange="updateExpPreview()">
+              <option value="">Maximum years</option>
+              <?php foreach ($expToOpts as $v): ?><option value="<?= e($v) ?>" <?= $savedExpTo === $v ? 'selected' : '' ?>><?= e($v) ?></option><?php endforeach; ?>
+            </select>
+          </div>
+          <p id="expPreview" class="mt-2 text-xs text-base-content/50"><?= ($savedExpFrom !== '' && $savedExpTo !== '') ? e($savedExpFrom . ' - ' . $savedExpTo . ' years') : 'Select experience range' ?></p>
+        </fieldset>
+      </div>
+    </div> -->
+
+    <!-- ═══ CARD 5: JOB CONTENT ═════════════════════════════════════ -->
+    <div id="job-description-section" class="<?= $postJobCardClass ?> border-t-4 border-t-secondary">
+      <div class="<?= $postJobHeadingClass ?>">
+        <div class="<?= $postJobIconBaseClass ?> bg-secondary/10 text-secondary">
+          <svg class="<?= SVG_ICON ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m6.75 12l-3-3m0 0l-3 3m3-3v6M6.75 21h10.5a2.25 2.25 0 002.25-2.25V6.108c0-.397-.158-.779-.44-1.06L15.94 1.44A1.5 1.5 0 0014.878 1H6.75A2.25 2.25 0 004.5 3.25v15.5A2.25 2.25 0 006.75 21z" />
+          </svg>
+        </div>
+        <span class="<?= $postJobHeadingTextClass ?>">Job Description</span>
+      </div>
+
+      <div class="flex flex-col gap-6">
+        <fieldset class=" fieldset flex flex-col gap-1.5">
+          <legend class="fieldset-legend">Description <span class="text-error">*</span></legend>
+          <textarea id="job_description" name="job_description" class="<?= TEXTAREA_CLASS ?>"><?= old("job_description") ?></textarea>
+        </fieldset>
+
+        <fieldset class="flex flex-col gap-1.5">
+          <legend class="fieldset-legend">Responsibilities</legend>
+          <textarea name="responsibilities" rows="5" class="<?= TEXTAREA_CLASS ?>" placeholder="Key responsibilities..."><?= old("responsibilities") ?></textarea>
+        </fieldset>
+
+        <fieldset class="flex flex-col gap-1.5">
+          <legend class=" fieldset-legend">Required Skills <span class="text-error">*</span></legend>
+          <textarea id="key_skills" name="key_skills" class="<?= TEXTAREA_CLASS ?>"><?= old("key_skills") ?></textarea>
+        </fieldset>
+
+        <fieldset class="flex flex-col gap-1.5">
+          <legend class="fieldset-legend">Preferred Skills</legend>
+          <textarea name="preferred_skills" rows="4" class="<?= TEXTAREA_CLASS ?>" placeholder="Preferred or nice-to-have skills..."><?= old("preferred_skills") ?></textarea>
+        </fieldset>
+
+        <fieldset class="flex flex-col gap-1.5">
+          <legend class=" fieldset-legend">Benefits <span class="text-error">*</span></legend>
+          <textarea id="our_terms" name="our_terms" class="<?= TEXTAREA_CLASS ?>"><?= old("our_terms") ?></textarea>
+        </fieldset>
+      </div>
+    </div>
+
+    <div id="unitedStatesSpecificCard" class="<?= (($old['country'] ?? '') === 'United States') ? '' : 'hidden' ?> <?= $postJobCardClass ?> border-t-4 border-t-error">
+      <div class="<?= $postJobHeadingClass ?>">
+        <div class="<?= $postJobIconBaseClass ?> bg-error/10 text-error">
+          <svg class="<?= SVG_ICON ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+            <path d="M6 21V4m0 1c4-3 8 3 12 0v9c-4 3-8-3-12 0" />
+          </svg>
+        </div>
+        <h2 class="<?= $postJobHeadingTextClass ?>">United States–Specific Fields</h2>
+      </div>
+
+      <section class="space-y-4">
+        <label class="flex items-center justify-between gap-4 rounded-lg border border-base-300 p-4">
+          <span><strong class="block text-sm">Visa Sponsorship Available</strong><small class="text-base-content/50">Enable when sponsorship can be offered.</small></span>
+          <input type="checkbox" name="visa_sponsorship_available" value="1" class="toggle toggle-primary" <?= !empty($old['visa_sponsorship_available']) ? 'checked' : '' ?>>
+        </label>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Equal Opportunity Statement</legend><textarea name="equal_opportunity_statement" rows="4" class="<?= TEXTAREA_CLASS ?>"><?= old('equal_opportunity_statement') ?></textarea>
+        </fieldset>
+      </section>
+    </div>
+
+    <!-- ═══ ACTIONS ══════════════════════════════════════════════ -->
+    <div class="bg-transparent">
+      <div class="p-0">
+        <div class="<?= $isEdit ? 'block' : 'grid grid-cols-1 gap-3 sm:grid-cols-2' ?>">
+          <?php if ($isEdit): ?>
+            <button type="submit" name="submit_action" value="save" class="btn btn-primary h-[46px] min-h-[46px] w-full rounded-lg text-base font-medium">Save Changes</button>
+          <?php else: ?>
+            <!-- Publish -->
+
+            <button type="submit" name="submit_action" value="publish" class="btn btn-primary h-11 min-h-11 w-full rounded-lg shadow-sm sm:col-span-2">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M12 19l9 2-9-18-9 18 9-2zm0 0v-5" />
+              </svg>
+              <?php if ($isClone): ?>
+                Publish
+              <?php elseif ($isEdit): ?>
+                Update &amp; Publish
+              <?php else: ?>
+                Publish Job
+              <?php endif; ?>
+            </button>
+
+            <button type="submit" name="submit_action" value="draft" formnovalidate class="btn h-10 min-h-10 w-full rounded-lg border-base-300 bg-base-100 hover:bg-base-200">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-4 w-4"
+                fill="currentColor"
+                viewBox="0 0 24 24">
+                <path d="M5 3a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7.828A2 2 0 0 0 20.414 6.4l-2.8-2.8A2 2 0 0 0 16.172 3H5zm2 2h8v4H7V5zm10 14H7v-6h10v6z" />
+              </svg>
+              <?= $isClone ? 'Draft' : 'Save as Draft' ?>
+            </button>
+
+
+            <!-- Cancel -->
+            <button type="button" class="btn h-10 min-h-10 w-full rounded-lg border-base-300 bg-base-100 hover:bg-base-200" onclick="window.location.href='<?= ADMIN_URL ?>/pages/jobs.php' ">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              Cancel
+            </button>
+
+
+          <?php endif; ?>
+        </div>
+      </div>
+    </div>
+
+    <!-- Delete Job Modal -->
+    <dialog id="deleteJobModal" class="modal">
+      <div class="modal-box w-[calc(100%-2rem)] max-w-md rounded-xl border border-base-300 bg-base-100 p-0 shadow-xl">
+
+        <!-- Header -->
+        <div class="flex items-center gap-4 border-b border-base-200 px-5 py-5 sm:px-6">
+          <div class="<?= SVG_DIV_ERROR ?>">
+            <svg class="<?= SVG_ICON ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+            </svg>
+          </div>
+          <div class="min-w-0 flex-1">
+            <h3 class="<?= MODAL_HEADING ?>">
+              Delete job
+            </h3>
+          </div>
+          <button
+            type="button"
+            onclick="closeDeleteJobModal()"
+            class="btn btn-sm btn-circle btn-ghost size-8 min-h-8 shrink-0 text-base-content/50"
+            aria-label="Close">
             <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
-        <div class="px-5 py-5">
-          <div class="rounded-2xl border border-error/15 bg-error/5 p-4">
-            <p class="text-[13px] leading-relaxed text-base-content">
-              This permanently removes <strong class="text-error"><?= e($job["job_code"] ?? "") ?></strong> and all associated information.
-            </p>
-            <p class="mt-2 text-[11.5px] text-base-content/50">Consider closing it instead if you only want to take it offline.</p>
+
+        <!-- Body -->
+        <div class="px-6 py-5">
+          <div class="rounded-xl  p-4">
+            <div class="flex items-start gap-3">
+              <div class="flex-1">
+                <p class="text-sm font-medium text-base-content">
+                  Are you sure you want to permanently delete this job?
+                </p>
+                <p class="mt-2 text-xs leading-5 text-base-content/60">
+                  All associated job information will be removed.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
-        <div class="modal-action m-0 flex flex-col-reverse gap-2 border-t border-base-200/80 bg-base-200/40 px-5 py-4 sm:flex-row sm:justify-end">
-          <button type="button" onclick="closeDeleteJobModal()" class="btn h-10 min-h-10 w-full rounded-full border border-base-300 bg-base-100 px-5 text-sm font-semibold text-base-content/80 hover:bg-base-200 hover:text-base-content sm:w-auto">Cancel</button>
-          <a id="confirmDeleteJobBtn" href="#" class="btn btn-error h-10 min-h-10 w-full rounded-full px-6 text-sm font-semibold sm:w-auto">Delete permanently</a>
+        <!-- Footer -->
+        <div class="modal-action m-0 flex flex-col-reverse gap-2 border-t border-base-200 bg-base-200/30 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+          <button
+            type="button"
+            onclick="closeDeleteJobModal()"
+            class="btn btn-ghost h-10 min-h-10 w-full rounded-lg px-5 text-sm font-semibold sm:w-auto">
+            Cancel
+          </button>
+          <input type="hidden" name="id" value="<?= (int)$editId ?>" form="jobForm">
+          <button
+            id="confirmDeleteJobBtn"
+            type="submit"
+            name="a"
+            value="delete"
+            form="jobForm"
+            formaction="<?= ADMIN_URL ?>/pages/job_action.php"
+            formmethod="POST"
+            class="btn btn-error h-10 min-h-10 w-full rounded-lg px-5 text-sm font-semibold text-error-content sm:w-auto">
+            <svg
+              class="size-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+              aria-hidden="true">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6V9m-5-5h4a1 1 0 011 1v2H9V5a1 1 0 011-1z" />
+            </svg>
+            Delete permanently
+          </button>
         </div>
       </div>
-      <form method="dialog" class="modal-backdrop bg-black/40 backdrop-blur-sm">
+      <!-- Backdrop -->
+      <form method="dialog" class="modal-backdrop bg-black/40">
         <button type="submit">close</button>
       </form>
     </dialog>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 
   </form>
 
@@ -1060,35 +1940,40 @@ if (!$isAjax) {
 
 <!-- ══ Data from PHP → JS ══ -->
 <script>
-  var COUNTRY_DATA = <?= json_encode($countryData, JSON_UNESCAPED_UNICODE) ?>;
-  var IS_EDIT = <?= json_encode($isEdit) ?>; // false for clone — country dropdown stays editable
-  var IS_CLONE = <?= json_encode($isClone) ?>;
-  var SAVED_COUNTRY = <?= json_encode(old("country", $isEdit || $isClone ? $job["country"] ?? "" : "")) ?>;
-  var SAVED_STATE = <?= json_encode(old("state_province", $isEdit || $isClone ? $job["state_province"] ?? "" : "")) ?>;
-  var SAVED_TIMEZONE = <?= json_encode(old("timezone", $isEdit || $isClone ? $job["timezone"] ?? "" : "")) ?>;
-  var SAVED_JOB_TYPE = <?= json_encode(old("job_type", $isEdit || $isClone ? $job["job_type"] ?? "" : "")) ?>;
-  var SAVED_WORKPLACE_TYPE = <?= json_encode(
-                                old("workplace_type", $isEdit || $isClone ? $job["workplace_type"] ?? "" : "")
-                              ) ?>;
-  var SAVED_SALARY_TYPE = <?= json_encode(old("salary_type", $isEdit || $isClone ? $job["salary_type"] ?? "" : "")) ?>;
-  var SAVED_CURRENCY = <?= json_encode(old('salary_currency', $isEdit || $isClone ? $job["salary_currency"] ?? "" : "")) ?>;
+  console.log('Job Form: PHP → JS');
+  const COUNTRY_DATA = <?= json_encode($countryData, JSON_UNESCAPED_UNICODE) ?>;
+  const IS_EDIT = <?= json_encode($isEdit) ?>; // false for clone — country dropdown stays editable
+  const IS_CLONE = <?= json_encode($isClone) ?>;
+  const SAVED_COUNTRY = <?= json_encode(old("country", $isEdit || $isClone ? $job["country"] ?? "" : "")) ?>;
+  const SAVED_STATE = <?= json_encode(old("state_province", $isEdit || $isClone ? $job["state_province"] ?? "" : "")) ?>;
+  const SAVED_TIMEZONE = <?= json_encode(old("timezone", $isEdit || $isClone ? $job["timezone"] ?? "" : "")) ?>;
+  const SAVED_JOB_TYPE = <?= json_encode(old("job_type", $isEdit || $isClone ? $job["job_type"] ?? "" : "")) ?>;
+  const SAVED_WORKPLACE_TYPE = <?= json_encode(
+                                  old("workplace_type", $isEdit || $isClone ? $job["workplace_type"] ?? "" : "")
+                                ) ?>;
+  const SAVED_SALARY_TYPE = <?= json_encode(old("salary_type", $isEdit || $isClone ? $job["salary_type"] ?? "" : "")) ?>;
+  const SALARY_UNITS = <?= json_encode(old('salary_currency', $isEdit || $isClone ? $job["salary_currency"] ?? "" : "")) ?>;
+
+  console.log("data::", <?= json_encode($job) ?>);
 
   function openDeleteJobModal() {
-    document.getElementById('confirmDeleteJobBtn').href =
-      '<?= ADMIN_URL ?>/pages/job_action.php?id=<?= (int)$editId ?>&a=delete';
-    document.getElementById('deleteJobModal').showModal();
+    const modal = document.getElementById('deleteJobModal');
+    modal.showModal();
   }
 
   function closeDeleteJobModal() {
     document.getElementById('deleteJobModal')?.close();
   }
-
   // ── BOE toggle ────────────────────────────────────────────────
   function toggleSalaryBoe() {
-    const checked = document.getElementById('salaryBoe').checked;
+    const salaryBoe = document.getElementById('salaryBoe');
+    if (!salaryBoe) return;
+    const checked = salaryBoe.checked;
     document.getElementById('salaryBoeText').style.display = checked ? 'block' : 'none';
     document.getElementById('salaryInputsWrap').style.display = checked ? 'none' : 'block';
+    document.getElementById('salaryCurrencyTypeWrap').style.display = checked ? 'none' : 'block';
 
+    // Toggle required on salary inputs so HTML5 validation doesn't fire
     const inputs = document.querySelectorAll(
       '#salaryInputsWrap input[type="number"], #salaryCurrency, #salaryType'
     );
@@ -1099,6 +1984,13 @@ if (!$isAjax) {
         el.setAttribute('required', 'required');
       }
     });
+
+    // if (isBoe) {
+    //   salaryFrom.value = '';
+    //   salaryTo.value = '';
+    // }
+
+    // updateSalaryPreview();
   }
 
   function getCountryData(countryName) {
@@ -1114,112 +2006,181 @@ if (!$isAjax) {
 
   // ── Country change ────────────────────────────────────────────
   function onCountryChange() {
+    console.log("onCountryChange");
     const countryEl = document.getElementById('country');
-    if (!countryEl) return;
-
+    if (!countryEl) {
+      console.error('Country element not found');
+      return;
+    }
     const country = countryEl.value;
     const data = getCountryData(country);
     const cityInput = document.getElementById('city');
     const stateSelect = document.getElementById('stateSelect');
     const timezoneSelect = document.getElementById('timezoneSelect');
     const jobTypeSelect = document.getElementById('jobTypeSelect');
-    const currencySelect = document.getElementById('salaryCurrency');
-
-    // City (restore saved value only for the matching country)
+    const currentySelect = document.getElementById('salaryCurrency');
+    const currencyDisplay = document.getElementById('salaryCurrencyDisplay');
+    console.log('data.types:', data.types);
+    // ------------------------------------------------------------
+    // City
+    // ------------------------------------------------------------
     const savedCity = <?= json_encode(
                         old("city", $isEdit || $isClone ? $job["city"] ?? "" : "")
                       ) ?>;
-    cityInput.value = country === SAVED_COUNTRY ? savedCity : '';
 
-    // State / Province
+    if (country === SAVED_COUNTRY) {
+      cityInput.value = savedCity;
+    } else {
+      cityInput.value = '';
+    }
+
+    /* State / Province */
     stateSelect.innerHTML = '<option value="">Select state</option>';
+
     Object.keys(data.states || {}).forEach(state => {
       const option = new Option(state, state);
+
       if (
         SAVED_STATE &&
         state.trim().toLowerCase() === SAVED_STATE.trim().toLowerCase()
       ) {
         option.selected = true;
       }
+
       stateSelect.appendChild(option);
     });
 
-    // Time Zone (hidden input — set value from state mapping or saved value)
-    if (SAVED_TIMEZONE) {
-      timezoneSelect.value = SAVED_TIMEZONE;
-    } else {
-      // Auto-select timezone when there's only one option (e.g. India → IST)
-      const timezones = data.timezones || [];
-      timezoneSelect.value = timezones.length === 1 ? timezones[0] : '';
+    /* Time Zone */
+    if (timezoneSelect) {
+      timezoneSelect.innerHTML = '<option value="">Select timezone</option>';
+
+      (data.timezones || []).forEach(timezone => {
+        const option = new Option(timezone, timezone);
+
+        if (
+          SAVED_TIMEZONE &&
+          timezone.trim().toLowerCase() === SAVED_TIMEZONE.trim().toLowerCase()
+        ) {
+          option.selected = true;
+        }
+
+        timezoneSelect.appendChild(option);
+      });
     }
 
-    // Job Type
-    jobTypeSelect.innerHTML = '<option value="">Select job type</option>';
+    /* Job Type */
+    jobTypeSelect.innerHTML =
+      '<option value="">Select job type</option>';
+
     (data.types || []).forEach(type => {
       const option = new Option(type, type);
+
       if (
         SAVED_JOB_TYPE &&
         type.trim().toLowerCase() === SAVED_JOB_TYPE.trim().toLowerCase()
       ) {
         option.selected = true;
       }
+
       jobTypeSelect.appendChild(option);
     });
 
-    // Currency (fixed: case-insensitive comparison now actually runs)
-    currencySelect.innerHTML = '<option value="">Select currency</option>';
-    (data.currency || []).forEach(cur => {
-      const option = new Option(cur, cur);
-      if (
-        SAVED_CURRENCY &&
-        cur.trim().toLowerCase() === SAVED_CURRENCY.trim().toLowerCase()
-      ) {
-        option.selected = true;
-      }
-      currencySelect.appendChild(option);
-    });
-    if (SAVED_CURRENCY) {
-      currencySelect.value = SAVED_CURRENCY;
-    }
+    /* Currency */
+    const defaultCurrency = (data.currency || [])[0] || '';
+    if (currentySelect) currentySelect.value = defaultCurrency;
+    if (currencyDisplay) currencyDisplay.value = defaultCurrency;
 
     // Handle "Other"
     toggleOther(jobTypeSelect, 'otherJobType');
 
     // Restore workplace type
     const workplaceType = document.getElementById('workplaceType');
+
     if (SAVED_WORKPLACE_TYPE) {
       workplaceType.value = SAVED_WORKPLACE_TYPE;
     }
 
     toggleLocationFields();
 
-    // Pre-fill "Why Join Us" for new jobs only
-    if (!IS_EDIT && !IS_CLONE && quillEditors['our_terms']) {
-      var content = OUR_TERMS_PLACEHOLDERS[country] || '';
-      quillEditors['our_terms'].root.innerHTML = content;
-      document.getElementById('our_terms').value = content;
+    // New jobs only
+    if (!IS_EDIT && !IS_CLONE) {
+      const content = OUR_TERMS_PLACEHOLDERS[country];
+      setRichTextContent('our_terms', content || '');
     }
-
-    // Auto-select timezone from state mapping on new jobs
-    if (!SAVED_TIMEZONE) onStateChange();
+    toggleReferenceCountryFields(country);
   }
 
-  // ── State → timezone auto-select ──────────────────────────────
-  function onStateChange() {
-    const countryEl = document.getElementById('country');
-    const stateEl = document.getElementById('stateSelect');
-    const tzEl = document.getElementById('timezoneSelect');
-    if (!countryEl || !stateEl || !tzEl || !stateEl.value) return;
+  function toggleReferenceCountryFields(country) {
+    const card = document.getElementById('unitedStatesSpecificCard');
+    if (!card) return;
 
-    const data = getCountryData(countryEl.value);
-    const mapped = data.states?.[stateEl.value];
-    if (mapped) {
-      tzEl.value = mapped;
-    }
+    const showUnitedStatesFields = country === 'United States';
+    card.classList.toggle('hidden', !showUnitedStatesFields);
+    card.querySelectorAll('input, textarea, select').forEach(control => {
+      control.disabled = !showUnitedStatesFields;
+    });
   }
 
+  function sectionIsComplete(sectionId) {
+    const section = document.getElementById(sectionId);
+    if (!section) return false;
+
+    return [...section.querySelectorAll('input, select, textarea')]
+      .filter(control => control.required && !control.disabled && control.type !== 'hidden')
+      .every(control => control.checkValidity());
+  }
+
+  function moveToSection(sectionId) {
+    const section = document.getElementById(sectionId);
+    if (!section) return;
+
+    section.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start'
+    });
+    window.setTimeout(() => {
+      section.querySelector('select:not([disabled]), input:not([disabled]):not([readonly])')
+        ?.focus({
+          preventScroll: true
+        });
+    }, 350);
+  }
+
+  function initializeSectionProgression() {
+    const steps = [{
+        current: 'country-basics',
+        next: 'employment-details'
+      },
+      {
+        current: 'employment-details',
+        next: 'compensation'
+      },
+      {
+        current: 'compensation',
+        next: 'job-description-section'
+      }
+    ];
+
+    steps.forEach(step => {
+      const section = document.getElementById(step.current);
+      if (!section) return;
+
+      // Advance when the user finishes this card and tabs or clicks outside
+      // it. Listening on the whole section works regardless of field order.
+      section.addEventListener('focusout', () => {
+        window.setTimeout(() => {
+          if (section.contains(document.activeElement)) return;
+          if (sectionIsComplete(step.current)) moveToSection(step.next);
+        }, 0);
+      });
+    });
+  }
+
+  initializeSectionProgression();
   // ── Other reveal ─────────────────────────────────────────────
   function toggleOther(select, targetId) {
+    // const div = document.getElementById(divId);
+    // if (div) div.classList.toggle('hidden', sel.value !== 'Other');
     const target = document.getElementById(targetId);
     const input = target?.querySelector('input');
 
@@ -1240,7 +2201,14 @@ if (!$isAjax) {
 
   // ── Experience preview ────────────────────────────────────────
   function updateExpPreview() {
-    // Single range dropdown — no preview needed, preview lives in the select itself
+    const from = document.getElementById('expFrom')?.value || '';
+    const to = document.getElementById('expTo')?.value || '';
+    const preview = document.getElementById('expPreview');
+    if (!preview) return;
+    preview.textContent =
+      from && to ?
+      `${from} - ${to} years` :
+      'Select experience range';
   }
 
   // ── Salary preview ────────────────────────────────────────────
@@ -1255,7 +2223,7 @@ if (!$isAjax) {
 
     if (!salaryFrom || !salaryTo || !salaryUnitFrom || !salaryUnitTo ||
       !salaryCurrency || !salaryType || !salaryPreview) {
-      return;
+      return; // Elements not found, skip update
     }
 
     const f = salaryFrom.value.trim();
@@ -1271,113 +2239,140 @@ if (!$isAjax) {
     salaryPreview.textContent = parts.length ? parts.join(' | ') : '—';
   }
 
+  // ── Date helpers ──────────────────────────────────────────────
+  function toDisplay(ymd) {
+    if (!ymd) return '';
+    const d = new Date(ymd + 'T00:00:00');
+    return d.toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+  }
+
+  // Auto-compute close date = open date + 28 days
+  function autoFillCloseDate(openYmd) {
+    if (!openYmd) {
+      document.getElementById('closeDate').value = '';
+      const fh = document.getElementById('closeDateFmt');
+      if (fh) fh.textContent = '';
+      return;
+    }
+    const d = new Date(openYmd + 'T00:00:00');
+    d.setDate(d.getDate() + 28);
+    const ymd = d.toISOString().slice(0, 10);
+    document.getElementById('closeDate').value = ymd;
+    const fh = document.getElementById('closeDateFmt');
+    if (fh) fh.textContent = toDisplay(ymd);
+  }
+
   function toggleLocationFields() {
     const typeEl = document.getElementById('workplaceType');
     const city = document.getElementById('city');
     const state = document.getElementById('stateSelect');
 
-    if (!typeEl || !city || !state) return;
+    if (!typeEl || !city || !state) {
+      return; // Elements not found, skip update
+    }
 
-    const isRemote = typeEl.value === 'Remote';
+    const type = typeEl.value;
 
-    city.disabled = isRemote;
-    state.disabled = isRemote;
-
-    if (isRemote) {
+    if (type === 'Remote') {
+      city.disabled = false;
+      state.disabled = false;
       city.removeAttribute('required');
       state.removeAttribute('required');
     } else {
+      city.disabled = false;
+      state.disabled = false;
+
       city.setAttribute('required', 'required');
       state.setAttribute('required', 'required');
     }
   }
-
-  // ── Summary card ──────────────────────────────────────────────
-  function updateSummary() {
-    const title = document.getElementById('jobTitle')?.value || '—';
-    const country = document.getElementById('country')?.value || '—';
-    const workplace = document.getElementById('workplaceType')?.value || '—';
-    const jobType = document.getElementById('jobTypeSelect')?.value || '—';
-    const expRange = document.getElementById('experienceRange')?.value || '';
-    const boe = document.getElementById('salaryBoe')?.checked;
-
-    const titleEl = document.getElementById('summaryTitle');
-    const locEl = document.getElementById('summaryLocation');
-    const wpEl = document.getElementById('summaryWorkplace');
-    const jtEl = document.getElementById('summaryJobType');
-    const expEl = document.getElementById('summaryExp');
-    const salEl = document.getElementById('summarySalary');
-
-    if (titleEl) titleEl.textContent = title;
-    if (locEl) locEl.textContent = country;
-    if (wpEl) wpEl.textContent = workplace;
-    if (jtEl) jtEl.textContent = jobType;
-    if (expEl) expEl.textContent = expRange ? expRange + ' yrs' : '—';
-    if (salEl) salEl.textContent = boe ? 'BOE' : '—';
-  }
-
-  // ── Init ──────────────────────────────────────────────────────
-  function initializeForm() {
-    try {
-      onCountryChange();
-
-      const countrySelect = document.getElementById('country');
-      if (countrySelect && SAVED_COUNTRY) {
-        countrySelect.value = SAVED_COUNTRY;
+  // Close date is readonly — do NOT attach flatpickr to it
+  const openDateEl = document.getElementById('openDate');
+  if (openDateEl) {
+    const openVal = openDateEl.value;
+    if (openVal) {
+      const openDateFmt = document.getElementById('openDateFmt');
+      if (openDateFmt) {
+        openDateFmt.textContent = toDisplay(openVal);
       }
-
-      const workplaceTypeSelect = document.getElementById('workplaceType');
-      if (workplaceTypeSelect && SAVED_WORKPLACE_TYPE) {
-        workplaceTypeSelect.value = SAVED_WORKPLACE_TYPE;
+      // Only auto-fill close date if it isn't already set (e.g. edit mode preserves existing)
+      const closeDateEl = document.getElementById('closeDate');
+      if (closeDateEl) {
+        const existingClose = closeDateEl.value;
+        if (!existingClose) {
+          autoFillCloseDate(openVal);
+        }
       }
-
-      const currencySelect = document.getElementById('salaryCurrency');
-      if (currencySelect && SAVED_CURRENCY) {
-        currencySelect.value = SAVED_CURRENCY;
-      }
-
-      // MUST run after setting country
-      toggleLocationFields();
-      updateExpPreview();
-      updateSalaryPreview();
-      toggleSalaryBoe();
-      updateSummary();
-      initQuillEditors();
-    } catch (error) {
-      console.error('Form initialization failed:', error);
     }
   }
 
+  // // ── On load ───────────────────────────────────────────────────
+  function initializeForm() {
+    try {
+      console.log('Form initialization started');
+      console.log('SAVED_COUNTRY:', SAVED_COUNTRY);
+      console.log('SAVED_WORKPLACE_TYPE:', SAVED_WORKPLACE_TYPE);
+      console.log("SAVED_CURRENCY:", SALARY_UNITS);
+      onCountryChange();
+      const countrySelect = document.getElementById('country');
+      if (countrySelect) {
+        if (SAVED_COUNTRY) {
+          countrySelect.value = SAVED_COUNTRY;
+          console.log('Set country to:', SAVED_COUNTRY, 'current value:', countrySelect.value);
+        }
+      } else {
+        console.error('Country select element not found!');
+      }
+
+      // Set workplace type
+      const workplaceTypeSelect = document.getElementById('workplaceType');
+      if (workplaceTypeSelect && SAVED_WORKPLACE_TYPE) {
+        workplaceTypeSelect.value = SAVED_WORKPLACE_TYPE;
+        console.log('Set workplace type to:', SAVED_WORKPLACE_TYPE);
+      }
+
+      const currentySelect = document.getElementById('salaryCurrency');
+      if (currentySelect && SALARY_UNITS) {
+        if (SALARY_UNITS) {
+          currentySelect.value = SALARY_UNITS;
+          const currencyDisplay = document.getElementById('salaryCurrencyDisplay');
+          if (currencyDisplay) currencyDisplay.value = SALARY_UNITS;
+          console.log('Set currency to:', SALARY_UNITS, 'current value:', currentySelect.value);
+        }
+      }
+
+      // MUST run after setting country
+
+      toggleLocationFields(); // FIXED
+
+      updateExpPreview();
+      updateSalaryPreview();
+      toggleSalaryBoe();
+
+      console.log('Form initialization completed');
+    } catch (error) {
+      console.error('Error during form initialization:', error);
+    }
+  }
+  // Run when DOM is ready
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initializeForm);
   } else {
+    // DOM already loaded
     initializeForm();
   }
 
-  // Scroll to the first field that fails browser validation
-  document.getElementById('jobForm').addEventListener('invalid', function(e) {
-    const el = e.target;
-    clearTimeout(window.__invalidScroll);
-    window.__invalidScroll = setTimeout(function() {
-      el.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center'
-      });
-      el.focus({
-        preventScroll: true
-      });
-    }, 60);
-  }, true);
-
-  // Update summary card on any field change
-  document.getElementById('jobForm').addEventListener('input', updateSummary);
-  document.getElementById('jobForm').addEventListener('change', updateSummary);
+  document.addEventListener('DOMContentLoaded', initializeForm);
 </script>
 
 <script>
   // ══════════════════════════════════════════════════════════════════════
   // OUR_TERMS_PLACEHOLDERS
-  // Pre-fills the "Why Join Us" editor for NEW posts only.
+  // Pre-fills the "Why Join Us" rich-text editor for NEW posts only.
   // Edit/Clone posts are never affected.
   //
   // ── HOW TO UPDATE ──────────────────────────────────────────────────
@@ -1388,11 +2383,11 @@ if (!$isAjax) {
   // ── COUNTRIES CURRENTLY CONFIGURED ────────────────────────────────
   //    India | United States | Canada
   // ══════════════════════════════════════════════════════════════════════
-  var OUR_TERMS_PLACEHOLDERS = {
+  const OUR_TERMS_PLACEHOLDERS = {
 
     // ── INDIA ──────────────────────────────────────────────────────────
     'India': `
-    <p><strong>Accelon Consulting</strong> is a global workforce solutions partner and AI enablement leader, but above all, we are a people‑first organization. Our dual commitment is simple: advancing careers and enabling organizations to thrive in a connected, intelligent future. We know our professionals bring specialized expertise, strategic insight, and immediate impact to every engagement. You're not just filling a seat - you're solving problems, leading change, and driving results. Because of that, we treat every consultant like the professional they are. Our culture is built on respect, transparency, and long‑term growth, offering opportunities to work on high‑impact projects with leading global enterprises. At Accelon, people are supported, achievements are recognized, and careers are built with purpose. To learn more about our culture and what it's like to be part of our team, visit the <a href="https://www.accelonconsulting.com/life-at-accelon/">Life at Accelon</a> section on our website.</p>
+    <p><strong>Accelon Consulting</strong> is a global workforce solutions partner and AI enablement leader, but above all, we are a people‑first organization. Our dual commitment is simple: advancing careers and enabling organizations to thrive in a connected, intelligent future. We know our professionals bring specialized expertise, strategic insight, and immediate impact to every engagement. You’re not just filling a seat - you’re solving problems, leading change, and driving results. Because of that, we treat every consultant like the professional they are. Our culture is built on respect, transparency, and long‑term growth, offering opportunities to work on high‑impact projects with leading global enterprises. At Accelon, people are supported, achievements are recognized, and careers are built with purpose. To learn more about our culture and what it’s like to be part of our team, visit the <a href="https://www.accelonconsulting.com/life-at-accelon/">Life at Accelon</a> section on our website.</p>
     <ul>
       <li>Free Health Insurance – Comprehensive coverage for you and your dependents.</li>
       <li>Work-Life Balance – Flexible work arrangements and realistic workloads to help you maintain a healthy balance.</li>
@@ -1403,7 +2398,7 @@ if (!$isAjax) {
 
     // ── UNITED STATES ──────────────────────────────────────────────────
     'United States': `
-    <p><strong>Accelon Consulting</strong> is a global workforce solutions partner and AI enablement leader, but above all, we are a people‑first organization. Our dual commitment is simple: advancing careers and enabling organizations to thrive in a connected, intelligent future. We know our professionals bring specialized expertise, strategic insight, and immediate impact to every engagement. You're not just filling a seat - you're solving problems, leading change, and driving results. Because of that, we treat every consultant like the professional they are. Our culture is built on respect, transparency, and long‑term growth, offering opportunities to work on high‑impact projects with leading global enterprises. At Accelon, people are supported, achievements are recognized, and careers are built with purpose. To learn more about our culture and what it's like to be part of our team, visit the <a href="https://www.accelonconsulting.com/life-at-accelon/">Life at Accelon</a> section on our website.</p>
+    <p><strong>Accelon Consulting</strong> is a global workforce solutions partner and AI enablement leader, but above all, we are a people‑first organization. Our dual commitment is simple: advancing careers and enabling organizations to thrive in a connected, intelligent future. We know our professionals bring specialized expertise, strategic insight, and immediate impact to every engagement. You’re not just filling a seat - you’re solving problems, leading change, and driving results. Because of that, we treat every consultant like the professional they are. Our culture is built on respect, transparency, and long‑term growth, offering opportunities to work on high‑impact projects with leading global enterprises. At Accelon, people are supported, achievements are recognized, and careers are built with purpose. To learn more about our culture and what it’s like to be part of our team, visit the <a href="https://www.accelonconsulting.com/life-at-accelon/">Life at Accelon</a> section on our website.</p>
     <ul>
       <li>We offer healthcare plans, which you may opt into at your own expense.</li>
       <li>Sick leave is provided under the state laws applicable to your residence.</li>
@@ -1414,7 +2409,7 @@ if (!$isAjax) {
 
     // ── CANADA ─────────────────────────────────────────────────────────
     'Canada': `
-    <p><strong>Accelon Consulting</strong> is a global workforce solutions partner and AI enablement leader, but above all, we are a people‑first organization. Our dual commitment is simple: advancing careers and enabling organizations to thrive in a connected, intelligent future. We know our professionals bring specialized expertise, strategic insight, and immediate impact to every engagement. You're not just filling a seat - you're solving problems, leading change, and driving results. Because of that, we treat every consultant like the professional they are. Our culture is built on respect, transparency, and long‑term growth, offering opportunities to work on high‑impact projects with leading global enterprises. At Accelon, people are supported, achievements are recognized, and careers are built with purpose. To learn more about our culture and what it's like to be part of our team, visit the <a href="https://www.accelonconsulting.com/life-at-accelon/">Life at Accelon</a> section on our website.</p>
+    <p><strong>Accelon Consulting</strong> is a global workforce solutions partner and AI enablement leader, but above all, we are a people‑first organization. Our dual commitment is simple: advancing careers and enabling organizations to thrive in a connected, intelligent future. We know our professionals bring specialized expertise, strategic insight, and immediate impact to every engagement. You’re not just filling a seat - you’re solving problems, leading change, and driving results. Because of that, we treat every consultant like the professional they are. Our culture is built on respect, transparency, and long‑term growth, offering opportunities to work on high‑impact projects with leading global enterprises. At Accelon, people are supported, achievements are recognized, and careers are built with purpose. To learn more about our culture and what it’s like to be part of our team, visit the <a href="https://www.accelonconsulting.com/life-at-accelon/">Life at Accelon</a> section on our website.</p>
     <ul>
       <li>We offer healthcare plans, which you may opt into at your own expense.</li>
       <li>Sick leave is provided under the province laws applicable to your residence.</li>
@@ -1424,7 +2419,7 @@ if (!$isAjax) {
 
   `,
     'Mexico': `
-    <p><strong>Accelon Consulting</strong> is a global workforce solutions partner and AI enablement leader, but above all, we are a people‑first organization. Our dual commitment is simple: advancing careers and enabling organizations to thrive in a connected, intelligent future. We know our professionals bring specialized expertise, strategic insight, and immediate impact to every engagement. You're not just filling a seat - you're solving problems, leading change, and driving results. Because of that, we treat every consultant like the professional they are. Our culture is built on respect, transparency, and long‑term growth, offering opportunities to work on high‑impact projects with leading global enterprises. At Accelon, people are supported, achievements are recognized, and careers are built with purpose. To learn more about our culture and what it's like to be part of our team, visit the <a href="https://www.accelonconsulting.com/life-at-accelon/">Life at Accelon</a> section on our website.</p>
+    <p><strong>Accelon Consulting</strong> is a global workforce solutions partner and AI enablement leader, but above all, we are a people‑first organization. Our dual commitment is simple: advancing careers and enabling organizations to thrive in a connected, intelligent future. We know our professionals bring specialized expertise, strategic insight, and immediate impact to every engagement. You’re not just filling a seat - you’re solving problems, leading change, and driving results. Because of that, we treat every consultant like the professional they are. Our culture is built on respect, transparency, and long‑term growth, offering opportunities to work on high‑impact projects with leading global enterprises. At Accelon, people are supported, achievements are recognized, and careers are built with purpose. To learn more about our culture and what it’s like to be part of our team, visit the <a href="https://www.accelonconsulting.com/life-at-accelon/">Life at Accelon</a> section on our website.</p>
     <ul>
       <li>We offer healthcare plans, which you may opt into at your own expense.</li>
       <li>Sick leave is provided under the province laws applicable to your residence.</li>
@@ -1435,92 +2430,173 @@ if (!$isAjax) {
 
   }; // ← Add new countries above this line
 
-  /* ── Quill Editors ─────────────────────────────────────────── */
-  var quillEditors = {};
-
-  function syncAllQuillEditors() {
-    Object.keys(quillEditors).forEach(function(id) {
-      var hidden = document.getElementById(id);
-      if (hidden && quillEditors[id]) {
-        hidden.value = quillEditors[id].root.innerHTML;
+  if (window.tinymce) tinymce.init({
+    selector: '#job_description, #key_skills, #our_terms',
+    height: 300,
+    menubar: false,
+    plugins: 'anchor autolink charmap codesample emoticons image link lists media searchreplace table visualblocks wordcount',
+    toolbar: 'undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | alignleft aligncenter alignright alignjustify | bullist numlist | link image media table | removeformat',
+    font_family_formats: "Lato=Lato,sans-serif;Tahoma=tahoma,arial,helvetica,sans-serif;Arial=arial,helvetica,sans-serif",
+    font_size_formats: "8pt 9pt 10pt 11pt 12pt 14pt 16pt 18pt 24pt 36pt",
+    content_style: `
+      body {
+        font - family: Lato, sans - serif;
+        font - size: 10 pt;
       }
-    });
-  }
-
-  function initQuillEditors() {
-    var toolbarOptions = [
-      [{
-        header: [1, 2, 3, false]
-      }],
-      ['bold', 'italic', 'underline', 'strike'],
-      [{
-        list: 'ordered'
-      }, {
-        list: 'bullet'
-      }],
-      ['link'],
-      [{
-        align: []
-      }],
-      ['clean']
-    ];
-
-    var fields = [{
-        id: 'job_description',
-        placeholder: 'Describe the role, responsibilities, and qualifications...'
-      },
-      {
-        id: 'key_skills',
-        placeholder: 'List required skills and qualifications...'
-      },
-      {
-        id: 'our_terms',
-        placeholder: 'Why should candidates join?'
-      }
-    ];
-
-    fields.forEach(function(cfg) {
-      var container = document.getElementById(cfg.id + '_editor');
-      var hidden = document.getElementById(cfg.id);
-      if (!container || !hidden) return;
-
-      var q = new Quill('#' + cfg.id + '_editor', {
-        theme: 'snow',
-        placeholder: cfg.placeholder,
-        modules: {
-          toolbar: toolbarOptions
-        }
+      `,
+    setup: function(editor) {
+      editor.on('change', function() {
+        editor.save();
       });
 
-      /* Pre-fill from hidden input (PHP value) */
-      if (hidden.value) {
-        q.root.innerHTML = hidden.value;
-      }
+      editor.on('init', function() {
+        if (IS_EDIT || IS_CLONE) return; // edit/clone → never touch
+        if (editor.id !== 'our_terms') return; // only our_terms gets prefilled
 
-      /* Sync on every change */
-      q.on('text-change', function() {
-        hidden.value = q.root.innerHTML;
+        const country = document.getElementById('country').value;
+        if (!country) return;
+
+        const content = OUR_TERMS_PLACEHOLDERS[country];
+        if (content) editor.setContent(content);
       });
+    }
+  });
 
-      quillEditors[cfg.id] = q;
-    });
+  const richTextEditors = {};
 
-    /* Pre-fill "Why Join Us" for new jobs based on selected country */
-    if (!IS_EDIT && !IS_CLONE && quillEditors['our_terms']) {
-      var country = document.getElementById('country').value;
-      if (country && OUR_TERMS_PLACEHOLDERS[country]) {
-        quillEditors['our_terms'].root.innerHTML = OUR_TERMS_PLACEHOLDERS[country];
-        document.getElementById('our_terms').value = OUR_TERMS_PLACEHOLDERS[country];
-      }
+  function setRichTextContent(id, html) {
+    const textarea = document.getElementById(id);
+    if (textarea) textarea.value = html || '';
+    const editor = richTextEditors[id];
+    if (editor) {
+      // setContents updates the document without changing Quill's selection.
+      // dangerouslyPasteHTML also calls setSelection internally, which was
+      // pulling the viewport down to the Benefits editor.
+      const content = editor.clipboard.convert(html || '');
+      editor.setContents(content, 'silent');
     }
   }
 
-  /* Sync Quill → hidden inputs before form submission */
-  document.getElementById('jobForm').addEventListener('submit', function() {
-    syncAllQuillEditors();
+  function syncRichTextEditors() {
+    Object.entries(richTextEditors).forEach(([id, editor]) => {
+      const textarea = document.getElementById(id);
+      if (textarea) textarea.value = editor.root.innerHTML;
+    });
+  }
+
+  function initializeRichTextEditors() {
+    if (typeof Quill === 'undefined') return;
+    ['job_description', 'key_skills', 'our_terms'].forEach(id => {
+      const textarea = document.getElementById(id);
+      if (!textarea || richTextEditors[id]) return;
+      const editorHost = document.createElement('div');
+      editorHost.className = 'rich-text-editor';
+      textarea.insertAdjacentElement('beforebegin', editorHost);
+      textarea.hidden = true;
+      const editor = new Quill(editorHost, {
+        theme: 'snow',
+        placeholder: id === 'job_description' ? 'Describe the role...' : 'Add formatted content...',
+        modules: {
+          toolbar: [
+            [{
+              header: [1, 2, 3, false]
+            }],
+            ['bold', 'italic', 'underline'],
+            [{
+              list: 'ordered'
+            }, {
+              list: 'bullet'
+            }],
+            ['link', 'clean']
+          ]
+        }
+      });
+      const initialContent = editor.clipboard.convert(textarea.value || '');
+      editor.setContents(initialContent, 'silent');
+      const toolbar = editorHost.previousElementSibling;
+      if (toolbar?.classList.contains('ql-toolbar')) {
+        toolbar.classList.add('!rounded-t-md', '!border-base-300', '!bg-base-200');
+      }
+      editorHost.classList.add('!min-h-[210px]', '!rounded-b-md', '!border-base-300', '!bg-base-100', 'focus-within:!border-primary', 'focus-within:!ring-2', 'focus-within:!ring-primary/20');
+      editor.root.classList.add('!min-h-[210px]', '!text-sm', '!leading-6', '!text-base-content');
+      editor.on('text-change', () => {
+        textarea.value = editor.root.innerHTML;
+      });
+      richTextEditors[id] = editor;
+    });
+    if (!IS_EDIT && !IS_CLONE) {
+      const country = document.getElementById('country')?.value;
+      if (country && OUR_TERMS_PLACEHOLDERS[country]) setRichTextContent('our_terms', OUR_TERMS_PLACEHOLDERS[country]);
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeRichTextEditors);
+  } else {
+    initializeRichTextEditors();
+  }
+  const jobForm = document.getElementById('jobForm');
+
+  jobForm?.addEventListener('submit', event => {
+    // Always copy the editor contents into their textareas before saving. This
+    // also preserves partially completed requirements when saving a draft.
+    syncRichTextEditors();
+
+    if (event.submitter?.value !== 'publish') return;
+
+    const requiredEditors = [{
+        id: 'job_description',
+        label: 'Job Description'
+      },
+      {
+        id: 'key_skills',
+        label: 'Required Skills'
+      },
+      {
+        id: 'our_terms',
+        label: 'Benefits'
+      }
+    ];
+    const missingEditors = [];
+
+    requiredEditors.forEach(field => {
+      const editor = richTextEditors[field.id];
+      const editorContainer = editor?.root.closest('.ql-container');
+      const hasContent = editor ?
+        editor.getText().trim().length > 0 :
+        document.getElementById(field.id)?.value.trim().length > 0;
+
+      editorContainer?.classList.toggle('!border-error', !hasContent);
+      editorContainer?.classList.toggle('!ring-1', !hasContent);
+      editorContainer?.classList.toggle('!ring-error', !hasContent);
+      editor?.root.setAttribute('aria-invalid', hasContent ? 'false' : 'true');
+      if (!hasContent) missingEditors.push(field);
+    });
+
+    if (!missingEditors.length) return;
+
+    event.preventDefault();
+    const message = `Please complete: ${missingEditors.map(field => field.label).join(', ')}.`;
+    let notice = document.getElementById('publishValidationNotice');
+
+    if (!notice) {
+      notice = document.createElement('div');
+      notice.id = 'publishValidationNotice';
+      notice.className = 'sticky top-3 z-30 rounded-xl border border-error/30 bg-error/10 px-4 py-3 text-[13px] font-semibold text-error shadow-sm';
+      notice.setAttribute('role', 'alert');
+      jobForm.prepend(notice);
+    }
+
+    notice.textContent = message;
+    notice.hidden = false;
+
+    const firstEditor = richTextEditors[missingEditors[0].id];
+    firstEditor?.root.closest('#job-description-section')?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start'
+    });
+    firstEditor?.focus();
   });
 </script>
 
-<?php if (!$isAjax): ?>
-  <?php include dirname(__DIR__) . "/includes/footer.php"; ?>
-<?php endif; ?>
+<?php include dirname(__DIR__) . "/includes/footer.php"; ?>
