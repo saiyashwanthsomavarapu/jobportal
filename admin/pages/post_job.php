@@ -109,7 +109,7 @@ $expFromOpts = array_map("strval", range(0, 10));
 
 $expToOpts = array_merge(array_map("strval", range(4, 15)), ["15+"]);
 
-$salaryTypes = ["Annual", "Monthly", "Per Hour", "Yearly"];
+$salaryTypes = ["Annual", "Monthly", "Hourly", "Yearly"];
 
 
 /* HELPERS */
@@ -670,20 +670,26 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       $salaryText = $parts[0];
       if (
         preg_match(
-          '/^([\d.]+)\s*(LPA|K)?\s*[-–]\s*([\d.]+)\s*(LPA|K)?$/i',
+          '/^([\d.]+)\s*(LPA|L|K|T)?\s*[-–]\s*([\d.]+)\s*(LPA|L|K|T)?$/i',
           $salaryText,
           $matches
         )
       ) { // Example: 35 LPA - 45 LPA or 80K - 100K
         $savedSalFrom = trim($matches[1]);
         $savedSalUnitFrom = strtoupper(trim($matches[2] ?? ""));
+        if ($savedSalUnitFrom === 'LPA') $savedSalUnitFrom = 'L';
+        if ($savedSalUnitFrom === 'K') $savedSalUnitFrom = 'T';
         $savedSalTo = trim($matches[3]);
         $savedSalUnitTo = strtoupper(trim($matches[4] ?? ""));
+        if ($savedSalUnitTo === 'LPA') $savedSalUnitTo = 'L';
+        if ($savedSalUnitTo === 'K') $savedSalUnitTo = 'T';
       } elseif (
-        preg_match('/^([\d.]+)\s*(LPA|K)?$/i', $salaryText, $matches)
+        preg_match('/^([\d.]+)\s*(LPA|L|K|T)?$/i', $salaryText, $matches)
       ) { // Example: 50K
         $savedSalFrom = trim($matches[1]);
         $savedSalUnitFrom = strtoupper(trim($matches[2] ?? ""));
+        if ($savedSalUnitFrom === 'LPA') $savedSalUnitFrom = 'L';
+        if ($savedSalUnitFrom === 'K') $savedSalUnitFrom = 'T';
       } else { // Legacy format
         if (
           preg_match(
@@ -710,9 +716,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   }
 }
 
+/* HEADER */
+$referenceShell = true;
 include dirname(__DIR__) . "/includes/header.php";
 ?>
-
 <?php
 $postJobPageClass = "mx-auto min-w-0 max-w-[768px] space-y-6 font-['Plus_Jakarta_Sans',system-ui,sans-serif]";
 $postJobCardClass = "scroll-mt-4 overflow-hidden rounded-xl border border-base-300 bg-base-100 p-5 shadow-sm";
@@ -721,38 +728,7 @@ $postJobHeadingTextClass = "text-base font-semibold leading-6 text-base-content"
 $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounded-lg";
 ?>
 
-<div class="<?= $postJobPageClass ?>">
-
-  <?php if ($isEdit && !empty($job)): ?>
-    <?php
-    $editStatus = strtolower($job['status'] ?? 'draft');
-    $editStatusLabels = ['published' => 'Published', 'draft' => 'Draft', 'closed' => 'Closed', 'archived' => 'Pending Review'];
-    $editStatusStyles = [
-      'published' => 'bg-success/10 text-success border-success/20',
-      'draft' => 'bg-warning/10 text-warning border-warning/20',
-      'closed' => 'bg-error/10 text-error border-error/20',
-      'archived' => 'bg-secondary/10 text-secondary border-secondary/20',
-    ];
-    $editStatusLabel = $editStatusLabels[$editStatus] ?? ucfirst($editStatus);
-    $editStatusClass = $editStatusStyles[$editStatus] ?? 'bg-base-200 text-base-content/70 border-base-300';
-    ?>
-    <header class="flex min-h-[104px] items-start justify-between gap-6 rounded-xl border border-base-300 bg-base-100 p-6 shadow-sm max-sm:flex-col max-sm:gap-4">
-      <div class="min-w-0">
-        <div class="flex flex-wrap items-center gap-2">
-          <h1 class="text-2xl font-bold leading-8 text-base-content">Edit Job</h1>
-          <span class="inline-flex min-h-[22px] items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold <?= $editStatusClass ?>"><?= e($editStatusLabel) ?></span>
-        </div>
-        <p class="mt-1 font-mono text-sm leading-5 text-base-content/60"><?= e($job['job_code'] ?? '') ?></p>
-      </div>
-      <?php if ($editStatus !== 'archived'): ?>
-        <form method="POST" action="<?= ADMIN_URL ?>/pages/job_action.php" class="shrink-0">
-          <?= csrfField() ?>
-          <input type="hidden" name="id" value="<?= (int) $job['id'] ?>">
-          <button class="btn h-9 min-h-9 rounded-md border-base-300 bg-base-100 px-4 text-sm font-medium hover:bg-base-200" type="submit" name="a" value="archive">Archive</button>
-        </form>
-      <?php endif; ?>
-    </header>
-  <?php endif; ?>
+<div class="min-w-0 space-y-6">
 
   <?php if (!empty($errors)): ?>
     <div class="mb-6 flex items-start gap-2.5 rounded-xl border border-error/25 bg-error/10 px-4 py-3.5 text-[13px] font-medium text-error">
@@ -830,7 +806,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
 
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Job Code <span class="text-error">*</span></legend>
-          <input type="text" class="<?= INPUT_CLASS ?>" value="<?= $isEdit ? e($job['job_code']) : ($isClone ? e($cloneNewCode) : 'Assigned on save') ?>" readonly tabindex="-1">
+          <input type="text" class="<?= INPUT_CLASS ?> cursor-not-allowed bg-base-200 text-base-content/60" value="<?= $isEdit ? e($job['job_code']) : ($isClone ? e($cloneNewCode) : 'Assigned on save') ?>" readonly disabled tabindex="-1">
           <input type="hidden" name="job_code_display" id="jobCodeDisplay" value="<?= $isEdit ? e($job['job_code']) : ($isClone ? e($cloneNewCode) : '') ?>">
           <input type="hidden" name="job_code_prefix" id="jobCodePrefix" value="AC">
           <input type="hidden" name="job_code_number" id="jobCodeNumber" value="<?= $isEdit ? e($job['job_code_number']) : ($isClone ? e($cloneNewNumber) : '') ?>">
@@ -1336,6 +1312,8 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
 
     <?php endif; ?>
 
+
+
     <!-- ═══ REFERENCE CARD 3: COMPENSATION ═════════════════════ -->
     <div id="compensation" class="<?= $postJobCardClass ?> border-t-4 border-t-warning">
       <div class="<?= $postJobHeadingClass ?>">
@@ -1346,16 +1324,69 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
         </div>
         <h2 class="<?= $postJobHeadingTextClass ?>">Compensation</h2>
       </div>
-      <div class="grid grid-cols-1 gap-5 sm:grid-cols-3">
+
+      <label
+        for="salaryBoe"
+        class="mb-5 flex cursor-pointer items-center justify-between gap-4 rounded-lg border p-4 transition-colors <?= $savedSalBoe ? 'border-success/40 bg-success/10' : 'border-base-300 bg-base-200/30 hover:border-primary/30 hover:bg-primary/5' ?>">
+        <span class="min-w-0">
+          <strong class="block text-sm font-semibold text-base-content">Based on Experience</strong>
+          <small class="mt-1 block text-xs leading-5 text-base-content/50">Enable when compensation should be discussed based on the candidate profile.</small>
+        </span>
+        <input
+          type="checkbox"
+          name="salary_boe"
+          id="salaryBoe"
+          value="1"
+          class="toggle toggle-primary shrink-0"
+          onchange="toggleSalaryBoe()"
+          <?= $savedSalBoe ? 'checked' : '' ?>>
+      </label>
+
+      <div id="salaryBoeText" class="<?= $savedSalBoe ? '' : 'hidden' ?> mb-5">
+        <div class="alert alert-success alert-soft py-3 text-xs">
+          <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75l2.25 2.25L15 10.5 M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span>Salary will be based on experience.</span>
+        </div>
+      </div>
+
+      <div id="salaryInputsWrap" class="<?= $savedSalBoe ? 'hidden' : '' ?> grid grid-cols-1 gap-5 sm:grid-cols-2">
         <fieldset class="fieldset">
           <legend class="fieldset-legend">Salary Min</legend>
-          <input type="number" name="salary_from" id="salaryFrom" class="<?= INPUT_CLASS ?>" min="0" step="any" placeholder="95000" value="<?= e($savedSalFrom) ?>" required>
+          <div class="join w-full">
+            <input type="number" name="salary_from" id="salaryFrom" class="<?= INPUT_CLASS ?> join-item min-w-0 flex-1" min="0" step="any" placeholder="95" value="<?= e($savedSalFrom) ?>" oninput="updateSalaryPreview()" <?= $savedSalBoe ? '' : 'required' ?>>
+            <select name="salary_unit_from" id="salaryUnitFrom" class="<?= SELECT_CLASS ?> join-item !w-[108px] !min-w-[108px] shrink-0 cursor-pointer !appearance-auto !pr-8" onchange="updateSalaryPreview()" title="Salary unit">
+              <option value="" <?= $savedSalUnitFrom === '' ? 'selected' : '' ?>>Unit</option>
+              <option value="L" <?= $savedSalUnitFrom === 'L' ? 'selected' : '' ?>>L</option>
+              <option value="T" <?= $savedSalUnitFrom === 'T' ? 'selected' : '' ?>>T</option>
+            </select>
+            <span class="sr-only">L means Lakhs. T means Thousands.</span>
+          </div>
         </fieldset>
-        <fieldset class="fieldset">
-          <legend class="fieldset-legend">Salary Max</legend>
-          <input type="number" name="salary_to" id="salaryTo" class="<?= INPUT_CLASS ?>" min="0" step="any" placeholder="130000" value="<?= e($savedSalTo) ?>" required>
-        </fieldset>
-        <fieldset class="fieldset">
+        <div class="min-w-0">
+          <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">Max</label>
+          <div class="flex">
+            <input type="number" name="salary_to" id="salaryTo" class="<?= INPUT_CLASS ?> min-w-0 flex-1 rounded-r-none" placeholder="45" value="<?= e($savedSalTo) ?>" min="0" step="any" oninput="updateSalaryPreview()" <?= $savedSalBoe ? '' : 'required' ?>>
+            <select name="salary_unit_to" id="salaryUnitTo" class="<?= SELECT_CLASS ?> w-0 shrink-0 rounded-l-none border-l-0" onchange="updateSalaryPreview()">
+              <option value="" <?= $savedSalUnitTo === '' ? 'selected' : '' ?>>—</option>
+              <option value="L" <?= $savedSalUnitTo === 'L' ? 'selected' : '' ?>>L</option>
+              <option value="K" <?= $savedSalUnitTo === 'K' ? 'selected' : '' ?>>K</option>
+            </select>
+          </div>
+        </div>
+        <div class="min-w-0">
+          <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">Max</label>
+          <div class="flex">
+            <input type="number" name="salary_to" id="salaryTo" class="<?= INPUT_CLASS ?> min-w-0 flex-1 rounded-r-none" placeholder="45" value="<?= e($savedSalTo) ?>" min="0" step="any" oninput="updateSalaryPreview()" <?= $savedSalBoe ? '' : 'required' ?>>
+            <select name="salary_unit_to" id="salaryUnitTo" class="<?= SELECT_CLASS ?> w-20 shrink-0 rounded-l-none border-l-0" onchange="updateSalaryPreview()">
+              <option value="" <?= $savedSalUnitTo === '' ? 'selected' : '' ?>>—</option>
+              <option value="L" <?= $savedSalUnitTo === 'L' ? 'selected' : '' ?>>L</option>
+              <option value="K" <?= $savedSalUnitTo === 'K' ? 'selected' : '' ?>>K</option>
+            </select>
+          </div>
+        </div>
+        <fieldset class="fieldset sm:col-span-2">
           <legend class="fieldset-legend">Currency</legend>
           <?php
           $countryCurrency = (string) (($countryData[(string) ($old['country'] ?? '')]['currency'][0] ?? ''));
@@ -1365,9 +1396,16 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
           <input type="hidden" name="salary_currency" id="salaryCurrency" value="<?= e($defaultCurrency) ?>">
         </fieldset>
       </div>
-      <input type="hidden" name="salary_unit_from" id="salaryUnitFrom" value="">
-      <input type="hidden" name="salary_unit_to" id="salaryUnitTo" value="">
-      <input type="hidden" name="salary_type" id="salaryType" value="<?= e($savedSalType ?: 'Annual') ?>">
+      <div id="salaryCurrencyTypeWrap" class="<?= $savedSalBoe ? 'hidden' : '' ?> mt-5 grid grid-cols-1 gap-5">
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Pay Type <span class="text-error">*</span></legend>
+          <select name="salary_type" id="salaryType" class="<?= SELECT_CLASS ?> cursor-pointer" required onchange="updateSalaryPreview()">
+            <?php foreach ($salaryTypes as $st): ?>
+              <option value="<?= e($st) ?>" <?= ($savedSalType ?: 'Annual') === $st ? 'selected' : '' ?>><?= e($st) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </fieldset>
+      </div>
     </div>
 
     <?php if (false): // Replaced by the compact compensation card above. 
@@ -1969,9 +2007,9 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
     const salaryBoe = document.getElementById('salaryBoe');
     if (!salaryBoe) return;
     const checked = salaryBoe.checked;
-    document.getElementById('salaryBoeText').style.display = checked ? 'block' : 'none';
-    document.getElementById('salaryInputsWrap').style.display = checked ? 'none' : 'block';
-    document.getElementById('salaryCurrencyTypeWrap').style.display = checked ? 'none' : 'block';
+    document.getElementById('salaryBoeText')?.classList.toggle('hidden', !checked);
+    document.getElementById('salaryInputsWrap')?.classList.toggle('hidden', checked);
+    document.getElementById('salaryCurrencyTypeWrap')?.classList.toggle('hidden', checked);
 
     // Toggle required on salary inputs so HTML5 validation doesn't fire
     const inputs = document.querySelectorAll(
@@ -2431,7 +2469,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
   }; // ← Add new countries above this line
 
   if (window.tinymce) tinymce.init({
-    selector: '#job_description, #key_skills, #our_terms',
+    selector: '#job_description, #key_skills, #our_terms, #responsibilities, #preferred_skills, #qualifications',
     height: 300,
     menubar: false,
     plugins: 'anchor autolink charmap codesample emoticons image link lists media searchreplace table visualblocks wordcount',
@@ -2486,7 +2524,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
 
   function initializeRichTextEditors() {
     if (typeof Quill === 'undefined') return;
-    ['job_description', 'key_skills', 'our_terms'].forEach(id => {
+    ['job_description', 'responsibilities', 'key_skills', 'preferred_skills', 'our_terms'].forEach(id => {
       const textarea = document.getElementById(id);
       if (!textarea || richTextEditors[id]) return;
       const editorHost = document.createElement('div');
@@ -2495,7 +2533,14 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
       textarea.hidden = true;
       const editor = new Quill(editorHost, {
         theme: 'snow',
-        placeholder: id === 'job_description' ? 'Describe the role...' : 'Add formatted content...',
+        placeholder: id === 'job_description' ?
+          'Describe the role...' : (id === 'responsibilities' ?
+            'Add key responsibilities...' :
+            (id === 'key_skills' ?
+              'Add required skills...' :
+              (id === 'preferred_skills' ?
+                'Add preferred skills...' :
+                'Add formatted content...'))),
         modules: {
           toolbar: [
             [{
