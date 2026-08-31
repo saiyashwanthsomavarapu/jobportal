@@ -119,6 +119,50 @@
     padding: 0 12px 0 37px
 }
 
+.jobs-filter-grid.filters {
+    display: grid;
+    grid-template-columns: minmax(220px, 1.35fr) repeat(4, minmax(118px, 1fr)) auto;
+    align-items: center
+}
+
+.jobs-filter-grid.filters .search-box.input {
+    position: relative;
+    width: 100%;
+    max-width: none;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 0 12px;
+    overflow: hidden
+}
+
+.jobs-filter-grid.filters .search-box.input svg {
+    position: static;
+    width: 16px;
+    height: 16px;
+    flex: 0 0 auto
+}
+
+.jobs-filter-grid.filters .search-box.input input {
+    min-width: 0;
+    height: auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none
+}
+
+.jobs-filter-grid.filters select {
+    width: 100%;
+    min-width: 0
+}
+
+.jobs-filter-grid.filters .clear-button {
+    width: auto;
+    justify-self: start;
+    white-space: nowrap
+}
+
 .filter-button,
 .clear-button {
     height: 38px;
@@ -238,13 +282,22 @@
 
 .check-column {
     width: 42px !important;
-    padding-left: 16px !important
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+    text-align: center !important
 }
 
 .check-column input {
     width: 15px;
     height: 15px;
     accent-color: var(--blue)
+}
+
+.check-column .checkbox {
+    width: 16px;
+    height: 16px;
+    margin: 0 auto;
+    display: block
 }
 
 .job-cell {
@@ -464,6 +517,48 @@
     font-size: 11px
 }
 
+.jobs-pagination {
+    gap: 16px
+}
+
+.jobs-pagination .jobs-pagination-control {
+    gap: 0
+}
+
+.jobs-pagination .jobs-pagination-control .btn {
+    width: 34px;
+    min-height: 34px;
+    height: 34px;
+    padding: 0;
+    border-radius: 0;
+    font-size: 16px
+}
+
+.jobs-pagination .jobs-page-label {
+    min-height: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--line);
+    border-left: 0;
+    border-right: 0;
+    background: #fff;
+    padding: 0 12px;
+    color: #526176;
+    font-size: 12px;
+    white-space: nowrap
+}
+
+.jobs-pagination .jobs-pagination-control select {
+    width: 112px;
+    min-height: 34px;
+    height: 34px;
+    padding: 0 28px 0 10px;
+    border-color: var(--line);
+    border-radius: 0 7px 7px 0;
+    font-size: 11px
+}
+
 .copy-toast {
     position: fixed;
     right: 24px;
@@ -494,11 +589,23 @@
     .jobs-table {
         min-width: 940px
     }
+
+    .jobs-filter-grid.filters {
+        grid-template-columns: minmax(240px, 1.3fr) repeat(2, minmax(170px, 1fr))
+    }
 }
 
 @media(max-width:820px) {
     .jobs-content {
         padding: 24px 14px 36px
+    }
+
+    .jobs-filter-grid.filters {
+        grid-template-columns: repeat(2, minmax(0, 1fr))
+    }
+
+    .jobs-filter-grid.filters .search-box.input {
+        grid-column: 1 / -1
     }
 
     .filters select {
@@ -515,6 +622,14 @@
 @media(max-width:520px) {
     .jobs-heading h1 {
         font-size: 21px
+    }
+
+    .jobs-filter-grid.filters {
+        grid-template-columns: 1fr
+    }
+
+    .jobs-filter-grid.filters .search-box.input {
+        grid-column: auto
     }
 
     .filters {
