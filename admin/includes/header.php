@@ -117,7 +117,7 @@ if (!empty($referenceShell)) {
         </a>
 
         <?php $isActive = basename($_SERVER['PHP_SELF']) === 'post_job.php'; ?>
-        <a href="<?= ADMIN_URL ?>/pages/post_job.php#country-basics"
+        <a href="<?= ADMIN_URL ?>/pages/post_job.php"
           class="group flex items-center gap-3 px-2.5 py-2.5 rounded-lg text-[16px] font-semibold transition-colors
                  <?= $isActive ? 'bg-accent-soft text-accent-dark' : 'text-ink2 hover:bg-[#e2eaf4] hover:text-ink' ?>">
           <svg class="h-[18px] w-[18px] flex-shrink-0 <?= $isActive ? 'text-accent' : 'text-muted group-hover:text-ink2' ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
@@ -245,7 +245,7 @@ if (!empty($referenceShell)) {
             </svg>
             View Site
           </a>
-          <a href="<?= ADMIN_URL ?>/pages/post_job.php#country-basics"
+          <a href="<?= ADMIN_URL ?>/pages/post_job.php"
             class="flex items-center gap-1.5 bg-accent text-white rounded-lg font-head text-[12px] font-bold
                    tracking-wide px-4 py-2 shadow-pop hover:bg-accent-dark transition-all">
             <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.25">

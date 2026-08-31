@@ -378,6 +378,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     redirect(ADMIN_URL . '/pages/jobs.php');
   }
 
+  $ccSuffix = trim($_POST["client_code_suffix"] ?? "");
+
+  // Digits only
+  $ccSuffix = preg_replace("/[^0-9]/", "", $ccSuffix);
 
 
   $submitAction = $_POST['submit_action'] ?? 'save';
@@ -412,6 +416,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     "job_code_number" => $isEdit ? $job["job_code_number"] ?? 0 : (int) ($_POST["job_code_number"] ?? 0),
     "job_title" => trim($_POST["job_title"] ?? ""),
     "city" => trim($_POST["city"] ?? ""),
+    "client_code" => $ccSuffix,
     "state_province" => trim($_POST["state_province"] ?? ""),
     "postal_code" => "",
     "workplace_type" => trim($_POST["workplace_type"] ?? ""),
@@ -524,6 +529,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
           UPDATE jobs
           SET
               {$set},
+              updated_at = NOW(),
               published_at = IF(
                   :status_check = 'published'
                   AND published_at IS NULL,
@@ -716,19 +722,165 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   }
 }
 
+
+/* CLIENT CODE VALUES */
+
+$savedCcSuffix = "";
+
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+  $savedCcSuffix = trim($_POST["client_code_suffix"] ?? "");
+} elseif (($isEdit || $isClone) && !empty($job["client_code"])) {
+  // Preserve existing client code.
+  // The original code did not actually parse it,
+  // so behavior remains unchanged.
+  $savedCcSuffix = $job["client_code"] ?? "";
+}
 /* HEADER */
 $referenceShell = true;
+$referenceBodyClass = trim(($referenceBodyClass ?? '') . ' post-job-shell-page');
 include dirname(__DIR__) . "/includes/header.php";
 ?>
 <?php
-$postJobPageClass = "mx-auto min-w-0 max-w-[768px] space-y-6 font-['Plus_Jakarta_Sans',system-ui,sans-serif]";
-$postJobCardClass = "scroll-mt-4 overflow-hidden rounded-xl border border-base-300 bg-base-100 p-5 shadow-sm";
+$postJobPageClass = "mr-auto min-w-0 w-full max-w-[768px] space-y-6 font-['Plus_Jakarta_Sans',system-ui,sans-serif] [@media(min-width:821px)]:ml-[264px] [@media(min-width:821px)]:w-[calc(100vw-288px)] [@media(min-width:1056px)]:w-full";
+$postJobCardClass = "scroll-mt-4 overflow-hidden rounded-xl  bg-base-100 p-5 shadow-sm";
 $postJobHeadingClass = "mb-5 flex items-center gap-2.5 border-b border-base-300 pb-3.5";
 $postJobHeadingTextClass = "text-base font-semibold leading-6 text-base-content";
 $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounded-lg";
 ?>
 
-<div class="min-w-0 space-y-6">
+<style>
+  body.post-job-shell-page .form-page-header,
+  body.post-job-shell-page .edit-job-page-header {
+    min-height: 78px;
+    margin-left: 264px;
+    width: calc(100vw - 288px);
+    max-width: 768px;
+    display: flex;
+    align-items: center;
+  }
+
+  body.post-job-shell-page .edit-job-page-header {
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  body.post-job-shell-page .form-page-header>div {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+
+  body.post-job-shell-page .edit-job-title-block {
+    min-width: 0;
+  }
+
+  body.post-job-shell-page .edit-job-title-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  body.post-job-shell-page .form-page-header a,
+  body.post-job-shell-page .form-page-header span {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  body.post-job-shell-page .form-page-header h1,
+  body.post-job-shell-page .edit-job-page-header h1 {
+    margin: 0;
+    color: var(--ink);
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  body.post-job-shell-page .edit-job-page-header p {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  body.post-job-shell-page .edit-status-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 0 10px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: #fff;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  body.post-job-shell-page .edit-status-published {
+    border-color: color-mix(in srgb, var(--blue) 24%, white);
+    background: #e8f1fd;
+    color: var(--blue);
+  }
+
+  body.post-job-shell-page .edit-status-draft {
+    border-color: #ecd49c;
+    background: #fff9e8;
+    color: #9b6500;
+  }
+
+  body.post-job-shell-page .edit-status-closed,
+  body.post-job-shell-page .edit-status-archived {
+    border-color: var(--line);
+    background: #eef2f6;
+    color: #637188;
+  }
+
+  body.post-job-shell-page .archive-job-button {
+    height: 38px;
+    padding: 0 14px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  body.post-job-shell-page .archive-job-button:hover {
+    background: #f1f5f9;
+  }
+
+  @media (min-width: 1056px) {
+
+    body.post-job-shell-page .form-page-header,
+    body.post-job-shell-page .edit-job-page-header {
+      width: 768px;
+    }
+  }
+
+  @media (max-width: 820px) {
+
+    body.post-job-shell-page .form-page-header,
+    body.post-job-shell-page .edit-job-page-header {
+      min-height: 72px;
+      margin-left: 0;
+      width: auto;
+      max-width: none;
+      padding: 0 14px 0 64px;
+    }
+
+    body.post-job-shell-page .edit-job-page-header {
+      align-items: flex-start;
+      flex-direction: column;
+      justify-content: center;
+      gap: 10px;
+      padding-top: 12px;
+      padding-bottom: 12px;
+    }
+  }
+</style>
+
+<div class="<?= $postJobPageClass ?>">
 
   <?php if (!empty($errors)): ?>
     <div class="mb-6 flex items-start gap-2.5 rounded-xl border border-error/25 bg-error/10 px-4 py-3.5 text-[13px] font-medium text-error">
@@ -782,7 +934,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
     <?php endif; ?>
 
     <!-- ═══ REFERENCE CARD 1: COUNTRY & BASICS ═════════════════ -->
-    <div id="country-basics" class="<?= $postJobCardClass ?> border-t-4 border-t-primary">
+    <div id="country-basics" class="<?= $postJobCardClass ?> border-t-4 border-primary">
       <div class="<?= $postJobHeadingClass ?>">
         <div class="<?= $postJobIconBaseClass ?> bg-primary/10 text-primary">
           <svg class="<?= SVG_ICON ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
@@ -805,14 +957,51 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
         </fieldset>
 
         <fieldset class="fieldset">
-          <legend class="fieldset-legend">Job Code <span class="text-error">*</span></legend>
-          <input type="text" class="<?= INPUT_CLASS ?> cursor-not-allowed bg-base-200 text-base-content/60" value="<?= $isEdit ? e($job['job_code']) : ($isClone ? e($cloneNewCode) : 'Assigned on save') ?>" readonly disabled tabindex="-1">
-          <input type="hidden" name="job_code_display" id="jobCodeDisplay" value="<?= $isEdit ? e($job['job_code']) : ($isClone ? e($cloneNewCode) : '') ?>">
-          <input type="hidden" name="job_code_prefix" id="jobCodePrefix" value="AC">
-          <input type="hidden" name="job_code_number" id="jobCodeNumber" value="<?= $isEdit ? e($job['job_code_number']) : ($isClone ? e($cloneNewNumber) : '') ?>">
+          <legend class="fieldset-legend">
+            Company or Client name
+            <span class="text-error">*</span>
+          </legend>
+          <select name="client_id" id="client_id" class="<?= SELECT_CLASS ?>" onchange="onCountryChange()" required>
+            <option value="">Select Client Name</option>
+
+            <?php foreach ($clientsList as $client): ?>
+              <option
+                value="<?= e($client['id']) ?>"
+                <?= oldSel('client_id', $client['id']) ?>>
+                <?= e($client['client_name']) ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
         </fieldset>
 
-        <fieldset class="fieldset sm:col-span-2">
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">
+            Client Reference
+            <span class="text-error">*</span>
+            <span class="text-xs font-normal text-base-content/50">
+              (internal only)
+            </span>
+          </legend>
+
+          <input
+            type="text"
+            name="client_code_suffix"
+            id="clientCodeSuffix"
+            class="<?= INPUT_CLASS ?> "
+            placeholder="12345"
+            maxlength="5"
+            value="<?= e(preg_replace("/[^0-9]/", "", $savedCcSuffix)) ?>"
+            oninput="this.value=this.value.replace(/[^0-9]/g,'');updateClientCodePreview()"
+            title="4 or 5 digit number" />
+
+          <label class="label">
+            <span class="label-text-alt text-base-content/50">
+              Enter a 4 or 5 digit client reference.
+            </span>
+          </label>
+        </fieldset>
+
+        <fieldset class="fieldset ">
           <legend class="fieldset-legend">Job Title <span class="text-error">*</span></legend>
           <input type="text" name="job_title" class="<?= INPUT_CLASS ?>" placeholder="e.g. UX Designer" value="<?= old('job_title') ?>" required>
         </fieldset>
@@ -866,267 +1055,44 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
           </select>
         </fieldset>
 
-        <div class="grid grid-cols-1 gap-5 sm:col-span-2 sm:grid-cols-3">
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">Province / State</legend>
-            <select name="state_province" id="stateSelect" class="<?= SELECT_CLASS ?>">
-              <option value="">Select country first</option>
-            </select>
-          </fieldset>
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">City</legend>
-            <input type="text" name="city" id="city" class="<?= INPUT_CLASS ?>" placeholder="e.g. Vancouver" value="<?= old('city') ?>">
-          </fieldset>
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">Work Location</legend>
-            <input type="text" name="work_location" class="<?= INPUT_CLASS ?>" placeholder="e.g. Office name" value="<?= old('work_location') ?>">
-          </fieldset>
-        </div>
-
         <fieldset class="fieldset sm:col-span-2">
-          <legend class="fieldset-legend">Number of Openings</legend>
-          <input type="number" name="number_of_openings" id="employmentLastField" class="<?= INPUT_CLASS ?>" min="1" value="<?= old('number_of_openings', '1') ?>">
+          <legend class="fieldset-legend">Experience <span class="text-error">*</span></legend>
+          <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <fieldset class="fieldset">
+              <!-- <legend class="fieldset-legend text-sm font-semibold text-base-content">Minimum</legend> -->
+              <select name="exp_from" id="expFrom" class="<?= SELECT_CLASS ?> cursor-pointer" required onchange="updateExpPreview()">
+                <option value="">Select min years</option>
+                <?php foreach ($expFromOpts as $v): ?>
+                  <option value="<?= e($v) ?>" <?= $savedExpFrom === $v ? 'selected' : '' ?>><?= e($v) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </fieldset>
+
+            <fieldset class="fieldset">
+              <!-- <legend class="fieldset-legend text-sm font-semibold text-base-content">Maximum</legend> -->
+              <select name="exp_to" id="expTo" class="<?= SELECT_CLASS ?> cursor-pointer" required onchange="updateExpPreview()">
+                <option value="">Select max years</option>
+                <?php foreach ($expToOpts as $v): ?>
+                  <option value="<?= e($v) ?>" <?= $savedExpTo === $v ? 'selected' : '' ?>><?= e($v) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </fieldset>
+          </div>
+          <!-- <p id="expPreview" class="label text-xs text-base-content/50"><?= ($savedExpFrom !== '' && $savedExpTo !== '') ? e($savedExpFrom . ' - ' . $savedExpTo . ' years') : 'Select experience range' ?></p> -->
         </fieldset>
-      </div>
-    </div>
 
-    <?php if (false): // Retained legacy card markup for reference; replaced by the two cards above. 
-    ?>
-      <!-- ═══ CARD 1: CLIENT & ROLE ═══════════════════════════════
-       Groups "who is this for" + "what is the role" — the two things a
-       recruiter decides before anything else. Country moved in here too
-       since it's part of defining the role, not a separate "step". -->
-      <div class="rounded-2xl border border-base-300 bg-base-100 p-6 shadow-sm">
-        <div class="mb-5 flex items-center gap-2.5 border-b border-[#e7e9f0] pb-3.5">
-          <div class="<?= SVG_DIV ?>">
-            <svg class="<?= SVG_ICON ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0112 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 01-.673-.38m0 0A2.18 2.18 0 013 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0013.5 3h-3a2.25 2.25 0 00-2.25 2.25v.894m7.5 0a48.667 48.667 0 00-7.5 0" />
-            </svg>
-          </div>
-          <div class="min-w-0">
-            <h2 class="text-sm font-bold text-base-content">
-              Client &amp; Role
-            </h2>
-            <p class="mt-0.5 text-xs text-base-content/50">
-              Select the client and define the position you're hiring for.
-            </p>
-          </div>
-        </div>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">City <span class="text-error">*</span></legend>
+          <input type="text" name="city" id="city" class="<?= INPUT_CLASS ?>" placeholder="e.g. Vancouver" value="<?= old('city') ?>">
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Province / State <span class="text-error">*</span> </legend>
+          <select name="state_province" id="stateSelect" class="<?= SELECT_CLASS ?>" onchange="autoSelectTimezone()">
+            <option value="">Select country first</option>
+          </select>
+        </fieldset>
 
-        <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          <!-- Job Number — auto, locked (AC prefix global counter). Intentionally hidden;
-           the internal job number is assigned automatically and isn't a decision the
-           recruiter makes, so it stays out of the visible form (unchanged from original). -->
-          <div class="flex flex-col gap-1.5">
-            <label class="text-sm font-medium text-[#5b6072]">Job Number
-              <?php if ($isClone): ?>
-                <span class="text-[10px] font-normal text-[#d97706]"> ⧉ Cloned — new number assigned</span>
-              <?php else: ?>
-                <span class="text-[10px] font-normal text-[#0f9d63]"> ✓ Auto-generated</span>
-              <?php endif; ?>
-            </label>
-            <div class="flex items-center gap-2">
-              <div class="rounded-lg border border-[#e7e9f0] px-3 py-2.5 text-sm font-semibold text-[#5b6072]" style="background-color:#eef0f4 !important" id="jcPrefix">AC</div>
-              <span class="text-lg font-bold text-[#9aa0b4]">-</span>
-              <input type="text" class="<?= INPUT_CLASS ?>" id="jcNumDisplay"
-                value="<?= $isEdit
-                          ? e($job["job_code_number"])
-                          : ($isClone
-                            ? e($cloneNewNumber)
-                            : "Auto") ?>"
-                readonly tabindex="-1">
-            </div>
-            <input type="hidden" name="job_code_display" id="jobCodeDisplay"
-              value="<?= $isEdit ? e($job["job_code"]) : ($isClone ? e($cloneNewCode) : "") ?>">
-            <input type="hidden" name="job_code_prefix" id="jobCodePrefix"
-              value="<?= $isEdit || $isClone ? "AC" : "AC" ?>">
-            <input type="hidden" name="job_code_number" id="jobCodeNumber"
-              value="<?= $isEdit ? e($job["job_code_number"]) : ($isClone ? e($cloneNewNumber) : "") ?>">
-            <span class="text-xs text-[#9aa0b4]">Full number: <strong id="jcFull" class="text-[#0f9d63]">
-                <?= $isEdit
-                  ? e($job["job_code"])
-                  : ($isClone
-                    ? e($cloneNewCode)
-                    : "Assigned on save") ?>
-              </strong></span>
-          </div>
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">
-              Company or Client name
-              <span class="text-error">*</span>
-            </legend>
-            <select name="client_id" id="client_id" class="<?= SELECT_CLASS ?>" onchange="onCountryChange()" required>
-              <option value="">Select Client Name</option>
-
-              <?php foreach ($clientsList as $client): ?>
-                <option
-                  value="<?= e($client['id']) ?>"
-                  <?= oldSel('client_id', $client['id']) ?>>
-                  <?= e($client['client_name']) ?>
-                </option>
-              <?php endforeach; ?>
-            </select>
-          </fieldset>
-
-
-          <!-- Job Title -->
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">
-              Job Title
-              <span class="text-error">*</span>
-            </legend>
-
-            <input
-              type="text"
-              name="job_title"
-              class="<?= INPUT_CLASS ?>"
-              placeholder="e.g. Senior Full Stack Developer"
-              value="<?= old('job_title') ?>"
-              required />
-          </fieldset>
-
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">Department</legend>
-            <input type="text" name="department" class="<?= INPUT_CLASS ?>" placeholder="e.g. Engineering" value="<?= old('department') ?>">
-          </fieldset>
-
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">Hiring Manager</legend>
-            <input type="text" name="hiring_manager" class="<?= INPUT_CLASS ?>" placeholder="Hiring manager name" value="<?= old('hiring_manager') ?>">
-          </fieldset>
-
-          <!-- Country -->
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">
-              Country
-              <span class="text-error">*</span>
-            </legend>
-
-            <select name="country" id="country" class="<?= SELECT_CLASS ?>" onchange="onCountryChange()" required
-              <?= $isEdit ? 'disabled' : '' ?>>
-              <option value="">Select country</option>
-
-              <?php foreach ($countryData as $c => $d): ?>
-                <option
-                  value="<?= e($c) ?>"
-                  <?= oldSel('country', $c) ?>>
-                  <?= e($c) ?>
-                </option>
-              <?php endforeach; ?>
-            </select>
-
-            <?php if ($isEdit): ?>
-              <input
-                type="hidden"
-                name="country"
-                value="<?= e($job['country'] ?? '') ?>">
-            <?php endif; ?>
-          </fieldset>
-        </div>
-      </div>
-
-      <!-- ═══ CARD 2: LOCATION & WORK ARRANGEMENT ═══════════════════
-       Workplace Type now lives WITH City/State/Timezone because it directly
-       gates whether City/State are required (Remote hides them). Keeping
-       the controlling field and the fields it controls in the same card
-       makes that relationship visible instead of split across two cards. -->
-      <div class="rounded-2xl border border-base-300 bg-base-100 p-6 shadow-sm">
-        <div class="mb-6 flex items-center gap-3 border-b border-base-300 pb-4">
-          <div class="<?= SVG_DIV ?>">
-            <svg
-              class="<?= SVG_ICON ?>"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="1.75">
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
-            </svg>
-          </div>
-
-          <div class="min-w-0">
-            <h2 class="text-sm font-bold text-base-content">
-              Work Location
-            </h2>
-
-            <p class="mt-0.5 text-xs text-base-content/50">
-              Specify where the role is based and how the candidate will work.
-            </p>
-          </div>
-
-        </div>
-
-
-        <!-- Fields -->
-        <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-
-          <!-- Workplace Type -->
-          <!-- Workplace Type -->
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">
-              Work Mode <span class="text-error">*</span>
-            </legend>
-
-            <select
-              name="workplace_type"
-              id="workplaceType"
-              class="<?= SELECT_CLASS ?>"
-              onchange="toggleLocationFields()"
-              required>
-              <option value="">Select type</option>
-
-              <?php foreach ($workplaceTypes as $wt): ?>
-                <option
-                  value="<?= e($wt) ?>"
-                  <?= oldSel('workplace_type', $wt) ?>>
-                  <?= e($wt) ?>
-                </option>
-              <?php endforeach; ?>
-            </select>
-            <p class="label text-xs text-base-content/50">
-              Remote hides City/State below.
-            </p>
-          </fieldset>
-
-          <!-- City -->
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">
-              City <span class="text-error">*</span>
-            </legend>
-            <input
-              type="text"
-              name="city"
-              id="city"
-              class="<?= INPUT_CLASS ?>"
-              placeholder="e.g. Bangalore"
-              value="<?= old('city') ?>"
-              required />
-          </fieldset>
-
-
-          <!-- State / Province -->
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">
-              State / Province <span class="text-error">*</span>
-            </legend>
-            <select
-              name="state_province"
-              id="stateSelect"
-              class="<?= SELECT_CLASS ?>"
-              required>
-              <option value="">Select country first</option>
-            </select>
-          </fieldset>
-
-
-          <!-- Time Zone -->
-          <fieldset class="fieldset">
+        <!-- <fieldset class="fieldset">
             <legend class="fieldset-legend">
               Time Zone <span class="text-error">*</span>
             </legend>
@@ -1137,185 +1103,29 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
               required>
               <option value="">Select country first</option>
             </select>
-          </fieldset>
+          </fieldset> -->
 
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">Work Location</legend>
-            <input type="text" name="work_location" class="<?= INPUT_CLASS ?>" placeholder="e.g. Downtown office" value="<?= old('work_location') ?>">
-          </fieldset>
-
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">Number of Openings</legend>
-            <input type="number" name="number_of_openings" class="<?= INPUT_CLASS ?>" min="1" value="<?= old('number_of_openings', '1') ?>">
-          </fieldset>
-        </div>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">
+            Time Zone <span class="text-error">*</span>
+          </legend>
+          <select
+            name="timezone"
+            id="timezoneSelect"
+            class="<?= SELECT_CLASS ?>"
+            required>
+            <option value="">Select country first</option>
+          </select>
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Number of Openings</legend>
+          <input type="number" name="number_of_openings" id="employmentLastField" class="<?= INPUT_CLASS ?>" min="1" value="<?= old('number_of_openings', '1') ?>">
+        </fieldset>
       </div>
-
-      <!-- ═══ CARD 3: ROLE REQUIREMENTS ══════════════════════════════
-       Job Type and Experience are both "what kind of hire is this" —
-       neither is about location, so pulling them out of the old Work
-       Location card into their own group reads more coherently. -->
-      <div class="w-full rounded-2xl border border-base-300 bg-base-100 shadow-sm">
-        <!-- SECTION HEADER -->
-        <div class="flex items-center gap-3 border-b border-base-300 px-6 py-5">
-          <div class="<?= SVG_DIV ?>">
-            <svg
-              class="<?= SVG_ICON ?>"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="1.75">
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M9 12.75L11.25 15 15 9.75
-              M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <div>
-            <h2 class="text-sm font-bold text-base-content">
-              Employment Details
-            </h2>
-            <p class="mt-0.5 text-xs text-base-content/50">
-              Define the role type and experience required for this position.
-            </p>
-          </div>
-        </div>
-
-        <!-- CONTENT -->
-        <div class="p-6">
-          <div class="grid w-full grid-cols-1 gap-6 lg:grid-cols-2">
-            <!-- JOB TYPE -->
-            <fieldset class="fieldset w-full">
-              <legend class="fieldset-legend">
-                Employment Type
-                <span class="text-error">*</span>
-              </legend>
-              <select
-                name="job_type"
-                id="jobTypeSelect"
-                class="<?= SELECT_CLASS ?> h-11 w-full"
-                onchange="toggleOther(this, 'otherJobType')"
-                required>
-                <option value="">
-                  Select job type
-                </option>
-              </select>
-              <!-- OTHER JOB TYPE -->
-              <div
-                id="otherJobType"
-                class="mt-3 hidden">
-                <label
-                  for="jobTypeOther"
-                  class="mb-1.5 block text-xs font-medium text-base-content/60">
-                  Specify job type
-                </label>
-                <input
-                  type="text"
-                  name="job_type_other"
-                  id="jobTypeOther"
-                  class="<?= INPUT_CLASS ?> h-11 w-full"
-                  placeholder="e.g. Contract, Freelance"
-                  value="<?= old('job_type_other') ?>">
-              </div>
-            </fieldset>
-
-            <!-- EXPERIENCE -->
-            <fieldset class="fieldset w-full">
-              <legend class="fieldset-legend">
-                Experience
-                <span class="text-error">*</span>
-              </legend>
-              <div class="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] ">
-                <!-- MINIMUM -->
-                <fieldset class="fieldset">
-                  <select name="exp_from" id="expFrom" class="<?= SELECT_CLASS ?> h-11 w-full" required onchange="updateExpPreview()">
-                    <option value="">
-                      Select min years
-                    </option>
-                    <?php foreach ($expFromOpts as $v): ?>
-                      <option
-                        value="<?= e($v) ?>"
-                        <?= $savedExpFrom === $v ? 'selected' : '' ?>>
-                        <?= e($v) ?>
-                      </option>
-                    <?php endforeach; ?>
-                  </select>
-                </fieldset>
-
-                <!-- RANGE SEPARATOR -->
-                <div class="hidden sm:flex items-center justify-center pb-1">
-                  <div class="flex h-8 w-8 items-center justify-center rounded-full bg-base-200 text-base-content/40">
-                    <span class="text-sm font-semibold">
-                      –
-                    </span>
-                  </div>
-                </div>
-                <!-- MAXIMUM -->
-                <fieldset class="fieldset">
-                  <select
-                    name="exp_to"
-                    id="expTo"
-                    class="<?= SELECT_CLASS ?> h-11 w-full"
-                    required
-                    onchange="updateExpPreview()">
-                    <option value="">
-                      Select max years
-                    </option>
-                    <?php foreach ($expToOpts as $v): ?>
-                      <option
-                        value="<?= e($v) ?>"
-                        <?= $savedExpTo === $v ? 'selected' : '' ?>>
-                        <?= e($v) ?>
-                      </option>
-                    <?php endforeach; ?>
-                  </select>
-                </fieldset>
-              </div>
-
-              <!-- EXPERIENCE PREVIEW -->
-              <div class="mt-4 flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/[.04] px-3.5 py-3">
-                <div class="<?= SVG_DIV ?>">
-                  <svg
-                    class="<?= SVG_ICON ?>"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    stroke-width="1.75">
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      d="M13 16h-1v-4h-1m1-4h.01
-                    M21 12a9 9 0 11-18 0
-                    9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div class="min-w-0">
-                  <span class="block text-[11px] font-medium uppercase tracking-wide text-base-content/40">
-                    Experience Preview
-                  </span>
-                  <strong
-                    id="expPreview"
-                    class="mt-0.5 block break-words text-sm font-semibold text-primary">
-                    <?php if ($savedExpFrom !== '' && $savedExpTo !== ''): ?>
-                      <?= e($savedExpFrom . ' - ' . $savedExpTo . ' years') ?>
-                    <?php else: ?>
-                      Select experience range
-                    <?php endif; ?>
-                  </strong>
-                </div>
-              </div>
-            </fieldset>
-          </div>
-        </div>
-      </div>
-
-    <?php endif; ?>
-
-
+    </div>
 
     <!-- ═══ REFERENCE CARD 3: COMPENSATION ═════════════════════ -->
-    <div id="compensation" class="<?= $postJobCardClass ?> border-t-4 border-t-warning">
+    <div id="compensation" class="<?= $postJobCardClass ?> border-t-4 border-t-[#fbbf24]">
       <div class="<?= $postJobHeadingClass ?>">
         <div class="<?= $postJobIconBaseClass ?> bg-warning/10 text-warning">
           <svg class="<?= SVG_ICON ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
@@ -1353,39 +1163,29 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
 
       <div id="salaryInputsWrap" class="<?= $savedSalBoe ? 'hidden' : '' ?> grid grid-cols-1 gap-5 sm:grid-cols-2">
         <fieldset class="fieldset">
-          <legend class="fieldset-legend">Salary Min</legend>
-          <div class="join w-full">
-            <input type="number" name="salary_from" id="salaryFrom" class="<?= INPUT_CLASS ?> join-item min-w-0 flex-1" min="0" step="any" placeholder="95" value="<?= e($savedSalFrom) ?>" oninput="updateSalaryPreview()" <?= $savedSalBoe ? '' : 'required' ?>>
-            <select name="salary_unit_from" id="salaryUnitFrom" class="<?= SELECT_CLASS ?> join-item !w-[108px] !min-w-[108px] shrink-0 cursor-pointer !appearance-auto !pr-8" onchange="updateSalaryPreview()" title="Salary unit">
-              <option value="" <?= $savedSalUnitFrom === '' ? 'selected' : '' ?>>Unit</option>
+          <legend class="fieldset-legend text-sm font-semibold text-base-content">Minimum</legend>
+          <div class="join w-full overflow-hidden rounded-lg border border-base-300 bg-base-100 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
+            <input type="number" name="salary_from" id="salaryFrom" class="input join-item h-11 min-h-11 min-w-0 flex-1 rounded-none border-0 bg-base-100 px-3 text-sm text-base-content placeholder:text-base-content/35 focus:outline-none focus:ring-0" min="0" step="any" placeholder="35" value="<?= e($savedSalFrom) ?>" oninput="updateSalaryPreview()" <?= $savedSalBoe ? '' : 'required' ?>>
+            <select name="salary_unit_from" id="salaryUnitFrom" class="select join-item h-11 min-h-11 !w-[120px] !min-w-[120px] shrink-0 cursor-pointer rounded-none !border-0 !border-l !border-base-300 bg-base-100 px-3 !pr-8 text-sm text-base-content focus:outline-none focus:ring-0" onchange="updateSalaryPreview()" title="Salary unit">
+              <option value="" <?= $savedSalUnitFrom === '' ? 'selected' : '' ?>>—</option>
               <option value="L" <?= $savedSalUnitFrom === 'L' ? 'selected' : '' ?>>L</option>
               <option value="T" <?= $savedSalUnitFrom === 'T' ? 'selected' : '' ?>>T</option>
             </select>
             <span class="sr-only">L means Lakhs. T means Thousands.</span>
           </div>
         </fieldset>
-        <div class="min-w-0">
-          <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">Max</label>
-          <div class="flex">
-            <input type="number" name="salary_to" id="salaryTo" class="<?= INPUT_CLASS ?> min-w-0 flex-1 rounded-r-none" placeholder="45" value="<?= e($savedSalTo) ?>" min="0" step="any" oninput="updateSalaryPreview()" <?= $savedSalBoe ? '' : 'required' ?>>
-            <select name="salary_unit_to" id="salaryUnitTo" class="<?= SELECT_CLASS ?> w-0 shrink-0 rounded-l-none border-l-0" onchange="updateSalaryPreview()">
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend text-sm font-semibold text-base-content">Maximum</legend>
+          <div class="join w-full overflow-hidden rounded-lg border border-base-300 bg-base-100 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
+            <input type="number" name="salary_to" id="salaryTo" class="input join-item h-11 min-h-11 min-w-0 flex-1 rounded-none border-0 bg-base-100 px-3 text-sm text-base-content placeholder:text-base-content/35 focus:outline-none focus:ring-0" placeholder="45" value="<?= e($savedSalTo) ?>" min="0" step="any" oninput="updateSalaryPreview()" <?= $savedSalBoe ? '' : 'required' ?>>
+            <select name="salary_unit_to" id="salaryUnitTo" class="select join-item h-11 min-h-11 !w-[120px] !min-w-[120px] shrink-0 cursor-pointer rounded-none !border-0 !border-l !border-base-300 bg-base-100 px-3 !pr-8 text-sm text-base-content focus:outline-none focus:ring-0" onchange="updateSalaryPreview()" title="Salary unit">
               <option value="" <?= $savedSalUnitTo === '' ? 'selected' : '' ?>>—</option>
               <option value="L" <?= $savedSalUnitTo === 'L' ? 'selected' : '' ?>>L</option>
-              <option value="K" <?= $savedSalUnitTo === 'K' ? 'selected' : '' ?>>K</option>
+              <option value="T" <?= $savedSalUnitTo === 'T' ? 'selected' : '' ?>>T</option>
             </select>
+            <span class="sr-only">L means Lakhs. T means Thousands.</span>
           </div>
-        </div>
-        <div class="min-w-0">
-          <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-base-content/50">Max</label>
-          <div class="flex">
-            <input type="number" name="salary_to" id="salaryTo" class="<?= INPUT_CLASS ?> min-w-0 flex-1 rounded-r-none" placeholder="45" value="<?= e($savedSalTo) ?>" min="0" step="any" oninput="updateSalaryPreview()" <?= $savedSalBoe ? '' : 'required' ?>>
-            <select name="salary_unit_to" id="salaryUnitTo" class="<?= SELECT_CLASS ?> w-20 shrink-0 rounded-l-none border-l-0" onchange="updateSalaryPreview()">
-              <option value="" <?= $savedSalUnitTo === '' ? 'selected' : '' ?>>—</option>
-              <option value="L" <?= $savedSalUnitTo === 'L' ? 'selected' : '' ?>>L</option>
-              <option value="K" <?= $savedSalUnitTo === 'K' ? 'selected' : '' ?>>K</option>
-            </select>
-          </div>
-        </div>
+        </fieldset>
         <fieldset class="fieldset sm:col-span-2">
           <legend class="fieldset-legend">Currency</legend>
           <?php
@@ -1762,7 +1562,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
     </div> -->
 
     <!-- ═══ CARD 5: JOB CONTENT ═════════════════════════════════════ -->
-    <div id="job-description-section" class="<?= $postJobCardClass ?> border-t-4 border-t-secondary">
+    <div id="job-description-section" class="<?= $postJobCardClass ?> border-t-4 border-t-[#e7e9f0]">
       <div class="<?= $postJobHeadingClass ?>">
         <div class="<?= $postJobIconBaseClass ?> bg-secondary/10 text-secondary">
           <svg class="<?= SVG_ICON ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
@@ -1773,28 +1573,28 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
       </div>
 
       <div class="flex flex-col gap-6">
-        <fieldset class=" fieldset flex flex-col gap-1.5">
+        <fieldset class="fieldset flex flex-col gap-1.5">
           <legend class="fieldset-legend">Description <span class="text-error">*</span></legend>
           <textarea id="job_description" name="job_description" class="<?= TEXTAREA_CLASS ?>"><?= old("job_description") ?></textarea>
         </fieldset>
 
-        <fieldset class="flex flex-col gap-1.5">
+        <fieldset class="fieldset flex flex-col gap-1.5">
           <legend class="fieldset-legend">Responsibilities</legend>
-          <textarea name="responsibilities" rows="5" class="<?= TEXTAREA_CLASS ?>" placeholder="Key responsibilities..."><?= old("responsibilities") ?></textarea>
+          <textarea id="responsibilities" name="responsibilities" rows="5" class="<?= TEXTAREA_CLASS ?>" placeholder="Key responsibilities..."><?= old("responsibilities") ?></textarea>
         </fieldset>
 
-        <fieldset class="flex flex-col gap-1.5">
-          <legend class=" fieldset-legend">Required Skills <span class="text-error">*</span></legend>
+        <fieldset class="fieldset flex flex-col gap-1.5">
+          <legend class="fieldset-legend">Required Skills <span class="text-error">*</span></legend>
           <textarea id="key_skills" name="key_skills" class="<?= TEXTAREA_CLASS ?>"><?= old("key_skills") ?></textarea>
         </fieldset>
 
-        <fieldset class="flex flex-col gap-1.5">
+        <fieldset class="fieldset flex flex-col gap-1.5">
           <legend class="fieldset-legend">Preferred Skills</legend>
-          <textarea name="preferred_skills" rows="4" class="<?= TEXTAREA_CLASS ?>" placeholder="Preferred or nice-to-have skills..."><?= old("preferred_skills") ?></textarea>
+          <textarea id="preferred_skills" name="preferred_skills" rows="4" class="<?= TEXTAREA_CLASS ?>" placeholder="Preferred or nice-to-have skills..."><?= old("preferred_skills") ?></textarea>
         </fieldset>
 
-        <fieldset class="flex flex-col gap-1.5">
-          <legend class=" fieldset-legend">Benefits <span class="text-error">*</span></legend>
+        <fieldset class="fieldset flex flex-col gap-1.5">
+          <legend class="fieldset-legend">Benefits <span class="text-error">*</span></legend>
           <textarea id="our_terms" name="our_terms" class="<?= TEXTAREA_CLASS ?>"><?= old("our_terms") ?></textarea>
         </fieldset>
       </div>
@@ -2042,6 +1842,47 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
     return matchKey ? COUNTRY_DATA[matchKey] : {};
   }
 
+  function setTimezoneValue(timezone) {
+    const timezoneSelect = document.getElementById('timezoneSelect');
+    if (!timezoneSelect || !timezone) return;
+
+    const normalizedTimezone = String(timezone).trim();
+    const existingOption = [...timezoneSelect.options].find(option =>
+      option.value.trim().toLowerCase() === normalizedTimezone.toLowerCase()
+    );
+
+    if (!existingOption) {
+      timezoneSelect.appendChild(new Option(normalizedTimezone, normalizedTimezone));
+    }
+
+    timezoneSelect.value = existingOption ? existingOption.value : normalizedTimezone;
+  }
+
+  function autoSelectTimezone() {
+    const country = document.getElementById('country')?.value || '';
+    const state = document.getElementById('stateSelect')?.value || '';
+    const timezoneSelect = document.getElementById('timezoneSelect');
+    const data = getCountryData(country);
+    const timezones = data.timezones || [];
+
+    if (!timezoneSelect) return;
+
+    if (timezones.length === 1) {
+      setTimezoneValue(timezones[0]);
+      return;
+    }
+
+    const stateTimezone = state && data.states ? data.states[state] : '';
+    if (stateTimezone) {
+      setTimezoneValue(stateTimezone);
+      return;
+    }
+
+    if (country !== SAVED_COUNTRY) {
+      timezoneSelect.value = '';
+    }
+  }
+
   // ── Country change ────────────────────────────────────────────
   function onCountryChange() {
     console.log("onCountryChange");
@@ -2104,6 +1945,8 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
 
         timezoneSelect.appendChild(option);
       });
+
+      autoSelectTimezone();
     }
 
     /* Job Type */
@@ -2185,6 +2028,8 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
   }
 
   function initializeSectionProgression() {
+    if (IS_EDIT || IS_CLONE) return;
+
     const steps = [{
         current: 'country-basics',
         next: 'employment-details'

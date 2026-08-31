@@ -8,6 +8,8 @@ function currentJobFilters(): array
     'q' => trim($_GET['q'] ?? ''),
     'status' => $_GET['status'] ?? '',
     'country' => $_GET['country'] ?? '',
+    'job_type' => $_GET['job_type'] ?? '',
+    'workplace_type' => $_GET['workplace_type'] ?? '',
     'per_page' => $_GET['per_page'] ?? '',
   ], fn($value) => $value !== '' && $value !== null);
 }
@@ -28,7 +30,7 @@ function jobsStatus(string $status, bool $expired): array
   return match ($status) {
     'published' => ['Published', 'published'],
     'closed' => ['Closed', 'closed'],
-    'archived' => ['archived'],
+    'archived' => ['Pending Review', 'archived'],
     default => ['Draft', 'draft'],
   };
 }
@@ -39,14 +41,19 @@ function renderJobsTableBody(array $jobs): string
   if (!$jobs) { ?>
     <tr>
       <td colspan="10">
-        <div class="no-jobs"><strong>No jobs found</strong><span>Try adjusting your filters or create a new job.</span><a href="<?= ADMIN_URL ?>/pages/post_job.php#country-basics">Create Job</a></div>
+        <div class="no-jobs">
+          <strong>No jobs found</strong>
+          <span>Try adjusting your filters or create a new job.</span>
+          <a href="<?= ADMIN_URL ?>/pages/post_job.php">Create Job</a>
+        </div>
       </td>
     </tr>
-    <?php } else {
+    <?php
+  } else {
     foreach ($jobs as $job): $expired = $job['status'] === 'published' && !empty($job['close_date']) && strtotime($job['close_date']) < strtotime('today');
       [$statusLabel, $statusClass] = jobsStatus($job['status'], $expired);
       $publicUrl = SITE_URL . '/job-detail.php?slug=' . urlencode($job['slug']);
-      $editUrl = ADMIN_URL . '/pages/post_job.php?edit=' . (int)$job['id'] . '#country-basics'; ?>
+      $editUrl = ADMIN_URL . '/pages/post_job.php?edit=' . (int)$job['id']; ?>
       <tr class="job-row" data-edit="<?= e($editUrl) ?>">
         <td class="check-column"><input class="row-check" type="checkbox" name="ids[]" value="<?= (int)$job['id'] ?>" aria-label="Select <?= e($job['job_title']) ?>"></td>
         <td class="job-cell">
@@ -117,10 +124,17 @@ function renderJobsPagination(int $page, int $totalPages, int $totalRows, int $p
 $fSearch = trim($_GET['q'] ?? '');
 $fStatus = $_GET['status'] ?? '';
 $fCountry = $_GET['country'] ?? '';
-$hasFilters = $fSearch !== '' || $fStatus !== '' || $fCountry !== '';
+$fJobType = $_GET['job_type'] ?? '';
+$fWorkplaceType = $_GET['workplace_type'] ?? '';
+$hasFilters = $fSearch !== '' || $fStatus !== '' || $fCountry !== '' || $fJobType !== '' || $fWorkplaceType !== '';
 $page = max(1, (int)($_GET['page'] ?? 1));
 $requestedPerPage = (int)($_GET['per_page'] ?? 10);
 $perPage = in_array($requestedPerPage, [10, 15, 25, 50], true) ? $requestedPerPage : 10;
+
+$statusOptions = ['draft' => 'Draft', 'published' => 'Published', 'archived' => 'Pending Review', 'closed' => 'Closed'];
+$countryOptions = ['United States', 'Canada', 'India'];
+$jobTypeOptions = [];
+$workplaceTypeOptions = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['action'])) {
   if (!validCsrfToken($_POST['csrf_token'] ?? null)) {
@@ -136,7 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['action'])) {
         db()->prepare("DELETE FROM jobs WHERE id IN ($marks)")->execute($ids);
       } else {
         $status = $action === 'publish' ? 'published' : ($action === 'close' ? 'closed' : $action);
-        $sql = "UPDATE jobs SET status=?" . ($status === 'published' ? ', published_at=COALESCE(published_at,NOW())' : '') . " WHERE id IN ($marks)";
+        $sql = "UPDATE jobs SET status=?, updated_at=NOW()" . ($status === 'published' ? ', published_at=COALESCE(published_at,NOW())' : '') . " WHERE id IN ($marks)";
         db()->prepare($sql)->execute(array_merge([$status], $ids));
       }
       logActivity($action . '_jobs', 'job', null, 'IDs: ' . implode(',', $ids));
@@ -162,6 +176,14 @@ if ($fCountry) {
   $where[] = 'j.country=?';
   $params[] = $fCountry;
 }
+if ($fJobType) {
+  $where[] = 'j.job_type=?';
+  $params[] = $fJobType;
+}
+if ($fWorkplaceType) {
+  $where[] = 'j.workplace_type=?';
+  $params[] = $fWorkplaceType;
+}
 if ($fSearch) {
   $where[] = '(j.job_title LIKE ? OR j.job_code LIKE ? OR c.client_name LIKE ?)';
   $like = '%' . $fSearch . '%';
@@ -174,6 +196,10 @@ $totalRows = 0;
 $totalPages = 1;
 try {
   $pdo = db();
+  $countryOptions = $pdo->query("SELECT DISTINCT country FROM jobs WHERE country IS NOT NULL AND country != '' ORDER BY country")->fetchAll(PDO::FETCH_COLUMN) ?: $countryOptions;
+  $jobTypeOptions = $pdo->query("SELECT DISTINCT job_type FROM jobs WHERE job_type IS NOT NULL AND job_type != '' ORDER BY job_type")->fetchAll(PDO::FETCH_COLUMN) ?: [];
+  $workplaceTypeOptions = $pdo->query("SELECT DISTINCT workplace_type FROM jobs WHERE workplace_type IS NOT NULL AND workplace_type != '' ORDER BY workplace_type")->fetchAll(PDO::FETCH_COLUMN) ?: [];
+
   $counter = $pdo->prepare("SELECT COUNT(DISTINCT j.id) FROM jobs j LEFT JOIN clients c ON c.id=j.client_id WHERE $whereSql");
   $counter->execute($params);
   $totalRows = (int)$counter->fetchColumn();
@@ -274,7 +300,7 @@ $warnMessage = flash('warn');
           </svg>
         </a>
       </div>
-      <a class="new-job" href="<?= ADMIN_URL ?>/pages/post_job.php#country-basics"><span>+</span> Create Job</a>
+      <a class="new-job" href="<?= ADMIN_URL ?>/pages/post_job.php"><span>+</span> Create Job</a>
     </div>
   </aside>
 
@@ -282,7 +308,7 @@ $warnMessage = flash('warn');
     <div class="jobs-content">
       <header class="jobs-heading">
         <h1>Jobs</h1>
-        <a class="primary-action" href="<?= ADMIN_URL ?>/pages/post_job.php#country-basics"><span>+</span> Create Job</a>
+        <a class="primary-action" href="<?= ADMIN_URL ?>/pages/post_job.php"><span>+</span> Create Job</a>
       </header>
       <?php if ($successMessage || $errorMessage || $warnMessage): $message = $successMessage ?: ($errorMessage ?: $warnMessage);
         $type = $successMessage ? 'success' : ($errorMessage ? 'error' : 'warn'); ?><div class="notice notice-<?= $type ?>"><?= $message ?></div><?php endif; ?>
@@ -294,10 +320,16 @@ $warnMessage = flash('warn');
             <path d="m20 20-4-4" />
           </svg><input id="jobSearch" type="search" name="q" value="<?= e($fSearch) ?>" placeholder="Search jobs..." autocomplete="off"></label>
         <select name="status" aria-label="Status" data-auto-filter>
-          <option value="">All Statuses</option><?php foreach (['draft' => 'Draft', 'published' => 'Published', 'archived' => 'Pending Review', 'closed' => 'Closed'] as $value => $label): ?><option value="<?= $value ?>" <?= $fStatus === $value ? 'selected' : '' ?>><?= $label ?></option><?php endforeach; ?>
+          <option value="">All Statuses</option><?php foreach ($statusOptions as $value => $label): ?><option value="<?= $value ?>" <?= $fStatus === $value ? 'selected' : '' ?>><?= $label ?></option><?php endforeach; ?>
         </select>
         <select name="country" aria-label="Country" data-auto-filter>
-          <option value="">All Countries</option><?php foreach (['United States', 'Canada', 'India'] as $country): ?><option value="<?= e($country) ?>" <?= $fCountry === $country ? 'selected' : '' ?>><?= jobsFlag($country) ?> <?= e($country) ?></option><?php endforeach; ?>
+          <option value="">All Countries</option><?php foreach ($countryOptions as $country): ?><option value="<?= e($country) ?>" <?= $fCountry === $country ? 'selected' : '' ?>><?= jobsFlag($country) ?> <?= e($country) ?></option><?php endforeach; ?>
+        </select>
+        <select name="job_type" aria-label="Job Type" data-auto-filter>
+          <option value="">All Job Types</option><?php foreach ($jobTypeOptions as $jobType): ?><option value="<?= e($jobType) ?>" <?= $fJobType === $jobType ? 'selected' : '' ?>><?= e($jobType) ?></option><?php endforeach; ?>
+        </select>
+        <select name="workplace_type" aria-label="Workplace" data-auto-filter>
+          <option value="">All Workplaces</option><?php foreach ($workplaceTypeOptions as $workplaceType): ?><option value="<?= e($workplaceType) ?>" <?= $fWorkplaceType === $workplaceType ? 'selected' : '' ?>><?= e($workplaceType) ?></option><?php endforeach; ?>
         </select>
         <a class="clear-button" href="<?= ADMIN_URL ?>/pages/jobs.php">Clear</a>
       </form>
@@ -491,6 +523,8 @@ $warnMessage = flash('warn');
       data.set('q', document.getElementById('jobSearch').value.trim());
       data.set('status', form.elements['status']?.value || '');
       data.set('country', form.elements['country']?.value || '');
+      data.set('job_type', form.elements['job_type']?.value || '');
+      data.set('workplace_type', form.elements['workplace_type']?.value || '');
       data.set('per_page', perPage || document.querySelector('.pagination select')?.value || form.elements['per_page']?.value || '10');
       data.set('page', page || 1);
       data.set('ajax', '1');

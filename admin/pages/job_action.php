@@ -32,7 +32,7 @@ try {
     switch ($action) {
         case "publish":
             $pdo->prepare(
-                "UPDATE jobs SET status='published', published_at=COALESCE(published_at,NOW()) WHERE id=?"
+                "UPDATE jobs SET status='published', updated_at=NOW(), published_at=COALESCE(published_at,NOW()) WHERE id=?"
             )->execute([$id]);
             flash(
                 "success",
@@ -43,7 +43,7 @@ try {
             break;
         case "close":
             $pdo->prepare(
-                "UPDATE jobs SET status='closed' WHERE id=?"
+                "UPDATE jobs SET status='closed', updated_at=NOW() WHERE id=?"
             )->execute([$id]);
             flash(
                 "success",
@@ -51,14 +51,14 @@ try {
             );
             break;
         case "draft":
-            $pdo->prepare("UPDATE jobs SET status='draft' WHERE id=?")->execute(
+            $pdo->prepare("UPDATE jobs SET status='draft', updated_at=NOW() WHERE id=?")->execute(
                 [$id]
             );
             flash("success", "Job moved to draft.");
             break;
         case "archive":
             $pdo->prepare(
-                "UPDATE jobs SET status='archived' WHERE id=?"
+                "UPDATE jobs SET status='archived', updated_at=NOW() WHERE id=?"
             )->execute([$id]);
             flash("success", "Job moved to pending review.");
             break;

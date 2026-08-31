@@ -5,6 +5,7 @@ return [
     'job_code',
     'job_code_prefix',
     'job_code_number',
+    'client_code',
     'job_title',
     'city',
     'state_province',

@@ -149,7 +149,7 @@ $stats = [
       <div class="admin-row"><span class="admin-avatar"><?= e(strtoupper(substr($currentAdmin['name'] ?? 'A', 0, 1))) ?></span><span class="admin-copy"><strong><?= e($currentAdmin['name'] ?? 'Admin') ?></strong><small><?= e(ucfirst($currentAdmin['role'] ?? 'admin')) ?></small></span><a class="signout" href="<?= ADMIN_URL ?>/logout.php" title="Sign out" aria-label="Sign out"><svg viewBox="0 0 24 24">
             <path d="M10 5H6v14h4m4-4 4-3-4-3m4 3H9" />
           </svg></a></div>
-      <a class="new-job" href="<?= ADMIN_URL ?>/pages/post_job.php#country-basics"><span>+</span> Create Job</a>
+      <a class="new-job" href="<?= ADMIN_URL ?>/pages/post_job.php"><span>+</span> Create Job</a>
     </div>
   </aside>
   <main class="main">
