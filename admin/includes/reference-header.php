@@ -21,7 +21,8 @@
 <body id="page-top" data-theme="accelon" class="<?= e($referenceBodyClass ?? '') ?>">
   <button class="mobile-menu" id="mobileMenu" type="button" aria-label="Open navigation" aria-expanded="false"><svg viewBox="0 0 24 24">
       <path d="M4 7h16M4 12h16M4 17h16" />
-    </svg></button>
+    </svg>
+  </button>
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
   <aside class="sidebar" id="dashboardSidebar">
     <a class="brand" href="<?= ADMIN_URL ?>/index.php" aria-label="Accelon Consulting dashboard"><img src="https://www.accelonconsulting.com/wp-content/uploads/2025/07/Accelon-logo.webp" alt="Accelon Consulting" style="display:block;width:auto;height:50px;padding-left:15px;max-width:170px;object-fit:contain"></a>
@@ -30,15 +31,39 @@
           <rect x="14" y="4" width="6" height="6" rx="1" />
           <rect x="4" y="14" width="6" height="6" rx="1" />
           <rect x="14" y="14" width="6" height="6" rx="1" />
-        </svg>Dashboard</a><a class="<?= basename($_SERVER['PHP_SELF']) === 'jobs.php' || basename($_SERVER['PHP_SELF']) === 'post_job.php' ? 'active' : '' ?>" href="<?= ADMIN_URL ?>/pages/jobs.php"><svg viewBox="0 0 24 24">
+        </svg>
+        Dashboard
+      </a>
+      <a class="<?= basename($_SERVER['PHP_SELF']) === 'jobs.php' || basename($_SERVER['PHP_SELF']) === 'post_job.php' ? 'active' : '' ?>" href="<?= ADMIN_URL ?>/pages/jobs.php">
+        <svg viewBox="0 0 24 24">
           <path d="M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7M5 7h14a1 1 0 0 1 1 1v11H4V8a1 1 0 0 1 1-1Zm7 0v12" />
-        </svg>Jobs</a><a class="<?= basename($_SERVER['PHP_SELF']) === 'admins.php' ? 'active' : '' ?>" href="<?= ADMIN_URL ?>/pages/admins.php"><svg viewBox="0 0 24 24">
+        </svg>Jobs
+      </a>
+      <a class="<?= basename($_SERVER['PHP_SELF']) === 'admins.php' ? 'active' : '' ?>" href="<?= ADMIN_URL ?>/pages/admins.php">
+        <svg viewBox="0 0 24 24">
           <path d="M15.5 8a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0ZM5 20a7 7 0 0 1 14 0M18 5v6M15 8h6" />
-        </svg>Admin</a></nav>
+        </svg>Admin
+      </a>
+    </nav>
     <div class="sidebar-footer">
-      <div class="admin-row"><span class="admin-avatar"><?= e(strtoupper(substr($currentAdmin['name'] ?? 'A', 0, 1))) ?></span><span class="admin-copy"><strong><?= e($currentAdmin['name'] ?? 'Admin') ?></strong><small><?= e(ucfirst($currentAdmin['role'] ?? 'admin')) ?></small></span><a class="signout" href="<?= ADMIN_URL ?>/logout.php" title="Sign out"><svg viewBox="0 0 24 24">
+      <div class="admin-row">
+        <span class="admin-avatar">
+          <?= e(strtoupper(substr($currentAdmin['name'] ?? 'A', 0, 1))) ?></span>
+        <span class="admin-copy">
+          <strong>
+            <?= e($currentAdmin['name'] ?? 'Admin') ?>
+          </strong>
+          <small><?= e(ucfirst($currentAdmin['role'] ?? 'admin')) ?></small>
+        </span>
+        <a class="signout" href="<?= ADMIN_URL ?>/logout.php" title="Sign out">
+          <svg viewBox="0 0 24 24">
             <path d="M10 5H6v14h4m4-4 4-3-4-3m4 3H9" />
-          </svg></a></div><a class="new-job" href="<?= ADMIN_URL ?>/pages/post_job.php"><span>+</span> Create Job</a>
+          </svg>
+        </a>
+      </div>
+      <!-- <a class="new-job" href="<?= ADMIN_URL ?>/pages/post_job.php">
+        <span>+</span> Create Job
+      </a> -->
     </div>
   </aside>
   <main class="form-main">
