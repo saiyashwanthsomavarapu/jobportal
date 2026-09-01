@@ -259,7 +259,7 @@ $stats = [
                       onclick="window.location.href='<?= ADMIN_URL ?>/pages/post_job.php?edit=<?= (int)$job['id'] ?>#page-top'"
                       onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}">
                       <td class="min-w-64 px-4 py-3.5 align-middle group-hover:bg-[#F28C28]">
-                        <strong class="block font-medium text-base-content group-hover:text-white"><?= e($job['job_title']) ?></strong>
+                        <strong class="block font-medium text-base-content group-hover:text-white text-base"><?= e($job['job_title']) ?></strong>
                         <small class="mt-1 flex items-center gap-1.5 font-mono text-xs text-base-content/55 group-hover:text-white/80">
                           <code><?= e($job['job_code']) ?></code>
                           <i>·</i> Job Code: <?= e($job["client_code"] ?: 'General') ?>
