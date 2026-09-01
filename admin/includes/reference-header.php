@@ -39,6 +39,11 @@
           <path d="M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7M5 7h14a1 1 0 0 1 1 1v11H4V8a1 1 0 0 1 1-1Zm7 0v12" />
         </svg>Jobs
       </a>
+      <a class="<?= basename($_SERVER['PHP_SELF']) === 'jobs.php' || basename($_SERVER['PHP_SELF']) === 'clients.php' ? 'active' : '' ?>" href="<?= ADMIN_URL ?>/pages/clients.php">
+        <svg viewBox="0 0 24 24">
+          <path d="M3.75 21V6.75A1.5 1.5 0 0 1 5.25 5.25h6A1.5 1.5 0 0 1 12.75 6.75V21M3.75 21h16.5M3.75 21H2.25M20.25 21V10.5a1.5 1.5 0 0 0-1.5-1.5h-3a1.5 1.5 0 0 0-1.5 1.5V21" />
+        </svg> Clients
+      </a>
       <a class="<?= basename($_SERVER['PHP_SELF']) === 'admins.php' ? 'active' : '' ?>" href="<?= ADMIN_URL ?>/pages/admins.php">
         <svg viewBox="0 0 24 24">
           <path d="M15.5 8a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0ZM5 20a7 7 0 0 1 14 0M18 5v6M15 8h6" />
@@ -61,9 +66,7 @@
           </svg>
         </a>
       </div>
-      <!-- <a class="new-job" href="<?= ADMIN_URL ?>/pages/post_job.php">
-        <span>+</span> Create Job
-      </a> -->
+      <a class="btn btn-primary btn-sm w-full text-white!" href="<?= ADMIN_URL ?>/pages/post_job.php"><span>+</span> Create Job</a>
     </div>
   </aside>
   <main class="form-main">

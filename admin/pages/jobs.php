@@ -44,6 +44,20 @@ function jobsStatusBadgeClass(string $statusClass): string
     default => 'badge-warning badge-soft badge',
   };
 }
+// ]select-sm h-10 min-h-10 w-full rounded-lg border-base-300 bg-base-100 text-sm shadow-sm transition-all duration-150 focus:border-primary focus:shadow-2xl focus:outline-none focus:ring-2 focus:ring-primary/20
+function renderJobsFilterSelect(string $name, string $placeholder, string $selectedValue, array $options): string
+{
+  ob_start(); ?>
+  <select name="<?= e($name) ?>" aria-label="<?= e($placeholder) ?>" data-auto-filter class="select ">
+    <option value=""><?= e($placeholder) ?></option>
+    <?php foreach ($options as $option): ?>
+      <option value="<?= e($option['value']) ?>" <?= (string)$selectedValue === (string)$option['value'] ? 'selected' : '' ?>>
+        <?= e($option['label']) ?>
+      </option>
+    <?php endforeach; ?>
+  </select>
+  <?php return trim(ob_get_clean());
+}
 
 // Build URL with current filters preserved
 function buildFilterUrl(string $base, array $extraParams = []): string
@@ -69,42 +83,46 @@ function renderJobsTableBody(array $jobs): string
     </tr>
     <?php
   } else {
-    foreach ($jobs as $job): $expired = $job['status'] === 'published' && !empty($job['close_date']) && strtotime($job['close_date']) < strtotime('today');
+    $jobCount = count($jobs);
+    foreach ($jobs as $index => $job): $expired = $job['status'] === 'published' && !empty($job['close_date']) && strtotime($job['close_date']) < strtotime('today');
       [$statusLabel, $statusClass] = jobsStatus($job['status'], $expired);
       $publicUrl = SITE_URL . '/job-detail.php?slug=' . urlencode($job['slug']);
-      $editUrl = ADMIN_URL . '/pages/post_job.php?edit=' . (int)$job['id']; ?>
+      $editUrl = ADMIN_URL . '/pages/post_job.php?edit=' . (int)$job['id'];
+      $dropdownPlacement = $index >= max(0, $jobCount - 2) ? 'dropdown-top' : 'dropdown-bottom'; ?>
       <tr class="job-row group border-t border-base-300 transition-colors hover:bg-[#F28C28]" data-edit="<?= e($editUrl) ?>">
         <td class="w-11 px-3 text-center align-middle group-hover:bg-[#F28C28]"><input class="row-check checkbox checkbox-primary checkbox-sm mx-auto" type="checkbox" name="ids[]" value="<?= (int)$job['id'] ?>" aria-label="Select <?= e($job['job_title']) ?>"></td>
-        <td class="min-w-64 px-4 py-3.5 align-middle group-hover:bg-[#F28C28]">
-          <a href="<?= e($editUrl) ?>" target="_blank" rel="noopener">
-            <strong class="block font-medium text-base-content group-hover:text-white"><?= e(ucwords($job['job_title'])) ?></strong>
+        <a href="<?= e($editUrl) ?>" target="_blank" class="cursor-pointer" rel="noopener">
+          <td class="min-w-64 px-4 py-3.5 align-middle group-hover:bg-[#F28C28] cursor-pointer">
+
+            <b class="block font-medium text-base-content group-hover:text-white text-base"><?= e(ucwords($job['job_title'])) ?></b>
             <small class="mt-1 block font-mono text-xs text-base-content/55 group-hover:text-white/80"><?= e($job['job_code']) ?> <i>·</i> Job Code: <?= e($job["client_code"]) ?></small>
-          </a>
-        </td>
-        <td class="px-4 py-3.5 align-middle group-hover:bg-[#F28C28]">
-          <span class="flex items-center gap-1.5 whitespace-nowrap text-base-content/80 group-hover:text-white">
-            <b><?= jobsFlag($job['country']) ?></b>
-            <?= e($job['country']) ?>
-          </span>
-        </td>
-        <td class="px-4 py-3.5 align-middle group-hover:bg-[#F28C28]">
-          <span class="badge badge-sm  <?= jobsStatusBadgeClass($statusClass) ?>"><?= e($statusLabel) ?></span>
-        </td>
-        <td class="px-4 py-3.5 align-middle group-hover:bg-[#F28C28]">
-          <span class="badge badge-soft badge-sm whitespace-nowrap capitalize"><?= e($job['workplace_type']) ?></span>
-        </td>
-        <td class="px-4 py-3.5 align-middle text-base-content/65 group-hover:bg-[#F28C28] group-hover:text-white!"><?= e($job['experience'] ?: '—') ?></td>
-        <td class="px-4 py-3.5 align-middle text-base-content/65 group-hover:bg-[#F28C28] group-hover:text-white!">
-          <?= e($job['job_type'] ?: '—') ?>
-        </td>
-        <td class="px-4 py-3.5 align-middle text-base-content/80 group-hover:bg-[#F28C28] group-hover:text-white!">
-          <?= e($job['posted_by'] ?: '—') ?>
-        </td>
-        <td class="px-4 py-3.5 align-middle whitespace-nowrap  group-hover:bg-[#F28C28] group-hover:text-white!">
-          <?= $job['created_at'] ? date('M j, Y', strtotime($job['created_at'])) : '—' ?>
-        </td>
+
+          </td>
+          <td class="px-4 py-3.5 align-middle group-hover:bg-[#F28C28] cursor-pointer">
+            <span class="flex items-center gap-1.5 whitespace-nowrap text-base-content/80 group-hover:text-white">
+              <b><?= jobsFlag($job['country']) ?></b>
+              <?= e($job['country']) ?>
+            </span>
+          </td>
+          <td class="px-4 py-3.5 align-middle group-hover:bg-[#F28C28] cursor-pointer">
+            <span class="badge badge-sm  <?= jobsStatusBadgeClass($statusClass) ?>"><?= e($statusLabel) ?></span>
+          </td>
+          <td class="px-4 py-3.5 align-middle group-hover:bg-[#F28C28] cursor-pointer">
+            <span class="badge badge-soft badge-sm whitespace-nowrap capitalize"><?= e($job['workplace_type']) ?></span>
+          </td>
+          <td class="px-4 py-3.5 align-middle text-base-content/65 group-hover:bg-[#F28C28] group-hover:text-white! cursor-pointer"><?= e($job['experience'] ?: '—') ?></td>
+          <td class="px-4 py-3.5 align-middle text-base-content/65 group-hover:bg-[#F28C28] group-hover:text-white! cursor-pointer">
+            <?= e($job['job_type'] ?: '—') ?>
+          </td>
+          <td class="px-4 py-3.5 align-middle text-base-content/80 group-hover:bg-[#F28C28] group-hover:text-white! cursor-pointer">
+            <?= e($job['posted_by'] ?: '—') ?>
+          </td>
+          <td class="px-4 py-3.5 align-middle whitespace-nowrap  group-hover:bg-[#F28C28] group-hover:text-white! cursor-pointer">
+            <?= $job['created_at'] ? date('M j, Y', strtotime($job['created_at'])) : '—' ?>
+          </td>
+        </a>
         <td class="job-actions-cell right-0 z-30 w-14  px-2 py-3.5 text-right align-middle group-hover:bg-[#F28C28]" onclick="event.stopPropagation()">
-          <div class="dropdown dropdown-bottom dropdown-end">
+          <div class="dropdown <?= $dropdownPlacement ?> dropdown-end">
             <div tabindex="0" role="button" class="btn btn-sm btn-ghost m-1 p-2 bg-transparent border-none shadow-none outline-none focus:outline-none focus-visible:outline-none hover:bg-transparent text-base-content group-hover:text-white">
               <svg class="size-4" viewBox="0 0 24 24">
                 <circle cx="5" cy="12" r="1" />
@@ -118,18 +136,13 @@ function renderJobsTableBody(array $jobs): string
               </li>
               <?php if ($job['status'] !== 'published' || $expired): ?>
                 <li>
-                  <button type="button" onclick="buildFilterUrl(ADMIN_URL . '/pages/job_action.php', ['id' => $j['id'], 'a' => 'publish'])" data-id="<?= (int)$job['id'] ?>" data-value="publish" data-action="Publish" data-job="<?= e($job['job_title']) ?>">
+                  <button type="button" onclick="openPublishModal(
+                            '<?= e($job['id']) ?>',
+                            '<?= e($job['job_title']) ?>'
+                          )" data-id="<?= (int)$job['id'] ?>" data-value="publish" data-action="Publish" data-job="<?= e($job['job_title']) ?>">
                     Publish
                   </button>
                 </li>
-                <!-- <li>
-                  <button type="button" onclick="moveToDraft(
-                          '<?= e($job['id']) ?>',
-                          '<?= e($job['job_title']) ?>',
-                          '<?= buildFilterUrl(ADMIN_URL . '/pages/job_action.php', ['id' => $job['id'], 'a' => 'close']) ?>')" data-id="<?= (int)$job['id'] ?>" data-value="draft" data-action="Move to draft" data-job="<?= e($job['job_title']) ?>">
-                    Move to draft
-                  </button>
-                </li> -->
               <?php endif; ?>
               <li>
                 <button type="button" onclick="openCloneModal(
@@ -360,10 +373,16 @@ $warnMessage = flash('warn');
           <rect x="14" y="14" width="6" height="6" rx="1" />
         </svg>Dashboard
       </a>
-      <a class="active" href="<?= ADMIN_URL ?>/pages/jobs.php">
+      <a class="group flex items-center gap-3 px-2.5 py-2 rounded-lg text-[13.5px] font-medium transition-colors
+                 bg-accent-soft text-primary!" href="<?= ADMIN_URL ?>/pages/jobs.php">
         <svg viewBox="0 0 24 24">
           <path d="M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7M5 7h14a1 1 0 0 1 1 1v11H4V8a1 1 0 0 1 1-1Zm7 0v12" />
         </svg>Jobs
+      </a>
+      <a href="<?= ADMIN_URL ?>/pages/clients.php">
+        <svg viewBox="0 0 24 24">
+          <path d="M3.75 21V6.75A1.5 1.5 0 0 1 5.25 5.25h6A1.5 1.5 0 0 1 12.75 6.75V21M3.75 21h16.5M3.75 21H2.25M20.25 21V10.5a1.5 1.5 0 0 0-1.5-1.5h-3a1.5 1.5 0 0 0-1.5 1.5V21" />
+        </svg>Clients
       </a>
       <a href="<?= ADMIN_URL ?>/pages/admins.php">
         <svg viewBox="0 0 24 24">
@@ -384,7 +403,7 @@ $warnMessage = flash('warn');
           </svg>
         </a>
       </div>
-      <a class="new-job btn btn-primary btn-sm w-full" href="<?= ADMIN_URL ?>/pages/post_job.php"><span>+</span> Create Job</a>
+      <a class="btn btn-primary btn-sm w-full text-white!" href="<?= ADMIN_URL ?>/pages/post_job.php"><span>+</span> Create Job</a>
     </div>
   </aside>
 
@@ -416,47 +435,40 @@ $warnMessage = flash('warn');
             <input id="jobSearch" type="search" name="q" value="<?= e($fSearch) ?>" placeholder="Search jobs..." autocomplete="off" class="border-none bg-transparent text-sm outline-none placeholder:text-base-content/35" />
           </label>
         </fieldset>
-        <!-- <label class="input input-sm h-10 min-h-10 w-full rounded-lg border-base-300 bg-base-100   focus-within:ring-2 focus-within:ring-primary/15">
-          <svg class="size-4 shrink-0 text-base-content/40" viewBox="0 0 24 24">
-            <circle cx="11" cy="11" r="7" />
-            <path d="m20 20-4-4" />
-          </svg>
-          <input id="jobSearch" type="search" name="q" value="<?= e($fSearch) ?>" placeholder="Search jobs..." autocomplete="off" class="border-none bg-transparent text-sm outline-none placeholder:text-base-content/35">
-        </label> -->
-        <fieldset class="fieldset ">
 
-          <select name="status" aria-label="Status" data-auto-filter class="select select-sm h-10 min-h-10 w-full rounded-lg border-base-300 bg-base-100 text-sm">
-            <option value="">All Statuses</option>
-            <?php foreach ($statusOptions as $value => $label): ?>
-              <option value="<?= $value ?>" <?= $fStatus === $value ? 'selected' : '' ?>>
-                <?= $label ?>
-              </option>
-            <?php endforeach; ?>
-          </select>
+        <fieldset class="fieldset ">
+          <?= renderJobsFilterSelect('status', 'All Statuses', $fStatus, array_map(
+            fn($value, $label) => ['value' => $value, 'label' => $label],
+            array_keys($statusOptions),
+            array_values($statusOptions)
+          )) ?>
         </fieldset>
 
 
         <!-- Country -->
         <fieldset class="fieldset">
-          <select name="country" aria-label="Country" data-auto-filter class="select select-sm h-10 min-h-10 w-full rounded-lg border-base-300 bg-base-100 text-sm">
-            <option value="">All Countries</option><?php foreach ($countryOptions as $country): ?><option value="<?= e($country) ?>" <?= $fCountry === $country ? 'selected' : '' ?>><?= jobsFlag($country) ?> <?= e($country) ?></option><?php endforeach; ?>
-          </select>
+          <?= renderJobsFilterSelect('country', 'All Countries', $fCountry, array_map(
+            fn($country) => ['value' => $country, 'label' => jobsFlag($country) . ' ' . $country],
+            $countryOptions
+          )) ?>
         </fieldset>
 
 
         <!-- Job Type -->
         <fieldset class="fieldset">
-          <select name="job_type" aria-label="Job Type" data-auto-filter class="select select-sm h-10 min-h-10 w-full rounded-lg border-base-300 bg-base-100 text-sm">
-            <option value="">All Job Types</option><?php foreach ($jobTypeOptions as $jobType): ?><option value="<?= e($jobType) ?>" <?= $fJobType === $jobType ? 'selected' : '' ?>><?= e($jobType) ?></option><?php endforeach; ?>
-          </select>
+          <?= renderJobsFilterSelect('job_type', 'All Job Types', $fJobType, array_map(
+            fn($jobType) => ['value' => $jobType, 'label' => $jobType],
+            $jobTypeOptions
+          )) ?>
         </fieldset>
 
 
         <!-- Workplace -->
         <fieldset class="fieldset">
-          <select name="workplace_type" aria-label="Workplace" data-auto-filter class="select select-sm h-10 min-h-10 w-full rounded-lg border-base-300 bg-base-100 text-sm">
-            <option value="">All Workplaces</option><?php foreach ($workplaceTypeOptions as $workplaceType): ?><option value="<?= e($workplaceType) ?>" <?= $fWorkplaceType === $workplaceType ? 'selected' : '' ?>><?= e($workplaceType) ?></option><?php endforeach; ?>
-          </select>
+          <?= renderJobsFilterSelect('workplace_type', 'All Workplaces', $fWorkplaceType, array_map(
+            fn($workplaceType) => ['value' => $workplaceType, 'label' => $workplaceType],
+            $workplaceTypeOptions
+          )) ?>
         </fieldset>
 
         <!-- <select name="status" aria-label="Status" data-auto-filter class="select select-sm h-10 min-h-10 w-full rounded-lg border-base-300 bg-base-100 text-sm">
@@ -493,7 +505,7 @@ $warnMessage = flash('warn');
                 class="btn btn-sm h-9 min-h-9 rounded-lg border-base-300 bg-base-100 text-xs" disabled>Apply</button>
             </div>
           </div>
-          <div class="overflow-x-auto pb-48">
+          <div class="overflow-x-auto ">
             <table class="jobs-table table table-sm min-w-[940px]">
               <thead>
                 <tr>
@@ -806,9 +818,6 @@ $warnMessage = flash('warn');
           <h3 class="<?= MODAL_HEADING ?>" id="actionDialogTitle">
             Close job
           </h3>
-          <!-- <p class="mt-0.5 text-xs text-base-content/50">
-            Confirm the action for the selected jobs.
-          </p> -->
         </div>
         <button
           type="button"
@@ -876,6 +885,75 @@ $warnMessage = flash('warn');
       <button aria-label="Close dialog" type="submit>">close</button>
     </form>
   </dialog>
+
+  <!-- Publish Modal -->
+  <dialog id="publishModal" class="modal">
+    <div class="modal-box w-[calc(100%-2rem)] max-w-lg rounded-2xl border border-base-300 bg-base-100 p-0 shadow-2xl">
+      <div class="flex items-center gap-4 border-b border-base-200 px-6 py-5">
+        <div class="<?= SVG_DIV ?> bg-success/10 text-success">
+          <svg class="<?= SVG_ICON ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 12l4 4 8-8" />
+          </svg>
+        </div>
+        <div class="min-w-0 flex-1">
+          <h3 class="<?= MODAL_HEADING ?>">
+            Publish job posting
+          </h3>
+          <p class="mt-1 text-sm text-base-content/60">
+            Make this job live and visible
+          </p>
+        </div>
+        <button
+          type="button"
+          onclick="publishModal.close()"
+          class="btn btn-sm btn-circle btn-ghost size-9 min-h-9 shrink-0 text-base-content/50 hover:bg-base-200"
+          aria-label="Close">
+          <svg class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <form method="POST" action="<?= ADMIN_URL ?>/pages/job_action.php">
+        <input type="hidden" name="csrf_token" value="<?= e(csrfToken()) ?>">
+        <input type="hidden" name="id" id="publishJobId">
+        <input type="hidden" name="a" value="publish">
+        <div class="px-6 py-5">
+          <div class="rounded-xl p-4">
+            <div class="flex items-start gap-3">
+              <div class="flex-1">
+                <p class="text-sm font-medium text-base-content">
+                  Publish <strong id="publishJobName" class="text-success"></strong>?
+                </p>
+                <p class="mt-2 text-xs leading-5 text-base-content/60">
+                  This job will become publicly visible and searchable as soon as it is published.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="flex flex-col-reverse gap-3 border-t border-base-200 bg-base-200/30 px-6 py-4 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onclick="publishModal.close()"
+            class="btn btn-ghost h-11 min-h-11 w-full rounded-xl px-6 text-sm font-semibold sm:w-auto hover:bg-base-200">
+            Cancel
+          </button>
+          <button
+            type="submit"
+            class="btn btn-success h-11 min-h-11 w-full rounded-xl px-6 text-sm font-semibold !text-white sm:w-auto shadow-lg">
+            <svg class="size-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 12l4 4 8-8" />
+            </svg>
+            Publish job
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <form method="dialog" class="modal-backdrop bg-black/40">
+      <button>close</button>
+    </form>
+  </dialog>
   <!-- ══ PAGINATION ══ -->
 
   <script>
@@ -929,6 +1007,12 @@ $warnMessage = flash('warn');
       modal.showModal();
     }
 
+    function openPublishModal(id, jobName) {
+      document.getElementById('publishJobId').value = id;
+      document.getElementById('publishJobName').textContent = jobName;
+      document.getElementById('publishModal').showModal();
+    }
+
     function openBulkActionModal() {
       const selected = document.querySelectorAll(
         'input[name="ids[]"]:checked'
@@ -962,19 +1046,6 @@ $warnMessage = flash('warn');
       document.getElementById('bulkForm').submit();
     }
 
-    function moveToDraft(id, jobName, moveToDraftUrl) {
-      const dialog = document.getElementById('jobActionDialog');
-      document.getElementById('actionDialogTitle').textContent = 'Move to draft?';
-      document.getElementById('actionDialogAction').textContent = 'move to draft';
-      document.getElementById('closeJobName').textContent = jobName;
-      document.getElementById('actionJobId').value = id;
-      document.getElementById('actionJobValue').value = 'draft';
-      const confirm = document.getElementById('actionDialogConfirm');
-      confirm.textContent = 'Move to draft';
-      confirm.classList.remove('btn-primary');
-      confirm.classList.add('btn-error');
-      dialog.showModal()
-    }
 
     function openJobActions(event, button) {
       event.stopPropagation();
@@ -1022,8 +1093,6 @@ $warnMessage = flash('warn');
 
       const confirm = document.getElementById('actionDialogConfirm');
       confirm.textContent = action;
-      confirm.classList.toggle('btn-primary', !danger);
-      confirm.classList.toggle('btn-error', danger);
       dialog.showModal()
     }
 
@@ -1070,19 +1139,12 @@ $warnMessage = flash('warn');
     const filterForm = document.getElementById('jobsFilterForm'),
       jobSearch = document.getElementById('jobSearch');
     let searchTimer;
+
     document.querySelectorAll('[data-auto-filter]').forEach(select => select.addEventListener('change', () => reloadJobs(1)));
     jobSearch.addEventListener('input', () => {
       clearTimeout(searchTimer);
       searchTimer = setTimeout(() => reloadJobs(1), 350)
     });
-    // document.addEventListener('click', event => {
-    //   if (!event.target.closest('#floatingJobMenu, .job-actions-trigger')) closeActionMenus()
-    // });
-    // document.addEventListener('keydown', event => {
-    //   if (event.key === 'Escape') closeActionMenus()
-    // });
-    // window.addEventListener('resize', () => closeActionMenus());
-    // window.addEventListener('scroll', () => closeActionMenus(), true);
   </script>
 </body>
 

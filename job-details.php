@@ -314,20 +314,21 @@ $days = daysLeft($job['close_date']);
 
                 <div class="divider my-0"></div>
 
-                <div class="flex gap-6 pt-4">
-                    <button class="flex items-center gap-2 text-ink2 hover:text-primary text-sm">
+                <div class="flex gap-6 pt-4 print:hidden">
+                    <button type="button" id="shareJobBtn" class="flex items-center gap-2 text-ink2 hover:text-primary text-sm">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M8.684 13.342a4 4 0 100-2.684m0 2.684a4 4 0 000 -2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a4 4 0 108-1.658 4 4 0 00-8 1.658zm0 12.632a4 4 0 108-1.658 4 4 0 00-8 1.658z" />
                         </svg>
-                        Share
+                        <span>Share</span>
                     </button>
-                    <button class="flex items-center gap-2 text-ink2 hover:text-primary text-sm">
+                    <button type="button" id="printJobBtn" class="flex items-center gap-2 text-ink2 hover:text-primary text-sm">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 2.523a1.125 1.125 0 01-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0021 15.75V9.456c0-1.081-.768-2.017-1.837-2.185a48.055 48.055 0 00-1.913-.247M6.34 18H5.25A2.25 2.25 0 013 15.75V9.456c0-1.081.768-2.017 1.837-2.185a48.055 48.055 0 011.913-.247m10.5 0a48.536 48.536 0 00-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5zm-3 0h.008v.008H15V10.5z" />
                         </svg>
-                        Print
+                        <span>Print</span>
                     </button>
                 </div>
+                <p id="jobActionStatus" class="mt-2 text-sm text-success print:hidden" role="status" aria-live="polite"></p>
             </div>
         </div>
 
@@ -419,11 +420,8 @@ $days = daysLeft($job['close_date']);
             <!-- Right Sidebar -->
             <div class="lg:col-span-1">
                 <div class="sticky top-6 space-y-4">
-                    <button class="btn w-full bg-primary hover:bg-accent-dark text-primary-content border-none rounded-xl text-base font-semibold h-14">
-                        Apply Now !
-                    </button>
 
-                    <div class="apply-are">
+                    <div class="">
                         <?php if ($job['country'] == 'India'): ?>
                             <div
                                 data-fillout-id="1sLDbgFUV2us"
@@ -449,15 +447,15 @@ $days = daysLeft($job['close_date']);
                         <?php endif; ?>
                     </div>
                     <div class="card bg-surface border border-line rounded-2xl">
-                        <div class="card-body p-6 divide-y divide-line">
+                        <div class="card-body divide-y divide-line">
                             <?php
                             $first = true;
                             foreach ($sideBar as $label => $value):
                             ?>
                                 <div class="<?php echo $first ? 'pb-4' : 'py-4'; ?>">
-                                    <p class="text-sm font-semibold text-ink mb-1"><?php echo htmlspecialchars($label); ?></p>
+                                    <p class="text-sm font-semibold text-ink "><?php echo htmlspecialchars($label); ?></p>
                                     <?php if (is_array($value)): ?>
-                                        <p class="text-sm text-ink2 flex items-center gap-1.5">
+                                        <p class="text-sm text-ink2 flex items-center ">
                                             <?php echo $value['flag']; ?> <?php echo htmlspecialchars($value['text']); ?>
                                         </p>
                                     <?php else: ?>
@@ -476,6 +474,45 @@ $days = daysLeft($job['close_date']);
         </div>
     </div>
 
+    <script>
+        const shareJobButton = document.getElementById('shareJobBtn');
+        const printJobButton = document.getElementById('printJobBtn');
+        const jobActionStatus = document.getElementById('jobActionStatus');
+
+        function setJobActionStatus(message) {
+            if (!jobActionStatus) return;
+            jobActionStatus.textContent = message;
+            window.clearTimeout(setJobActionStatus.timer);
+            setJobActionStatus.timer = window.setTimeout(() => {
+                jobActionStatus.textContent = '';
+            }, 2500);
+        }
+
+        shareJobButton?.addEventListener('click', async () => {
+            const shareData = {
+                title: document.title,
+                text: <?= json_encode($job['job_title'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>,
+                url: window.location.href
+            };
+
+            try {
+                if (navigator.share) {
+                    await navigator.share(shareData);
+                    return;
+                }
+
+                await navigator.clipboard.writeText(shareData.url);
+                setJobActionStatus('Job link copied.');
+            } catch (error) {
+                if (error?.name === 'AbortError') return;
+                setJobActionStatus('Unable to share this job.');
+            }
+        });
+
+        printJobButton?.addEventListener('click', () => {
+            window.print();
+        });
+    </script>
 </body>
 
 </html>

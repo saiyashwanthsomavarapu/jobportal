@@ -37,131 +37,50 @@ if (!empty($referenceShell)) {
     <div id="sidebarOverlay" onclick="closeAdminSidebar()" class="fixed inset-0 bg-ink/40 z-[95] hidden md:hidden backdrop-blur-[1px]"></div>
 
     <!-- ═══════ SIDEBAR ═══════ -->
-    <aside id="sidebar"
-      class="fixed left-0 top-0 z-[100]
-           h-screen
-           w-[256px]
-           overflow-hidden
-           border-r border-line
-           bg-surface
-           flex flex-col
-           -translate-x-[calc(100%+24px)]
-           transition-transform duration-300
-           md:translate-x-0">
-
-      <div class="px-5 pt-5 pb-4 border-b border-line flex-shrink-0">
-        <a href="<?= ADMIN_URL ?>/index.php" class="flex items-center gap-2.5" aria-label="Accelon dashboard">
-          <svg class="h-10 w-8 shrink-0" viewBox="0 0 40 46" fill="none" aria-hidden="true">
-            <path d="M3 42 20 4l17 38" stroke="#2563eb" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
-            <path d="m10 34 18-11" stroke="#f59e0b" stroke-width="4" stroke-linecap="round" />
-          </svg>
-          <span class="font-head text-[22px] font-extrabold tracking-[-1px] text-gray-950">Accelon</span>
+    <aside class="sidebar" id="dashboardSidebar">
+      <a class="brand" href="<?= ADMIN_URL ?>/index.php" aria-label="Accelon Consulting dashboard"><img src="https://www.accelonconsulting.com/wp-content/uploads/2025/07/Accelon-logo.webp" alt="Accelon Consulting" style="display:block;width:auto;height:50px;padding-left:15px;;max-width:170px;object-fit:contain"></a>
+      <nav class="nav" aria-label="Admin navigation">
+        <a href="<?= ADMIN_URL ?>/index.php">
+          <svg viewBox="0 0 24 24">
+            <rect x="4" y="4" width="6" height="6" rx="1" />
+            <rect x="14" y="4" width="6" height="6" rx="1" />
+            <rect x="4" y="14" width="6" height="6" rx="1" />
+            <rect x="14" y="14" width="6" height="6" rx="1" />
+          </svg>Dashboard
         </a>
-        <div class="flex items-center gap-1.5 mt-2">
-          <span class="w-1.5 h-1.5 rounded-full bg-accent"></span>
-          <small class="text-[11px] font-semibold text-muted tracking-[1.2px] uppercase">Admin Panel</small>
-        </div>
-      </div>
-
-      <nav class="py-4 px-3 flex-1 overflow-y-auto space-y-0.5">
-
-        <p class="px-2.5 pt-2 pb-1.5 text-[11px] font-bold text-muted tracking-[1.1px] uppercase">Overview</p>
-
-        <?php $isActive = basename($_SERVER['PHP_SELF']) === 'index.php'; ?>
-        <a href="<?= ADMIN_URL ?>/index.php"
-          class="group flex items-center gap-3 px-2.5 py-2.5 rounded-lg text-[16px] font-semibold transition-colors
-                 <?= $isActive ? 'bg-accent-soft text-accent-dark' : 'text-ink2 hover:bg-[#e2eaf4] hover:text-ink' ?>">
-          <svg class="h-[18px] w-[18px] flex-shrink-0 <?= $isActive ? 'text-accent' : 'text-muted group-hover:text-ink2' ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75A1.5 1.5 0 015.25 5.25h4.5A1.5 1.5 0 0111.25 6.75v4.5a1.5 1.5 0 01-1.5 1.5h-4.5a1.5 1.5 0 01-1.5-1.5v-4.5zM12.75 6.75a1.5 1.5 0 011.5-1.5h4.5a1.5 1.5 0 011.5 1.5v4.5a1.5 1.5 0 01-1.5 1.5h-4.5a1.5 1.5 0 01-1.5-1.5v-4.5zM3.75 15.75a1.5 1.5 0 011.5-1.5h4.5a1.5 1.5 0 011.5 1.5v4.5a1.5 1.5 0 01-1.5 1.5h-4.5a1.5 1.5 0 01-1.5-1.5v-4.5zM12.75 15.75a1.5 1.5 0 011.5-1.5h4.5a1.5 1.5 0 011.5 1.5v4.5a1.5 1.5 0 01-1.5 1.5h-4.5a1.5 1.5 0 01-1.5-1.5v-4.5z" />
-          </svg>
-          Dashboard
+        <a href="<?= ADMIN_URL ?>/pages/jobs.php">
+          <svg viewBox="0 0 24 24">
+            <path d="M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7M5 7h14a1 1 0 0 1 1 1v11H4V8a1 1 0 0 1 1-1Zm7 0v12" />
+          </svg>Jobs
         </a>
-
-        <p class="px-2.5 pt-4 pb-1.5 text-[11px] font-bold text-muted tracking-[1.1px] uppercase">Jobs</p>
-
-        <?php $isActive = basename($_SERVER['PHP_SELF']) === 'jobs.php'; ?>
-        <a href="<?= ADMIN_URL ?>/pages/jobs.php"
-          class="group flex items-center gap-3 px-2.5 py-2.5 rounded-lg text-[16px] font-semibold transition-colors
-                 <?= $isActive ? 'bg-accent-soft text-accent-dark' : 'text-ink2 hover:bg-[#e2eaf4] hover:text-ink' ?>">
-          <svg class="h-[18px] w-[18px] flex-shrink-0 <?= $isActive ? 'text-accent' : 'text-muted group-hover:text-ink2' ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 6V4.5A1.5 1.5 0 0110.5 3h3A1.5 1.5 0 0115 4.5V6m-9 0h12a1.5 1.5 0 011.5 1.5v10.5a1.5 1.5 0 01-1.5 1.5H6a1.5 1.5 0 01-1.5-1.5V7.5A1.5 1.5 0 016 6z" />
-          </svg>
-          <span class="flex-1">All Jobs</span>
-          <?php
-          try {
-            $tc = db()->query("SELECT COUNT(*) FROM jobs WHERE status='published' AND (close_date IS NULL OR close_date >= CURDATE())")->fetchColumn();
-            if ($tc > 0) echo '<span class="bg-accent text-white rounded-full text-[10px] font-bold px-[7px] py-px leading-[16px]">' . $tc . '</span>';
-          } catch (Exception $e) {
-          }
-          ?>
+        <a class="active" href="<?= ADMIN_URL ?>/pages/clients.php">
+          <svg viewBox="0 0 24 24">
+            <path d="M3.75 21V6.75A1.5 1.5 0 0 1 5.25 5.25h6A1.5 1.5 0 0 1 12.75 6.75V21M3.75 21h16.5M3.75 21H2.25M20.25 21V10.5a1.5 1.5 0 0 0-1.5-1.5h-3a1.5 1.5 0 0 0-1.5 1.5V21" />
+          </svg>Clients
         </a>
-
-        <?php $isActive = basename($_SERVER['PHP_SELF']) === 'admins.php'; ?>
-        <a href="<?= ADMIN_URL ?>/pages/admins.php"
-          class="group flex items-center gap-3 px-2.5 py-2.5 rounded-lg text-[16px] font-semibold transition-colors
-                 <?= $isActive ? 'bg-accent-soft text-accent-dark' : 'text-ink2 hover:bg-[#e2eaf4] hover:text-ink' ?>">
-          <svg class="h-[18px] w-[18px] flex-shrink-0 <?= $isActive ? 'text-accent' : 'text-muted group-hover:text-ink2' ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-          </svg>
-          Admin
+        <a href="<?= ADMIN_URL ?>/pages/admins.php">
+          <svg viewBox="0 0 24 24">
+            <path d="M15.5 8a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0ZM5 20a7 7 0 0 1 14 0M18 5v6M15 8h6" />
+          </svg>Admin
         </a>
-
-        <?php $isActive = basename($_SERVER['PHP_SELF']) === 'clients.php'; ?>
-        <a href="<?= ADMIN_URL ?>/pages/clients.php"
-          class="group flex items-center gap-3 px-2.5 py-2.5 rounded-lg text-[16px] font-semibold transition-colors
-                 <?= $isActive ? 'bg-accent-soft text-accent-dark' : 'text-ink2 hover:bg-[#e2eaf4] hover:text-ink' ?>">
-          <svg class="h-[18px] w-[18px] flex-shrink-0 <?= $isActive ? 'text-accent' : 'text-muted group-hover:text-ink2' ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21V6.75A1.5 1.5 0 015.25 5.25h6A1.5 1.5 0 0112.75 6.75V21M3.75 21h16.5M3.75 21H2.25M20.25 21V10.5a1.5 1.5 0 00-1.5-1.5h-3a1.5 1.5 0 00-1.5 1.5V21m3-15h.008v.008H18v-.008zm0 3h.008v.008H18v-.008zm0 3h.008v.008H18v-.008zM6.75 9h.008v.008H6.75V9zm0 3h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm3-6h.008v.008H9.75V9zm0 3h.008v.008H9.75V12zm0 3h.008v.008H9.75V15z" />
-          </svg>
-          Clients
-        </a>
-
-        <?php $isActive = basename($_SERVER['PHP_SELF']) === 'post_job.php'; ?>
-        <a href="<?= ADMIN_URL ?>/pages/post_job.php"
-          class="group flex items-center gap-3 px-2.5 py-2.5 rounded-lg text-[16px] font-semibold transition-colors
-                 <?= $isActive ? 'bg-accent-soft text-accent-dark' : 'text-ink2 hover:bg-[#e2eaf4] hover:text-ink' ?>">
-          <svg class="h-[18px] w-[18px] flex-shrink-0 <?= $isActive ? 'text-accent' : 'text-muted group-hover:text-ink2' ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
-          Create Job
-        </a>
-
-        <a href="<?= ADMIN_URL ?>/pages/jobs.php?status=draft"
-          class="group flex items-center gap-3 px-2.5 py-2.5 rounded-lg text-[16px] font-semibold text-ink2 hover:bg-[#e2eaf4] hover:text-ink transition-colors">
-          <svg class="h-[18px] w-[18px] flex-shrink-0 text-muted group-hover:text-ink2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m6.75 12l-3-3m0 0l-3 3m3-3v6m-9-3.75h-1.5m1.5 0V21a2.25 2.25 0 002.25 2.25h13.5A2.25 2.25 0 0021 21V9a2.25 2.25 0 00-.659-1.591l-4.75-4.75A2.25 2.25 0 0013.999.75H6.75A2.25 2.25 0 004.5 3v6" />
-          </svg>
-          <span class="flex-1">Drafts</span>
-          <?php
-          try {
-            $dc = db()->query("SELECT COUNT(*) FROM jobs WHERE status='draft'")->fetchColumn();
-            if ($dc > 0) echo '<span class="bg-warn text-white rounded-full text-[10px] font-bold px-[7px] py-px leading-[16px]">' . $dc . '</span>';
-          } catch (Exception $e) {
-          }
-          ?>
-        </a>
-
       </nav>
-
-      <div class="px-3.5 py-3.5 border-t border-line flex-shrink-0">
-        <div class="flex items-center gap-2.5 px-1.5 py-2 rounded-lg mb-1">
-          <div class="w-8 h-8 rounded-full bg-accent flex items-center justify-center
-                      font-head text-sm font-bold text-white flex-shrink-0">
-            <?= strtoupper(substr($currentAdmin['name'], 0, 1)) ?>
-          </div>
-          <div class="min-w-0 flex-1">
-            <strong class="block text-sm text-ink font-semibold truncate"><?= e($currentAdmin['name']) ?></strong>
-            <span class="block text-xs text-ink2 capitalize truncate"><?= e($currentAdmin['role']) ?></span>
-          </div>
-          <a href="<?= ADMIN_URL ?>/logout.php" title="Sign out"
-            class="flex-shrink-0 p-1.5 rounded-md text-muted hover:text-danger hover:bg-danger/[.06] transition-colors">
-            <svg class="h-[17px] w-[17px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 9V5.25A2.25 2.25 0 0110.5 3h6a2.25 2.25 0 012.25 2.25v13.5A2.25 2.25 0 0116.5 21h-6a2.25 2.25 0 01-2.25-2.25V15m-3 0l-3-3m0 0l3-3m-3 3H15" />
+      <div class="sidebar-footer">
+        <div class="admin-row">
+          <span class="admin-avatar"><?= e(strtoupper(substr($currentAdmin['name'] ?? 'A', 0, 1))) ?></span>
+          <span class="admin-copy">
+            <strong><?= e($currentAdmin['name'] ?? 'Admin') ?></strong>
+            <small><?= e(ucfirst($currentAdmin['role'] ?? 'admin')) ?></small>
+          </span>
+          <a class="signout" href="<?= ADMIN_URL ?>/logout.php" title="Sign out">
+            <svg viewBox="0 0 24 24">
+              <path d="M10 5H6v14h4m4-4 4-3-4-3m4 3H9" />
             </svg>
           </a>
         </div>
+        <!-- <a class="new-job btn btn-primary btn-sm w-full" href="<?= ADMIN_URL ?>/pages/post_job.php"><span>+</span> Create Job</a> -->
       </div>
     </aside>
+
 
     <script>
       function setAdminSidebarOpen(isOpen) {

@@ -64,6 +64,10 @@ $stats = [
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css">
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css">
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <?php include __DIR__ . '/includes/theme.php'; ?>
   <link href="<?= ADMIN_URL ?>/dashboard.css" rel="stylesheet">
   <style>
     .stats-grid .stat-card {
@@ -124,7 +128,7 @@ $stats = [
   </style>
 </head>
 
-<body>
+<body data-theme="accelon">
   <button class="mobile-menu" id="mobileMenu" type="button" aria-label="Open navigation" aria-expanded="false"><svg viewBox="0 0 24 24">
       <path d="M4 7h16M4 12h16M4 17h16" />
     </svg></button>
@@ -141,6 +145,11 @@ $stats = [
       <a href="<?= ADMIN_URL ?>/pages/jobs.php"><svg viewBox="0 0 24 24">
           <path d="M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7M5 7h14a1 1 0 0 1 1 1v11H4V8a1 1 0 0 1 1-1Zm7 0v12" />
         </svg>Jobs</a>
+      <a href="<?= ADMIN_URL ?>/pages/clients.php">
+        <svg viewBox="0 0 24 24">
+          <path d="M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7M5 7h14a1 1 0 0 1 1 1v11H4V8a1 1 0 0 1 1-1Zm7 0v12" />
+        </svg>Clients
+      </a>
       <a href="<?= ADMIN_URL ?>/pages/admins.php"><svg viewBox="0 0 24 24">
           <path d="M15.5 8a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0ZM5 20a7 7 0 0 1 14 0M18 5v6M15 8h6" />
         </svg>Admin</a>
@@ -149,7 +158,7 @@ $stats = [
       <div class="admin-row"><span class="admin-avatar"><?= e(strtoupper(substr($currentAdmin['name'] ?? 'A', 0, 1))) ?></span><span class="admin-copy"><strong><?= e($currentAdmin['name'] ?? 'Admin') ?></strong><small><?= e(ucfirst($currentAdmin['role'] ?? 'admin')) ?></small></span><a class="signout" href="<?= ADMIN_URL ?>/logout.php" title="Sign out" aria-label="Sign out"><svg viewBox="0 0 24 24">
             <path d="M10 5H6v14h4m4-4 4-3-4-3m4 3H9" />
           </svg></a></div>
-      <a class="new-job" href="<?= ADMIN_URL ?>/pages/post_job.php"><span>+</span> Create Job</a>
+      <a class="btn btn-primary btn-sm w-full text-white!" href="<?= ADMIN_URL ?>/pages/post_job.php"><span>+</span> Create Job</a>
     </div>
   </aside>
   <main class="main">
@@ -183,45 +192,87 @@ $stats = [
         <?php endforeach; ?>
       </section>
       <section class="dashboard-grid">
-        <div class="panel recent-panel">
-          <div class="panel-heading">
-            <h2>Recent Jobs</h2><a href="<?= ADMIN_URL ?>/pages/jobs.php">View all <span>→</span></a>
+        <div class="recent-panel card overflow-visible rounded-xl border border-base-300 bg-base-100 shadow-xs">
+          <div class="bulk-bar flex min-h-14 items-center justify-between gap-3 border-b border-base-300 px-4 py-2 text-sm max-sm:items-start max-sm:flex-col">
+            <span>
+              <strong><?= number_format(count($recent)) ?></strong> recent jobs
+            </span>
+            <a class="btn btn-sm btn-ghost text-primary" href="<?= ADMIN_URL ?>/pages/jobs.php">View all <span>→</span></a>
           </div>
-          <?php if (!$recent): ?><div class="empty-state"><strong>No jobs yet</strong><span>New job postings will appear here.</span></div>
-          <?php else: ?><div class="job-table-wrap">
-              <table class="job-table">
-                <thead>
+          <div class="overflow-x-auto">
+            <table class="jobs-table table table-sm min-w-[850px]">
+              <thead>
+                <tr>
+                  <th>Job</th>
+                  <th>Location</th>
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                <?php if (!$recent): ?>
                   <tr>
-                    <th>Job</th>
-                    <th>Location</th>
-                    <th>Type</th>
-                    <th>Status</th>
-                    <th>Date</th>
+                    <td colspan="5" class="py-20">
+                      <div class="grid place-items-center gap-2 text-center text-base-content/60">
+                        <strong class="text-base font-semibold text-base-content">No jobs yet</strong>
+                        <span class="text-sm">New job postings will appear here.</span>
+                        <a class="btn btn-primary btn-sm mt-2" href="<?= ADMIN_URL ?>/pages/post_job.php">Create Job</a>
+                      </div>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
+                <?php else: ?>
                   <?php foreach ($recent as $job): [$statusLabel, $statusClass] = dashboardStatus($job); ?>
-                    <tr tabindex="0" role="link"
+                    <tr
+                      tabindex="0"
+                      role="link"
+                      class="group cursor-pointer border-t border-base-300 transition-colors hover:bg-[#F28C28]"
                       onclick="window.location.href='<?= ADMIN_URL ?>/pages/post_job.php?edit=<?= (int)$job['id'] ?>#page-top'"
                       onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}">
-                      <td>
-                        <strong><?= e($job['job_title']) ?></strong>
-                        <small>
+                      <td class="min-w-64 px-4 py-3.5 align-middle group-hover:bg-[#F28C28]">
+                        <strong class="block font-medium text-base-content group-hover:text-white"><?= e($job['job_title']) ?></strong>
+                        <small class="mt-1 flex items-center gap-1.5 font-mono text-xs text-base-content/55 group-hover:text-white/80">
                           <code><?= e($job['job_code']) ?></code>
-                          <i>·</i> Job Code: <?= e($job["client_code"] ?: 'General') ?></small>
+                          <i>·</i> Job Code: <?= e($job["client_code"] ?: 'General') ?>
+                        </small>
                       </td>
-                      <td><span class="location"><b><?= dashboardFlag($job['country']) ?></b><?= e($job['city'] ?: $job['country']) ?></span><small><?= e($job['workplace_type'] ?: '—') ?></small></td>
-                      <td><span><?= e($job['job_type'] ?: '—') ?></span><?php if ((int)$job['views'] > 0): ?><small class="views"><svg viewBox="0 0 24 24">
+                      <td class="px-4 py-3.5 align-middle group-hover:bg-[#F28C28]">
+                        <span class="flex items-center gap-1.5 whitespace-nowrap text-base-content/80 group-hover:text-white">
+                          <b><?= dashboardFlag($job['country']) ?></b>
+                          <?= e($job['city'] ?: $job['country']) ?>
+                        </span>
+                        <small class="mt-1 block text-xs text-base-content/55 group-hover:text-white/80"><?= e($job['workplace_type'] ?: '—') ?></small>
+                      </td>
+                      <td class="px-4 py-3.5 align-middle group-hover:bg-[#F28C28]">
+                        <span class="text-base-content/80 group-hover:text-white"><?= e($job['job_type'] ?: '—') ?></span>
+                        <?php if ((int)$job['views'] > 0): ?>
+                          <small class="mt-1 flex items-center gap-1 text-xs text-base-content/55 group-hover:text-white/80">
+                            <svg class="size-3.5" viewBox="0 0 24 24">
                               <circle cx="9" cy="8" r="3" />
                               <path d="M3.5 19c.5-4 2.3-6 5.5-6s5 2 5.5 6M16 9.5c2.4.3 3.7 1.9 4 4.5" />
-                            </svg><?= (int)$job['views'] ?></small><?php endif; ?></td>
-                      <td><span class="status <?= $statusClass ?>"><?= e($statusLabel) ?></span></td>
-                      <td><time datetime="<?= e($job['created_at']) ?>"><?= date('M j, Y', strtotime($job['created_at'])) ?></time></td>
+                            </svg>
+                            <?= (int)$job['views'] ?>
+                          </small>
+                        <?php endif; ?>
+                      </td>
+                      <td class="px-4 py-3.5 align-middle group-hover:bg-[#F28C28]">
+                        <span class="badge badge-sm <?= $statusClass === 'status-published'
+                                                      ? 'badge-success badge-soft'
+                                                      : ($statusClass === 'status-closed'
+                                                        ? 'badge-error badge-soft'
+                                                        : ($statusClass === 'status-pending'
+                                                          ? 'badge-neutral badge-soft'
+                                                          : 'badge-warning badge-soft')) ?>"><?= e($statusLabel) ?></span>
+                      </td>
+                      <td class="px-4 py-3.5 align-middle whitespace-nowrap group-hover:bg-[#F28C28]">
+                        <time class="text-base-content/80 group-hover:text-white" datetime="<?= e($job['created_at']) ?>"><?= date('M j, Y', strtotime($job['created_at'])) ?></time>
+                      </td>
                     </tr>
                   <?php endforeach; ?>
-                </tbody>
-              </table>
-            </div><?php endif; ?>
+                <?php endif; ?>
+              </tbody>
+            </table>
+          </div>
         </div>
         <aside class="panel country-panel">
           <div class="panel-heading">

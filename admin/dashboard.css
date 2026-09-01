@@ -96,8 +96,8 @@ svg {
 
 .nav a:hover,
 .nav a.active {
-    color: var(--blue);
-    background: #e8f1fd
+    color: var(--color-primary, #1A4C8F);
+    background: var(--color-accent-soft, #eaf1fa)
 }
 
 .nav svg {
