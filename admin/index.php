@@ -147,7 +147,7 @@ $stats = [
         </svg>Jobs</a>
       <a href="<?= ADMIN_URL ?>/pages/clients.php">
         <svg viewBox="0 0 24 24">
-          <path d="M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7M5 7h14a1 1 0 0 1 1 1v11H4V8a1 1 0 0 1 1-1Zm7 0v12" />
+          <path d="M3.75 21V6.75A1.5 1.5 0 0 1 5.25 5.25h6A1.5 1.5 0 0 1 12.75 6.75V21M3.75 21h16.5M3.75 21H2.25M20.25 21V10.5a1.5 1.5 0 0 0-1.5-1.5h-3a1.5 1.5 0 0 0-1.5 1.5V21" />
         </svg>Clients
       </a>
       <a href="<?= ADMIN_URL ?>/pages/admins.php"><svg viewBox="0 0 24 24">
@@ -155,9 +155,24 @@ $stats = [
         </svg>Admin</a>
     </nav>
     <div class="sidebar-footer">
-      <div class="admin-row"><span class="admin-avatar"><?= e(strtoupper(substr($currentAdmin['name'] ?? 'A', 0, 1))) ?></span><span class="admin-copy"><strong><?= e($currentAdmin['name'] ?? 'Admin') ?></strong><small><?= e(ucfirst($currentAdmin['role'] ?? 'admin')) ?></small></span><a class="signout" href="<?= ADMIN_URL ?>/logout.php" title="Sign out" aria-label="Sign out"><svg viewBox="0 0 24 24">
+      <div class="admin-row">
+        <span class="admin-avatar">
+          <?= e(strtoupper(substr($currentAdmin['name'] ?? 'A', 0, 1))) ?>
+        </span>
+        <span class="admin-copy">
+          <strong>
+            <?= e($currentAdmin['name'] ?? 'Admin') ?>
+          </strong>
+          <small>
+            <?= e(ucfirst($currentAdmin['role'] ?? 'admin')) ?>
+          </small>
+        </span>
+        <a class="signout" href="<?= ADMIN_URL ?>/logout.php" title="Sign out" aria-label="Sign out">
+          <svg viewBox="0 0 24 24">
             <path d="M10 5H6v14h4m4-4 4-3-4-3m4 3H9" />
-          </svg></a></div>
+          </svg>
+        </a>
+      </div>
       <a class="btn btn-primary btn-sm w-full text-white!" href="<?= ADMIN_URL ?>/pages/post_job.php"><span>+</span> Create Job</a>
     </div>
   </aside>
@@ -169,24 +184,38 @@ $stats = [
       <section class="stats-grid" aria-label="Job statistics">
         <?php foreach ($stats as [$label, $value, $tone, $icon, $url]): ?>
           <a class="stat-card" href="<?= e($url) ?>">
-            <div><span><?= e($label) ?></span><strong><?= number_format($value) ?></strong></div><span class="stat-icon tone-<?= $tone ?>">
-              <?php if ($icon === 'briefcase'): ?><svg viewBox="0 0 24 24">
+            <div>
+              <span>
+                <?= e($label) ?>
+              </span>
+              <strong>
+                <?= number_format($value) ?>
+              </strong>
+            </div>
+            <span class="stat-icon tone-<?= $tone ?>">
+              <?php if ($icon === 'briefcase'): ?>
+                <svg viewBox="0 0 24 24">
                   <path d="M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7M5 7h14v12H5V7Zm7 0v12" />
                 </svg>
-              <?php elseif ($icon === 'globe'): ?><svg viewBox="0 0 24 24">
+              <?php elseif ($icon === 'globe'): ?>
+                <svg viewBox="0 0 24 24">
                   <circle cx="12" cy="12" r="8" />
                   <path d="M4 12h16M12 4c2 2.3 3 5 3 8s-1 5.7-3 8c-2-2.3-3-5-3-8s1-5.7 3-8Z" />
                 </svg>
-              <?php elseif ($icon === 'document'): ?><svg viewBox="0 0 24 24">
+              <?php elseif ($icon === 'document'): ?>
+                <svg viewBox="0 0 24 24">
                   <path d="M7 4h7l4 4v12H7V4Zm7 0v4h4M10 12h5m-5 3h5" />
                 </svg>
-              <?php elseif ($icon === 'clock'): ?><svg viewBox="0 0 24 24">
+              <?php elseif ($icon === 'clock'): ?>
+                <svg viewBox="0 0 24 24">
                   <circle cx="12" cy="12" r="8" />
                   <path d="M12 7v5l3 2" />
                 </svg>
-              <?php else: ?><svg viewBox="0 0 24 24">
+              <?php else: ?>
+                <svg viewBox="0 0 24 24">
                   <path d="M5 8h14l-1 11H6L5 8Zm-1-3h16v3H4V5Zm6 7h4" />
-                </svg><?php endif; ?>
+                </svg>
+              <?php endif; ?>
             </span>
           </a>
         <?php endforeach; ?>
