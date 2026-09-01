@@ -27,10 +27,6 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
 
 // ── Handle POST actions ───────────────────────────────────────
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-  if (!validCsrfToken($_POST['csrf_token'] ?? null)) {
-    flash('error', 'Your session expired. Please try again.');
-    redirect(ADMIN_URL . '/pages/clients.php');
-  }
   $action = $_POST["action"] ?? "";
   $clientId = (int) ($_POST["client_id"] ?? 0);
   $clientName = trim($_POST["client_name"] ?? "");
@@ -219,7 +215,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
         </div>
 
         <form method="POST" id="clientForm">
-          <?= csrfField() ?>
+
           <input type="hidden" name="action" value="save">
           <input type="hidden" name="client_id" value="<?= $editClient
                                                           ? $editClient["id"]
@@ -344,7 +340,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
                           </li>
                           <li>
                             <form method="POST" class="inline">
-                              <?= csrfField() ?>
+
                               <input type="hidden" name="action" value="delete">
                               <input type="hidden" name="client_id" value="<?= e($c['id']) ?>">
                               <div class="tooltip" data-tip="Delete">
@@ -445,7 +441,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
               Cancel
             </button>
             <form method="POST" id="confirmDeleteClientForm" class="w-full sm:w-auto">
-              <?= csrfField() ?>
+
               <input type="hidden" name="action" value="delete">
               <input type="hidden" name="client_id" id="deleteClientId">
               <button

@@ -85,7 +85,7 @@
         </div>
         <?php if ($editStatus !== 'archived'): ?>
           <form method="POST" action="<?= ADMIN_URL ?>/pages/job_action.php">
-            <?= csrfField() ?>
+
             <input type="hidden" name="id" value="<?= (int) $job['id'] ?>">
             <button class="archive-job-button" type="submit" name="a" value="archive">Archive</button>
           </form>

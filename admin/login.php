@@ -16,9 +16,6 @@ $error = "";
 $redirect = $_GET["redirect"] ?? ADMIN_URL . "/index.php";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-  if (!validCsrfToken($_POST['csrf_token'] ?? null)) {
-    $error = 'Your session expired. Please try again.';
-  } else {
   $email = trim($_POST["email"] ?? "");
   $password = trim($_POST["password"] ?? "");
 
@@ -50,7 +47,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   } else {
     $error = "Please enter both email and password.";
   }
-  }
 }
 ?>
 <!DOCTYPE html>
@@ -62,7 +58,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   <title>Admin Login — <?= SITE_NAME ?></title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
   <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" />
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
@@ -76,13 +72,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     <!-- Logo / brand -->
     <div style="text-align: center; margin-bottom: 1.75rem;">
-      <h1 style="font-family: 'Manrope', sans-serif; font-size: 26px; font-weight: 800; color: #111827; letter-spacing: -0.5px;">Accelon</h1>
+      <h1 style="font-family: 'Syne', sans-serif; font-size: 26px; font-weight: 800; color: #111827; letter-spacing: -0.5px;">Accelon</h1>
       <p style="font-size: 12.5px; color: #9aa0b4; margin-top: 4px;">Admin Management System</p>
     </div>
 
     <!-- Card -->
     <div style="border-radius: 1rem; border: 1px solid #e7e9f0; padding: 2rem; box-shadow: 0 1px 2px rgba(17, 24, 39, .04), 0 8px 24px -12px rgba(17, 24, 39, .08); background: #ffffff;">
-      <h2 style="font-family: 'Manrope', sans-serif; font-size: 19px; font-weight: 700; color: #111827; margin-bottom: 4px;">Welcome back</h2>
+      <h2 style="font-family: 'Syne', sans-serif; font-size: 19px; font-weight: 700; color: #111827; margin-bottom: 4px;">Welcome back</h2>
       <p style="font-size: 13px; color: #5b6072; margin-top: 4px; margin-bottom: 1.5rem;">Sign in to your admin account</p>
 
       <?php if ($error): ?>
@@ -104,7 +100,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       <?php endif; ?>
 
       <form method="POST" style="display: flex; flex-direction: column; gap: 1rem;">
-        <?= csrfField() ?>
         <input type="hidden" name="redirect" value="<?= e($redirect) ?>">
 
         <div>
@@ -133,7 +128,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         </div>
 
         <button type="submit"
-          style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; background: #1A4C8F; color: #ffffff; border-radius: 0.5rem; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 700; letter-spacing: 0.02em; padding: 12px; box-shadow: 0 4px 14px rgba(26, 76, 143, 0.22); transition: all 0.2s; margin-top: 8px; border: none; cursor: pointer;">
+          style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; background: #1A4C8F; color: #ffffff; border-radius: 0.5rem; font-family: 'Syne', sans-serif; font-size: 13.5px; font-weight: 700; letter-spacing: 0.05em; padding: 12px; box-shadow: 0 4px 14px rgba(26, 76, 143, 0.22); transition: all 0.2s; margin-top: 8px; border: none; cursor: pointer;">
           Sign In
           <svg style="height: 16px; width: 16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M17.25 8.25L21 12m0 0l-3.75 3.75M21 12H3" />

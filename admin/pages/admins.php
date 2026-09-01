@@ -490,7 +490,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
         </summary>
         <div class="collapse-content text-sm">
           <form method="POST" id="adminForm" novalidate>
-            <?= csrfField() ?>
+
             <input type="hidden" name="action" value="save">
             <input type="hidden" name="user_id" value="<?= $editUser
                                                           ? $editUser["id"]
@@ -804,7 +804,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
                             <?php if (!$isSelf): ?>
                               <li>
                                 <form method="POST" class="inline">
-                                  <?= csrfField() ?>
+
                                   <input type="hidden" name="action" value="toggle_active">
                                   <input type="hidden" name="user_id" value="<?= $u["id"] ?>">
                                   <div class="tooltip" data-tip="<?= $u["is_active"] ? "Deactivate" : "Activate" ?>">
@@ -823,7 +823,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
                               </li>
                               <li>
                                 <form method="POST" class="inline">
-                                  <?= csrfField() ?>
+
                                   <input type="hidden" name="action" value="delete">
                                   <input type="hidden" name="user_id" value="<?= $u["id"] ?>">
                                   <div class="tooltip" data-tip="Delete">
@@ -911,7 +911,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
       <div class="space-y-5 px-5 py-5 sm:px-6">
         <!-- Form -->
         <form method="POST" id="resetForm" class="space-y-4">
-          <?= csrfField() ?>
+
 
           <input type="hidden" name="action" value="reset_password">
           <input type="hidden" name="user_id" id="resetUserId" value="">
@@ -1083,7 +1083,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
           Cancel
         </button>
         <form method="POST" id="confirmDeleteUserForm" class="w-full sm:w-auto">
-          <?= csrfField() ?>
+
           <input type="hidden" name="action" value="delete">
           <input type="hidden" name="user_id" id="deleteUserId">
           <button
@@ -1176,7 +1176,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
           Cancel
         </button>
         <form method="POST" id="confirmToggleForm" class="w-full sm:w-auto">
-          <?= csrfField() ?>
+
           <input type="hidden" name="action" value="toggle_active">
           <input type="hidden" name="user_id" id="toggleUserId">
           <button

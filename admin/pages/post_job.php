@@ -904,7 +904,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
               : ($isClone
                 ? "?clone=" . $cloneId
                 : "") ?>">
-    <?= csrfField() ?>
+
     <?php
     $formClientId = (int) ($old['client_id'] ?? 0);
     if (!$formClientId) {
