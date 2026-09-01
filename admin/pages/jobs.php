@@ -225,10 +225,7 @@ $jobTypeOptions = [];
 $workplaceTypeOptions = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['action'])) {
-  if (!validCsrfToken($_POST['csrf_token'] ?? null)) {
-    flash('error', 'Your session expired. Please try again.');
-    redirect(ADMIN_URL . '/pages/jobs.php');
-  }
+
   $ids = array_values(array_filter(array_map('intval', (array)($_POST['ids'] ?? []))));
   $action = $_POST['action'];
   if ($ids && in_array($action, ['publish', 'draft', 'close', 'archive', 'delete'], true)) {
@@ -471,18 +468,6 @@ $warnMessage = flash('warn');
           )) ?>
         </fieldset>
 
-        <!-- <select name="status" aria-label="Status" data-auto-filter class="select select-sm h-10 min-h-10 w-full rounded-lg border-base-300 bg-base-100 text-sm">
-          <option value="">All Statuses</option><?php foreach ($statusOptions as $value => $label): ?><option value="<?= $value ?>" <?= $fStatus === $value ? 'selected' : '' ?>><?= $label ?></option><?php endforeach; ?>
-        </select>
-        <select name="country" aria-label="Country" data-auto-filter class="select select-sm h-10 min-h-10 w-full rounded-lg border-base-300 bg-base-100 text-sm">
-          <option value="">All Countries</option><?php foreach ($countryOptions as $country): ?><option value="<?= e($country) ?>" <?= $fCountry === $country ? 'selected' : '' ?>><?= jobsFlag($country) ?> <?= e($country) ?></option><?php endforeach; ?>
-        </select>
-        <select name="job_type" aria-label="Job Type" data-auto-filter class="select select-sm h-10 min-h-10 w-full rounded-lg border-base-300 bg-base-100 text-sm">
-          <option value="">All Job Types</option><?php foreach ($jobTypeOptions as $jobType): ?><option value="<?= e($jobType) ?>" <?= $fJobType === $jobType ? 'selected' : '' ?>><?= e($jobType) ?></option><?php endforeach; ?>
-        </select>
-        <select name="workplace_type" aria-label="Workplace" data-auto-filter class="select select-sm h-10 min-h-10 w-full rounded-lg border-base-300 bg-base-100 text-sm">
-          <option value="">All Workplaces</option><?php foreach ($workplaceTypeOptions as $workplaceType): ?><option value="<?= e($workplaceType) ?>" <?= $fWorkplaceType === $workplaceType ? 'selected' : '' ?>><?= e($workplaceType) ?></option><?php endforeach; ?>
-        </select> -->
         <a class="btn btn-sm h-10 min-h-10 rounded-lg border-base-300 bg-base-100 px-5 text-base-content/70 hover:bg-base-200" href="<?= ADMIN_URL ?>/pages/jobs.php">Clear</a>
       </form>
 
@@ -855,7 +840,6 @@ $warnMessage = flash('warn');
       </div>
       <div class="flex flex-col-reverse gap-3 border-t border-base-200 bg-base-200/30 px-6 py-4 sm:flex-row sm:justify-end">
         <form method="POST" action="<?= ADMIN_URL ?>/pages/job_action.php" style="display:inline">
-          <input type="hidden" name="csrf_token" value="<?= e(csrfToken()) ?>">
           <input type="hidden" name="id" id="actionJobId">
           <input type="hidden" name="a" id="actionJobValue">
           <button
@@ -914,7 +898,6 @@ $warnMessage = flash('warn');
         </button>
       </div>
       <form method="POST" action="<?= ADMIN_URL ?>/pages/job_action.php">
-        <input type="hidden" name="csrf_token" value="<?= e(csrfToken()) ?>">
         <input type="hidden" name="id" id="publishJobId">
         <input type="hidden" name="a" value="publish">
         <div class="px-6 py-5">
