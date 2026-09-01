@@ -224,7 +224,7 @@ $stats = [
         <div class="recent-panel card overflow-visible rounded-xl border border-base-300 bg-base-100 shadow-xs">
           <div class="bulk-bar flex min-h-14 items-center justify-between gap-3 border-b border-base-300 px-4 py-2 text-sm max-sm:items-start max-sm:flex-col">
             <span>
-              <strong><?= number_format(count($recent)) ?></strong> recent jobs
+              <strong>Recent jobs</strong>
             </span>
             <a class="btn btn-sm btn-ghost text-primary" href="<?= ADMIN_URL ?>/pages/jobs.php">View all <span>→</span></a>
           </div>
