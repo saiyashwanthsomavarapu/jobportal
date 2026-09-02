@@ -311,7 +311,6 @@ $errors = [];
 
 $referenceMeta = ($isEdit || $isClone) ? extractReferenceFields((string) ($job['our_terms'] ?? '')) : [];
 if ($isEdit || $isClone) {
-  if (!isset($referenceMeta['work_location'])) $referenceMeta['work_location'] = $job['postal_code'] ?? '';
   $job['our_terms'] = stripReferenceFields((string) ($job['our_terms'] ?? ''));
 }
 $old = $isEdit || $isClone ? array_merge($job, $referenceMeta) : ($_POST ?: []);
@@ -393,15 +392,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     "industry" => "",
     "industry_other" => "",
     "reference_fields" => [
-      "hiring_manager" =>  "",
-      "work_location" => trim($_POST["work_location"] ?? ""),
       "visa_sponsorship_available" => isset($_POST["visa_sponsorship_available"]) ? 1 : 0,
-      "equal_opportunity_statement" => $_POST["equal_opportunity_statement"] ?? "",
-      "french_language_requirement" => isset($_POST["french_language_requirement"]) ? 1 : 0,
-      "security_clearance_requirement" => isset($_POST["security_clearance_requirement"]) ? 1 : 0,
-      "experience_required" => trim($_POST["experience_required"] ?? ""),
-      "notice_period_preference" => trim($_POST["notice_period_preference"] ?? ""),
-      "educational_qualification" => trim($_POST["educational_qualification"] ?? "")
+      "equal_opportunity_statement" => $_POST["equal_opportunity_statement"] ?? ""
     ],
     "job_description" => $_POST["job_description"] ?? "",
     "key_skills" => $_POST["key_skills"] ?? "",
@@ -1911,13 +1903,8 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
       const editor = new Quill(editorHost, {
         theme: 'snow',
         placeholder: id === 'job_description' ?
-          'Describe the role...' : (id === 'responsibilities' ?
-            'Add key responsibilities...' :
-            (id === 'key_skills' ?
-              'Add required skills...' :
-              (id === 'preferred_skills' ?
-                'Add preferred skills...' :
-                'Add formatted content...'))),
+          'Describe the role...' :
+          (id === 'key_skills' ? 'Add required skills...' : 'Add formatted content...'),
         modules: {
           toolbar: [
             [{
