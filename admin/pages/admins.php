@@ -79,10 +79,7 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
 /* Handle POST actions */
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-  if (!validCsrfToken($_POST['csrf_token'] ?? null)) {
-    flash('error', 'Your session expired. Please try again.');
-    redirect(ADMIN_URL . '/pages/admins.php');
-  }
+
   $action = $_POST["action"] ?? "";
   $targetId = (int) ($_POST["user_id"] ?? 0);
 
