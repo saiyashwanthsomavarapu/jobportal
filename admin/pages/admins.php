@@ -527,14 +527,14 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
           <?= $message ?>
         </div>
       <?php endif; ?>
-      <details class="<?= $postJobCardClass ?> border-t-4 border-t-success mt-5 collapse  collapse-arrow bg-base-100 border border-base-300" name="my-accordion-det-1" open>
+      <details class="<?= $postJobCardClass ?> border-t-4 border-t-success mt-5 collapse  collapse-arrow bg-base-100 border border-base-300" name="my-accordion-det-1">
         <summary class="<?= $postJobHeadingClass ?> collapse-title font-semibold">
           <div class="<?= $postJobIconBaseClass ?> bg-success/10 text-success">
             <svg class="<?= SVG_ICON ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21V6.75A1.5 1.5 0 015.25 5.25h6A1.5 1.5 0 0112.75 6.75V21M3.75 21h16.5M3.75 21H2.25M20.25 21V10.5a1.5 1.5 0 00-1.5-1.5h-3a1.5 1.5 0 00-1.5 1.5V21m3-15h.008v.008H18v-.008zm0 3h.008v.008H18v-.008zm0 3h.008v.008H18v-.008zM6.75 9h.008v.008H6.75V9zm0 3h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm3-6h.008v.008H9.75V9zm0 3h.008v.008H9.75V12zm0 3h.008v.008H9.75V15z" />
             </svg>
           </div>
-          <h2 class="<?= $postJobHeadingTextClass ?>">Create User</h2>
+          <h2 class="<?= $postJobHeadingTextClass ?>"> <?= $editUser ? 'Edit User' : 'Create User' ?></h2>
         </summary>
         <div class="collapse-content text-sm">
           <form method="POST" id="adminForm" novalidate>

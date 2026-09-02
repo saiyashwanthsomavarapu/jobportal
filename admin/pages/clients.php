@@ -151,9 +151,9 @@ try {
 
 ?>
 <?php
-$postJobPageClass = "mr-auto min-w-0 w-full max-w-[768px] space-y-6 font-['Plus_Jakarta_Sans',system-ui,sans-serif] [@media(min-width:821px)]:ml-[264px] [@media(min-width:821px)]:w-[calc(100vw-288px)] [@media(min-width:1056px)]:w-full";
+$postJobPageClass = "mr-auto min-w-0 w-full max-w-[870px] space-y-6 font-['Plus_Jakarta_Sans',system-ui,sans-serif] [@media(min-width:821px)]:ml-[264px] [@media(min-width:821px)]:w-[calc(100vw-288px)] [@media(min-width:1056px)]:w-full";
 $postJobCardClass = "scroll-mt-4 overflow-hidden rounded-xl  bg-base-100 p-5 shadow-sm";
-$postJobHeadingClass = "mb-5 flex items-center gap-2.5 border-b border-base-300 pb-3.5";
+$postJobHeadingClass = "flex items-center gap-2.5  border-base-300 pb-3.5";
 $postJobHeadingTextClass = "text-base font-semibold leading-6 text-base-content";
 $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounded-lg";
 ?>
@@ -252,78 +252,79 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
 
       <?php $isEditPage = (bool) $editClient; ?>
 
-      <div class="<?= $postJobCardClass ?> border-t-4 border-t-success mt-5">
-        <div class="<?= $postJobHeadingClass ?>">
+      <details class="<?= $postJobCardClass ?> border-t-4 border-t-success mt-5 collapse  collapse-arrow bg-base-100 border border-base-300" name="my-accordion-det-1">
+        <summary class="<?= $postJobHeadingClass ?> collapse-title font-semibold">
           <div class="<?= $postJobIconBaseClass ?> bg-success/10 text-success">
             <svg class="<?= SVG_ICON ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21V6.75A1.5 1.5 0 015.25 5.25h6A1.5 1.5 0 0112.75 6.75V21M3.75 21h16.5M3.75 21H2.25M20.25 21V10.5a1.5 1.5 0 00-1.5-1.5h-3a1.5 1.5 0 00-1.5 1.5V21m3-15h.008v.008H18v-.008zm0 3h.008v.008H18v-.008zm0 3h.008v.008H18v-.008zM6.75 9h.008v.008H6.75V9zm0 3h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm3-6h.008v.008H9.75V9zm0 3h.008v.008H9.75V12zm0 3h.008v.008H9.75V15z" />
             </svg>
           </div>
-          <h2 class="<?= $postJobHeadingTextClass ?>">Clients</h2>
-        </div>
+          <h2 class="<?= $postJobHeadingTextClass ?>"><?= $isEditPage ? 'Edit Client' : 'Create Client' ?></h2>
+        </summary>
+        <div class="collapse-content text-sm">
+          <form method="POST" id="clientForm">
 
-        <form method="POST" id="clientForm">
+            <input type="hidden" name="action" value="save">
+            <input type="hidden" name="client_id" value="<?= $editClient
+                                                            ? $editClient["id"]
+                                                            : 0 ?>">
 
-          <input type="hidden" name="action" value="save">
-          <input type="hidden" name="client_id" value="<?= $editClient
-                                                          ? $editClient["id"]
-                                                          : 0 ?>">
+            <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
 
-          <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
-
-            <!-- Client Name -->
-            <fieldset class="fieldset">
-              <legend class="fieldset-legend">
-                Client Name
-                <span class="text-error">*</span>
-              </legend>
-              <input
-                type="text"
-                name="client_name"
-                class="<?= INPUT_CLASS ?>"
-                placeholder="e.g. Autodesk"
-                value="<?= e($oldClientName ?? ($editClient["client_name"] ?? "")) ?>"
-                required
-                pattern="[A-Za-z0-9 .&-]+"
-                title="Only letters, numbers, spaces, periods, ampersands, and hyphens are allowed."
-                oninput="this.value = this.value.replace(/[^A-Za-z0-9 .&-]/g, '')"
-                autofocus />
-              <p class="text-xs text-base-content/50">
-                Enter the official client/company name.
-              </p>
-            </fieldset>
-          </div>
-          <div class="flex items-center gap-2.5 mt-6">
-            <?php if ($isEditPage): ?>
-              <a href="<?= ADMIN_URL ?>/pages/clients.php"
-                class="flex items-center gap-1.5 text-[12.5px] font-semibold text-gray-900/70 border border-gray-200 rounded-lg px-3.5 py-2 hover:bg-gray-50 hover:text-gray-900 transition-colors">
-                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                Cancel
-              </a>
-            <?php endif; ?>
-            <button
-              type="submit"
-              form="clientForm"
-              id="saveClientButton"
-              class="btn btn-sm btn-primary btn-disabled shadow-sm"
-              disabled>
+              <!-- Client Name -->
+              <fieldset class="fieldset">
+                <legend class="fieldset-legend">
+                  Client Name
+                  <span class="text-error">*</span>
+                </legend>
+                <input
+                  type="text"
+                  name="client_name"
+                  class="<?= INPUT_CLASS ?>"
+                  placeholder="e.g. Autodesk"
+                  value="<?= e($oldClientName ?? ($editClient["client_name"] ?? "")) ?>"
+                  required
+                  pattern="[A-Za-z0-9 .&-]+"
+                  title="Only letters, numbers, spaces, periods, ampersands, and hyphens are allowed."
+                  oninput="this.value = this.value.replace(/[^A-Za-z0-9 .&-]/g, '')"
+                  autofocus />
+                <p class="text-xs text-base-content/50">
+                  Enter the official client/company name.
+                </p>
+              </fieldset>
+            </div>
+            <div class="flex items-center gap-2.5 mt-6">
               <?php if ($isEditPage): ?>
-                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                </svg>
-                Update Client
-              <?php else: ?>
-                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                </svg>
-                Create Client
+                <a href="<?= ADMIN_URL ?>/pages/clients.php"
+                  class="flex items-center gap-1.5 text-[12.5px] font-semibold text-gray-900/70 border border-gray-200 rounded-lg px-3.5 py-2 hover:bg-gray-50 hover:text-gray-900 transition-colors">
+                  <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  Cancel
+                </a>
               <?php endif; ?>
-            </button>
-          </div>
-        </form>
-      </div>
+              <button
+                type="submit"
+                form="clientForm"
+                id="saveClientButton"
+                class="btn btn-sm btn-primary btn-disabled shadow-sm"
+                disabled>
+                <?php if ($isEditPage): ?>
+                  <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                  </svg>
+                  Update Client
+                <?php else: ?>
+                  <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                  Create Client
+                <?php endif; ?>
+              </button>
+            </div>
+          </form>
+        </div>
+      </details>
 
 
       <!-- ══ CLIENTS TABLE ══ -->
