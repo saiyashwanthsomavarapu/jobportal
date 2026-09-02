@@ -13,6 +13,50 @@ $oldClientName = null;
 $successMessage = "";
 $errorMessage = "";
 $warnMessage = "";
+$page = max(1, (int) ($_GET['page'] ?? 1));
+$requestedPerPage = (int) ($_GET['per_page'] ?? 10);
+$perPage = in_array($requestedPerPage, [10, 15, 25, 50], true) ? $requestedPerPage : 10;
+$totalClients = 0;
+$totalPages = 1;
+$offset = 0;
+
+function clientsPageUrl(int $pg): string
+{
+  $params = $_GET;
+  $params['page'] = max(1, $pg);
+  unset($params['edit']);
+
+  return '?' . http_build_query($params);
+}
+
+function renderClientsPagination(int $page, int $totalPages, int $totalRows): string
+{
+  ob_start(); ?>
+  <p class="m-0 text-sm text-base-content/60"><?= number_format($totalRows) ?> total clients</p>
+  <?php if ($totalPages > 1): ?>
+    <div class="mt-5 flex items-center justify-end">
+      <div class="join">
+        <?php if ($page > 1): ?>
+          <a href="<?= clientsPageUrl($page - 1) ?>"
+            class="btn btn-sm join-item border-base-300 bg-base-100 text-base-content/70 hover:bg-base-200">‹ Prev</a>
+        <?php endif; ?>
+
+        <?php foreach (range(max(1, $page - 2), min($totalPages, $page + 2)) as $pg): ?>
+          <a href="<?= clientsPageUrl($pg) ?>"
+            class="btn btn-sm join-item <?= $pg === $page ? 'btn-primary !text-white' : 'border-base-300 bg-base-100 text-base-content/70 hover:bg-base-200' ?>">
+            <?= $pg ?>
+          </a>
+        <?php endforeach; ?>
+
+        <?php if ($page < $totalPages): ?>
+          <a href="<?= clientsPageUrl($page + 1) ?>"
+            class="btn btn-sm join-item border-base-300 bg-base-100 text-base-content/70 hover:bg-base-200">Next ›</a>
+        <?php endif; ?>
+      </div>
+    </div>
+  <?php endif; ?>
+<?php return ob_get_clean();
+}
 
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
   $savedErrors = flash('clients_save_errors');
@@ -94,9 +138,13 @@ if (isset($_GET["edit"])) {
   $editClient = getClientById((int) $_GET["edit"]);
 }
 
-// ── Load all clients ──────────────────────────────────────────
+// ── Load clients ──────────────────────────────────────────────
 try {
-  $clients = getClientsWithCreator();
+  $totalClients = countClients();
+  $totalPages = max(1, (int) ceil($totalClients / $perPage));
+  $page = min($page, $totalPages);
+  $offset = ($page - 1) * $perPage;
+  $clients = getClientsWithCreatorPaginated($offset, $perPage);
 } catch (Exception $e) {
   $clients = [];
 }
@@ -282,7 +330,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
       <div class="card mt-5 overflow-visible rounded-xl border border-base-300 bg-base-100 shadow-xs">
         <div class="bulk-bar flex min-h-14 items-center justify-between gap-3 border-b border-base-300 px-4 py-2 text-sm  max-sm:items-start max-sm:flex-col">
           <span>
-            <strong><?= number_format(count($clients)) ?></strong> total clients
+            <strong><?= number_format($totalClients) ?></strong> total clients
           </span>
         </div>
 
@@ -367,6 +415,10 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
           </table>
         </div>
       </div>
+
+      <footer class="pagination flex items-center justify-between gap-3 py-4 text-sm text-base-content/60 max-md:items-start max-md:flex-col">
+        <?= renderClientsPagination($page, $totalPages, $totalClients) ?>
+      </footer>
 
       <!-- Delete Client Modal -->
       <dialog id="deleteClientModal" class="modal">

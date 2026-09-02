@@ -85,7 +85,7 @@ $similarStmt->execute([
 $sideBar = [
     'Work Experience'   => $job['experience'] ?? '',
     'Salary / Rate'     => $job['salary_rate'] ?? '',
-    'Location'          => ['flag' => '🇺🇸', 'text' => $job['city'] . ', ' . $job['state_province'] . ', ' . $job['country']],
+    'Location'          => ['text' => $job['city'] . ', ' . $job['state_province'] . ', ' . $job['country']],
     'Job Type'          => $job['job_type'],
     'Work Mode'         => $job['workplace_type'],
     // 'Openings'          => '5',
@@ -148,6 +148,29 @@ function daysLeft($close)
 }
 
 $days = daysLeft($job['close_date']);
+$requestScheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+$requestHost = $_SERVER['HTTP_HOST'] ?? parse_url(SITE_URL, PHP_URL_HOST) ?? 'localhost';
+$jobApplyQuery = $_GET;
+$jobApplyUrl = $requestScheme . '://' . $requestHost . $cleanPath . '?' . http_build_query($jobApplyQuery);
+$jobLocationText = trim(implode(', ', array_filter([
+    $job['city'] ?? '',
+    $job['state_province'] ?? '',
+    $job['country'] ?? '',
+])));
+$jobMetaDescription = trim(implode(' | ', array_filter([
+    $jobLocationText ? 'Location: ' . $jobLocationText : '',
+    !empty($job['job_type']) ? 'Type: ' . $job['job_type'] : '',
+    !empty($job['workplace_type']) ? 'Work Mode: ' . $job['workplace_type'] : '',
+    !empty($job['experience']) ? 'Experience: ' . $job['experience'] : '',
+])));
+$jobShareText = implode("\n", array_filter([
+    $job['job_title'] ?? '',
+    $jobLocationText ? 'Location: ' . $jobLocationText : '',
+    !empty($job['job_type']) ? 'Job Type: ' . $job['job_type'] : '',
+    !empty($job['workplace_type']) ? 'Work Mode: ' . $job['workplace_type'] : '',
+    !empty($job['experience']) ? 'Experience: ' . $job['experience'] : '',
+    'Apply here: ' . $jobApplyUrl,
+]));
 /**
  * Job Detail Page — Multi-Country Recruitment Job Portal
  * Built with PHP + Tailwind CSS + daisyUI
@@ -163,7 +186,17 @@ $days = daysLeft($job['close_date']);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Multi-Country Recruitment Job Portal | Careers</title>
+    <title><?= e($job['job_title'] ?? 'Job Details') ?> | Accelon Careers</title>
+    <meta name="description" content="<?= e($jobMetaDescription) ?>">
+    <link rel="canonical" href="<?= e($jobApplyUrl) ?>">
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="<?= e($job['job_title'] ?? 'Job Details') ?> | Accelon Careers">
+    <meta property="og:description" content="<?= e($jobMetaDescription) ?>">
+    <meta property="og:url" content="<?= e($jobApplyUrl) ?>">
+    <meta property="og:site_name" content="Accelon Careers">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="<?= e($job['job_title'] ?? 'Job Details') ?> | Accelon Careers">
+    <meta name="twitter:description" content="<?= e($jobMetaDescription) ?>">
 
     <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
     <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" />
@@ -288,7 +321,7 @@ $days = daysLeft($job['close_date']);
                     <?= e($job['job_title']) ?>
                 </h1>
 
-                <div class="flex flex-wrap gap-2 mb-4">
+                <div class="flex flex-wrap gap-2 ">
                     <span class="badge badge-lg bg-accent-soft text-primary border-none font-medium gap-1 py-3">
                         <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.5" />
@@ -314,7 +347,7 @@ $days = daysLeft($job['close_date']);
 
                 <div class="divider my-0"></div>
 
-                <div class="flex gap-6 pt-4 print:hidden">
+                <div class="flex gap-6 print:hidden">
                     <button type="button" id="shareJobBtn" class="flex items-center gap-2 text-ink2 hover:text-primary text-sm">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M8.684 13.342a4 4 0 100-2.684m0 2.684a4 4 0 000 -2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a4 4 0 108-1.658 4 4 0 00-8 1.658zm0 12.632a4 4 0 108-1.658 4 4 0 00-8 1.658z" />
@@ -328,7 +361,7 @@ $days = daysLeft($job['close_date']);
                         <span>Print</span>
                     </button>
                 </div>
-                <p id="jobActionStatus" class="mt-2 text-sm text-success print:hidden" role="status" aria-live="polite"></p>
+                <p id="jobActionStatus" class=" text-sm text-success print:hidden" role="status" aria-live="polite"></p>
             </div>
         </div>
 
@@ -456,7 +489,7 @@ $days = daysLeft($job['close_date']);
                                     <p class="text-sm font-semibold text-ink "><?php echo htmlspecialchars($label); ?></p>
                                     <?php if (is_array($value)): ?>
                                         <p class="text-sm text-ink2 flex items-center ">
-                                            <?php echo $value['flag']; ?> <?php echo htmlspecialchars($value['text']); ?>
+                                            <?php echo htmlspecialchars($value['text']); ?>
                                         </p>
                                     <?php else: ?>
                                         <p class="text-sm text-ink2"><?php echo htmlspecialchars($value); ?></p>
@@ -488,24 +521,14 @@ $days = daysLeft($job['close_date']);
             }, 2500);
         }
 
-        shareJobButton?.addEventListener('click', async () => {
-            const shareData = {
-                title: document.title,
-                text: <?= json_encode($job['job_title'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>,
-                url: window.location.href
-            };
+        shareJobButton?.addEventListener('click', () => {
+            const linkedInShareUrl = new URL('https://www.linkedin.com/feed/');
+            linkedInShareUrl.searchParams.set('shareActive', 'true');
+            linkedInShareUrl.searchParams.set('text', <?= json_encode($jobShareText, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>);
 
-            try {
-                if (navigator.share) {
-                    await navigator.share(shareData);
-                    return;
-                }
-
-                await navigator.clipboard.writeText(shareData.url);
-                setJobActionStatus('Job link copied.');
-            } catch (error) {
-                if (error?.name === 'AbortError') return;
-                setJobActionStatus('Unable to share this job.');
+            const shareWindow = window.open(linkedInShareUrl.toString(), '_blank', 'noopener,noreferrer');
+            if (!shareWindow) {
+                setJobActionStatus('Please allow pop-ups to share this job on LinkedIn.');
             }
         });
 

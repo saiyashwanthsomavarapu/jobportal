@@ -46,6 +46,191 @@ function getCountClients($whereSql)
     return "SELECT COUNT(DISTINCT j.id) FROM jobs j LEFT JOIN clients c ON c.id=j.client_id WHERE $whereSql";
 }
 
+function getDistinctJobCountries(): array
+{
+    return db()
+        ->query("SELECT DISTINCT country FROM jobs WHERE country IS NOT NULL AND country != '' ORDER BY country")
+        ->fetchAll(PDO::FETCH_COLUMN);
+}
+
+function getDistinctJobTypes(): array
+{
+    return db()
+        ->query("SELECT DISTINCT job_type FROM jobs WHERE job_type IS NOT NULL AND job_type != '' ORDER BY job_type")
+        ->fetchAll(PDO::FETCH_COLUMN);
+}
+
+function getDistinctWorkplaceTypes(): array
+{
+    return db()
+        ->query("SELECT DISTINCT workplace_type FROM jobs WHERE workplace_type IS NOT NULL AND workplace_type != '' ORDER BY workplace_type")
+        ->fetchAll(PDO::FETCH_COLUMN);
+}
+
+function countFilteredJobs(string $whereSql, array $params): int
+{
+    $stmt = db()->prepare(getCountClients($whereSql));
+    $stmt->execute($params);
+
+    return (int) $stmt->fetchColumn();
+}
+
+function getFilteredJobs(string $whereSql, array $params, int $offset, int $perPage): array
+{
+    $stmt = db()->prepare(getJobs($whereSql, $offset, $perPage));
+    $stmt->execute($params);
+
+    return $stmt->fetchAll();
+}
+
+function deleteJobsByIds(array $ids): void
+{
+    if (!$ids) return;
+
+    $marks = implode(',', array_fill(0, count($ids), '?'));
+    db()->prepare("DELETE FROM jobs WHERE id IN ($marks)")->execute($ids);
+}
+
+function updateJobsStatusByIds(array $ids, string $status): void
+{
+    if (!$ids) return;
+
+    $marks = implode(',', array_fill(0, count($ids), '?'));
+    $sql = "UPDATE jobs SET status=?, updated_at=NOW()"
+        . ($status === 'published' ? ', published_at=COALESCE(published_at,NOW())' : '')
+        . " WHERE id IN ($marks)";
+
+    db()->prepare($sql)->execute(array_merge([$status], $ids));
+}
+
+function getJobById(int $jobId): ?array
+{
+    $stmt = db()->prepare('SELECT * FROM jobs WHERE id = ?');
+    $stmt->execute([$jobId]);
+    $job = $stmt->fetch();
+
+    return $job ?: null;
+}
+
+function getJobFormClients(): array
+{
+    return db()
+        ->query('SELECT id, client_name FROM clients ORDER BY client_name ASC')
+        ->fetchAll();
+}
+
+function jobClientCodeExistsForOtherJob(string $clientCode, int $excludeJobId = 0): bool
+{
+    $clientCode = trim($clientCode);
+    if ($clientCode === '') return false;
+
+    $stmt = db()->prepare(
+        'SELECT id
+         FROM jobs
+         WHERE client_code = ?
+           AND id != ?
+         LIMIT 1'
+    );
+    $stmt->execute([$clientCode, $excludeJobId]);
+
+    return (bool) $stmt->fetch();
+}
+
+function makeUniqueJobSlug(string $title, int $excludeId = 0): string
+{
+    $baseSlug = slugify($title);
+    $slug = $baseSlug;
+    $counter = 1;
+    $stmt = db()->prepare(
+        'SELECT id
+         FROM jobs
+         WHERE slug COLLATE utf8mb4_unicode_ci = ?
+           AND id != ?
+         LIMIT 1'
+    );
+
+    while (true) {
+        $stmt->execute([$slug, $excludeId]);
+        if (!$stmt->fetch()) {
+            return $slug;
+        }
+
+        $counter++;
+        $slug = $baseSlug . '-' . $counter;
+    }
+}
+
+function buildJobSaveParams(array $fields, array $data): array
+{
+    $params = [];
+    foreach ($fields as $field) {
+        $params[":{$field}"] = $data[$field] ?? null;
+    }
+
+    return $params;
+}
+
+function updateJobById(int $jobId, array $fields, array $data, string $slug): void
+{
+    $set = implode(
+        ', ',
+        array_map(
+            fn($field) => "{$field} = :{$field}",
+            $fields
+        )
+    );
+
+    $params = [];
+    foreach ($fields as $field) {
+        $params[":{$field}"] = $field === 'slug'
+            ? $slug
+            : ($data[$field] ?? null);
+    }
+    $params[':status_check'] = $data['status'];
+    $params[':id'] = $jobId;
+
+    $sql = "
+        UPDATE jobs
+        SET
+            {$set},
+            updated_at = NOW(),
+            published_at = IF(
+                :status_check = 'published'
+                AND published_at IS NULL,
+                NOW(),
+                published_at
+            )
+        WHERE id = :id
+    ";
+
+    db()->prepare($sql)->execute($params);
+}
+
+function createJob(array $fields, array $data, string $slug, int $createdBy): int
+{
+    $insertFields = array_merge($fields, ['slug', 'created_by', 'published_at']);
+    $insertColumns = implode(', ', $insertFields);
+    $placeholders = [];
+
+    foreach ($insertFields as $field) {
+        $placeholders[] = $field === 'published_at'
+            ? "IF(:published_status = 'published', NOW(), NULL)"
+            : ":{$field}";
+    }
+
+    $params = buildJobSaveParams($fields, $data);
+    $params[':slug'] = $slug;
+    $params[':created_by'] = $createdBy;
+    $params[':published_status'] = $data['status'];
+
+    $pdo = db();
+    $pdo->prepare(
+        'INSERT INTO jobs (' . $insertColumns . ') VALUES (' . implode(', ', $placeholders) . ')'
+    )->execute($params);
+
+    return (int) $pdo->lastInsertId();
+}
+
 function getAdminUserRoleById(int $userId): ?string
 {
     $stmt = db()->prepare('SELECT role FROM admin_users WHERE id = ?');
@@ -164,6 +349,32 @@ function getAdminUsers(bool $includeSuperadmins): array
     return db()->query($sql)->fetchAll();
 }
 
+function countAdminUsers(bool $includeSuperadmins): int
+{
+    $sql = $includeSuperadmins
+        ? 'SELECT COUNT(*) FROM admin_users'
+        : "SELECT COUNT(*) FROM admin_users WHERE role <> 'superadmin'";
+
+    return (int) db()->query($sql)->fetchColumn();
+}
+
+function getAdminUsersPaginated(bool $includeSuperadmins, int $offset, int $perPage): array
+{
+    $offset = max(0, $offset);
+    $perPage = max(1, $perPage);
+    $where = $includeSuperadmins ? '' : "WHERE role <> 'superadmin'";
+
+    return db()
+        ->query(
+            'SELECT *
+             FROM admin_users
+             ' . $where . '
+             ORDER BY role ASC, name ASC
+             LIMIT ' . $perPage . ' OFFSET ' . $offset
+        )
+        ->fetchAll();
+}
+
 function clientNameExistsForOtherClient(string $clientName, int $excludeClientId = 0): bool
 {
     $stmt = db()->prepare('SELECT id FROM clients WHERE client_name = ? AND id != ?');
@@ -228,6 +439,32 @@ function getClientsWithCreator(): array
                 GROUP BY client_id
              ) jobs_linked ON jobs_linked.client_id = c.id
              ORDER BY c.client_name ASC'
+        )
+        ->fetchAll();
+}
+
+function countClients(): int
+{
+    return (int) db()->query('SELECT COUNT(*) FROM clients')->fetchColumn();
+}
+
+function getClientsWithCreatorPaginated(int $offset, int $perPage): array
+{
+    $offset = max(0, $offset);
+    $perPage = max(1, $perPage);
+
+    return db()
+        ->query(
+            'SELECT c.*, a.name AS created_by_name, COALESCE(jobs_linked.jobs_count, 0) AS jobs_count
+             FROM clients c
+             LEFT JOIN admin_users a ON a.id = c.created_by
+             LEFT JOIN (
+                SELECT client_id, COUNT(*) AS jobs_count
+                FROM jobs
+                GROUP BY client_id
+             ) jobs_linked ON jobs_linked.client_id = c.id
+             ORDER BY c.client_name ASC
+             LIMIT ' . $perPage . ' OFFSET ' . $offset
         )
         ->fetchAll();
 }

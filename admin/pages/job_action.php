@@ -1,8 +1,8 @@
 <?php
 require_once dirname(__DIR__) . "/auth.php";
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !validCsrfToken($_POST['csrf_token'] ?? null)) {
-    flash('error', 'Invalid or expired request. Please try again.');
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    flash('error', 'Invalid request method. Please try again.');
     redirect(ADMIN_URL . '/pages/jobs.php');
 }
 
@@ -82,7 +82,7 @@ try {
             }
 
             $copyFields = [
-                "client_id", "job_title", "country", "state_province", "city", "postal_code",
+                "job_title", "country", "state_province", "city", "postal_code",
                 "workplace_type", "workplace_type_other", "timezone", "job_type", "job_type_other",
                 "experience", "salary_rate", "salary_from", "salary_to", "salary_unit_from",
                 "salary_unit_to", "salary_currency", "salary_type", "salary_boe", "industry",

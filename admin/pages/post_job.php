@@ -1,9 +1,8 @@
 <?php
 
 require_once dirname(__DIR__) . "/auth.php";
+require_once dirname(__DIR__) . "/DB/queries.php";
 require_once dirname(__DIR__) . "/utils/classes.php";
-
-$pdo = db();
 
 /* LOAD JOB FOR EDIT / CLONE */
 
@@ -20,13 +19,7 @@ $cloneNewNumber = 0;
 
 /* Edit */
 if ($editId > 0) {
-  $stmt = $pdo->prepare("
-        SELECT *
-        FROM jobs
-        WHERE id = ?
-    ");
-  $stmt->execute([$editId]);
-  $job = $stmt->fetch();
+  $job = getJobById($editId);
 
   if (!$job) {
     flash("error", "Job not found.");
@@ -35,15 +28,7 @@ if ($editId > 0) {
   $isEdit = true;
 }
 /* Clone */ elseif ($cloneId > 0) {
-  $stmt = $pdo->prepare("
-        SELECT *
-        FROM jobs
-        WHERE id = ?
-    ");
-
-  $stmt->execute([$cloneId]);
-
-  $job = $stmt->fetch();
+  $job = getJobById($cloneId);
 
   if (!$job) {
     flash("error", "Job to clone not found.");
@@ -77,15 +62,7 @@ $breadcrumbs = [
 
 /* LOAD CLIENTS */
 try {
-  $clientsList = $pdo
-    ->query(
-      "
-            SELECT id, client_name
-            FROM clients
-            ORDER BY client_name ASC
-        "
-    )
-    ->fetchAll();
+  $clientsList = getJobFormClients();
 } catch (Exception $e) {
   $clientsList = [];
 }
@@ -214,40 +191,6 @@ function generateJobCode(bool $isClone, array &$data): void
   $data["job_code_prefix"] = "AC";
 }
 
-function makeUniqueSlug(PDO $pdo, string $title, int $excludeId = 0): string
-{
-  $baseSlug = slugify($title);
-  $slug = $baseSlug;
-
-  $stmt = $pdo->prepare("
-        SELECT id
-        FROM jobs
-        WHERE slug COLLATE utf8mb4_unicode_ci = ?
-          AND id != ?
-        LIMIT 1
-    ");
-
-  $counter = 1;
-
-  while (true) {
-    $stmt->execute([$slug, $excludeId]);
-    if (!$stmt->fetch()) {
-      return $slug;
-    }
-    $counter++;
-    $slug = $baseSlug . "-" . $counter;
-  }
-}
-
-function buildJobParams(array $fields, array $data): array
-{
-  $params = [];
-  foreach ($fields as $field) {
-    $params[":{$field}"] = $data[$field] ?? null;
-  }
-  return $params;
-}
-
 function richTextHasContent(string $html): bool
 {
   $text = html_entity_decode(strip_tags(str_replace(['<br>', '<br/>', '<br />', '&nbsp;'], ' ', $html)));
@@ -264,6 +207,12 @@ function validateJob(array $data, bool $draftOnly = false): array
 
   if (empty($data['client_id'])) {
     $errors[] = 'Company or Client name is required.';
+  }
+
+  if (!$data["client_code"]) {
+    $errors[] = "Client Reference is required.";
+  } elseif (!preg_match('/^\d{4,5}$/', (string) $data["client_code"])) {
+    $errors[] = "Client Reference must be 4 or 5 digits.";
   }
 
   if (!$data["job_title"]) {
@@ -362,22 +311,20 @@ $errors = [];
 
 $referenceMeta = ($isEdit || $isClone) ? extractReferenceFields((string) ($job['our_terms'] ?? '')) : [];
 if ($isEdit || $isClone) {
-  $referenceMeta['department'] = $job['industry'] ?? '';
   if (!isset($referenceMeta['work_location'])) $referenceMeta['work_location'] = $job['postal_code'] ?? '';
   $job['our_terms'] = stripReferenceFields((string) ($job['our_terms'] ?? ''));
 }
 $old = $isEdit || $isClone ? array_merge($job, $referenceMeta) : ($_POST ?: []);
+if ($isClone && $_SERVER["REQUEST_METHOD"] !== "POST") {
+  $old["client_id"] = "";
+  $old["client_code"] = "";
+}
 
 // ============================================================
 // PROCESS FORM
 // ============================================================
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-  if (!validCsrfToken($_POST['csrf_token'] ?? null)) {
-    flash('error', 'Your session expired. Please try again.');
-    redirect(ADMIN_URL . '/pages/jobs.php');
-  }
-
   $ccSuffix = trim($_POST["client_code_suffix"] ?? "");
 
   // Digits only
@@ -443,14 +390,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     "salary_type" => trim($_POST["salary_type"] ?? ""),
     "salary_currency" => trim($_POST["salary_currency"] ?? ""),
     "salary_rate" => "",
-    "industry" => trim($_POST["department"] ?? ""),
+    "industry" => "",
     "industry_other" => "",
     "reference_fields" => [
-      "hiring_manager" => trim($_POST["hiring_manager"] ?? ""),
+      "hiring_manager" =>  "",
       "work_location" => trim($_POST["work_location"] ?? ""),
-      "number_of_openings" => max(1, (int) ($_POST["number_of_openings"] ?? 1)),
-      "responsibilities" => $_POST["responsibilities"] ?? "",
-      "preferred_skills" => $_POST["preferred_skills"] ?? "",
       "visa_sponsorship_available" => isset($_POST["visa_sponsorship_available"]) ? 1 : 0,
       "equal_opportunity_statement" => $_POST["equal_opportunity_statement"] ?? "",
       "french_language_requirement" => isset($_POST["french_language_requirement"]) ? 1 : 0,
@@ -490,6 +434,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   /*  Validation */
   $errors = validateJob($data, $isDraftSubmission);
 
+  if (
+    !empty($data["client_code"]) &&
+    jobClientCodeExistsForOtherJob((string) $data["client_code"], $isEdit ? $editId : 0)
+  ) {
+    $errors[] = "Client Reference already exists. Please enter a unique value.";
+  }
+
   /* SAVE */
 
   if (empty($errors)) {
@@ -501,77 +452,17 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       }
 
       /* Unique slug */
-      $slug = makeUniqueSlug($pdo, $data["job_title"], $editId);
+      $slug = makeUniqueJobSlug($data["job_title"], $editId);
 
       /* EDIT */
       if ($isEdit) {
-        $set = implode(
-          ', ',
-          array_map(
-            fn($field) => "{$field} = :{$field}",
-            $jobFields
-          )
-        );
-
-        $params = [];
-
-        foreach ($jobFields as $field) {
-          $params[":{$field}"] =
-            $field === 'slug'
-            ? $slug
-            : ($data[$field] ?? null);
-        }
-
-        $params[':status_check'] = $data['status'];
-        $params[':id'] = $editId;
-
-        $sql = "
-          UPDATE jobs
-          SET
-              {$set},
-              updated_at = NOW(),
-              published_at = IF(
-                  :status_check = 'published'
-                  AND published_at IS NULL,
-                  NOW(),
-                  published_at
-              )
-          WHERE id = :id
-      ";
-
-        $pdo->prepare($sql)->execute($params);
+        updateJobById($editId, $jobFields, $data, $slug);
 
         // Activity log
         logActivity("edit_job", "job", $editId, $data["job_code"]);
         flash("success", "Job updated successfully.");
       } else { /* CREATE / CLONE */
-        // Build dynamic INSERT query
-        $insertFields = array_merge($jobFields, ['slug', 'created_by', 'published_at']);
-        $insertColumns = implode(', ', $insertFields);
-
-        // Build placeholders
-        $placeholders = [];
-        foreach ($insertFields as $field) {
-          if ($field === 'published_at') {
-            $placeholders[] = "IF(:published_status = 'published', NOW(), NULL)";
-          } else {
-            $placeholders[] = ":{$field}";
-          }
-        }
-        $insertValues = implode(', ', $placeholders);
-
-        // Build parameters
-        $params = buildJobParams($jobFields, $data);
-        $params[":slug"] = $slug;
-        $params[":created_by"] = $_SESSION["admin_id"];
-        $params[":published_status"] = $data["status"];
-
-        $sql = "INSERT INTO jobs ({$insertColumns}) VALUES ({$insertValues})";
-        $pdo->prepare($sql)->execute($params);
-
-        // IMPORTANT:
-        // Use the same variable for both clone and create.
-        $newId = (int) $pdo->lastInsertId();
+        $newId = createJob($jobFields, $data, $slug, (int) $_SESSION["admin_id"]);
 
         /* Clone */
         if ($isClone) {
@@ -729,7 +620,7 @@ $savedCcSuffix = "";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
   $savedCcSuffix = trim($_POST["client_code_suffix"] ?? "");
-} elseif (($isEdit || $isClone) && !empty($job["client_code"])) {
+} elseif ($isEdit && !empty($job["client_code"])) {
   // Preserve existing client code.
   // The original code did not actually parse it,
   // so behavior remains unchanged.
@@ -905,20 +796,6 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
                 ? "?clone=" . $cloneId
                 : "") ?>">
 
-    <?php
-    $formClientId = (int) ($old['client_id'] ?? 0);
-    if (!$formClientId) {
-      foreach ($clientsList as $client) {
-        if (strcasecmp((string) $client['client_name'], 'Accelon') === 0) {
-          $formClientId = (int) $client['id'];
-          break;
-        }
-      }
-    }
-    if (!$formClientId && !empty($clientsList)) $formClientId = (int) $clientsList[0]['id'];
-    ?>
-    <input type="hidden" name="client_id" value="<?= $formClientId ?>">
-
     <?php if ($isClone): ?>
       <!-- Hidden flag so POST handler knows this is a clone submission -->
       <input type="hidden" name="clone_source_id" value="<?= $cloneId ?>">
@@ -992,6 +869,8 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
             maxlength="5"
             value="<?= e(preg_replace("/[^0-9]/", "", $savedCcSuffix)) ?>"
             oninput="this.value=this.value.replace(/[^0-9]/g,'');updateClientCodePreview()"
+            pattern="\d{4,5}"
+            required
             title="4 or 5 digit number" />
 
           <label class="label">
@@ -1004,16 +883,6 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
         <fieldset class="fieldset ">
           <legend class="fieldset-legend">Job Title <span class="text-error">*</span></legend>
           <input type="text" name="job_title" class="<?= INPUT_CLASS ?>" placeholder="e.g. UX Designer" value="<?= old('job_title') ?>" required>
-        </fieldset>
-
-        <fieldset class="fieldset">
-          <legend class="fieldset-legend">Department</legend>
-          <input type="text" name="department" class="<?= INPUT_CLASS ?>" placeholder="e.g. Design" value="<?= old('department') ?>">
-        </fieldset>
-
-        <fieldset class="fieldset">
-          <legend class="fieldset-legend">Hiring Manager</legend>
-          <input type="text" name="hiring_manager" id="basicsLastField" class="<?= INPUT_CLASS ?>" placeholder="Hiring manager name" value="<?= old('hiring_manager') ?>">
         </fieldset>
       </div>
     </div>
@@ -1105,10 +974,6 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
             <option value="">Select timezone</option>
           </select>
         </fieldset>
-        <fieldset class="fieldset">
-          <legend class="fieldset-legend">Number of Openings</legend>
-          <input type="number" name="number_of_openings" id="employmentLastField" class="<?= INPUT_CLASS ?>" min="1" value="<?= old('number_of_openings', '1') ?>">
-        </fieldset>
       </div>
     </div>
 
@@ -1196,44 +1061,6 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
       </div>
     </div>
 
-    <!-- Internal fields required by the existing recruitment workflow. -->
-    <!-- <div class="rounded-2xl border border-base-300 bg-base-100 p-6 shadow-sm">
-      <div class="mb-5 flex items-center gap-2.5 border-b border-[#e7e9f0] pb-3.5">
-        <div class="<?= SVG_DIV ?>">
-          <svg class="<?= SVG_ICON ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75"><path d="M12 3a4 4 0 1 1 0 8 4 4 0 0 1 0-8ZM5 21a7 7 0 0 1 14 0M19 8h3M20.5 6.5v3"></path></svg>
-        </div>
-        <div><h2 class="text-sm font-bold text-base-content">Internal Recruitment Details</h2><p class="mt-0.5 text-xs text-base-content/50">Client assignment, timezone and experience requirements.</p></div>
-      </div>
-      <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
-        <fieldset class="fieldset">
-          <legend class="fieldset-legend">Company or Client Name <span class="text-error">*</span></legend>
-          <select name="client_id" id="client_id" class="<?= SELECT_CLASS ?>" required>
-            <option value="">Select client name</option>
-            <?php foreach ($clientsList as $client): ?><option value="<?= e($client['id']) ?>" <?= oldSel('client_id', $client['id']) ?>><?= e($client['client_name']) ?></option><?php endforeach; ?>
-          </select>
-        </fieldset>
-
-        <fieldset class="fieldset">
-          <legend class="fieldset-legend">Time Zone <span class="text-error">*</span></legend>
-          <select name="timezone" id="timezoneSelect" class="<?= SELECT_CLASS ?>" required><option value="">Select country first</option></select>
-        </fieldset>
-
-        <fieldset class="fieldset">
-          <legend class="fieldset-legend">Experience <span class="text-error">*</span></legend>
-          <div class="grid grid-cols-2 gap-3">
-            <select name="exp_from" id="expFrom" class="<?= SELECT_CLASS ?>" required onchange="updateExpPreview()">
-              <option value="">Minimum years</option>
-              <?php foreach ($expFromOpts as $v): ?><option value="<?= e($v) ?>" <?= $savedExpFrom === $v ? 'selected' : '' ?>><?= e($v) ?></option><?php endforeach; ?>
-            </select>
-            <select name="exp_to" id="expTo" class="<?= SELECT_CLASS ?>" required onchange="updateExpPreview()">
-              <option value="">Maximum years</option>
-              <?php foreach ($expToOpts as $v): ?><option value="<?= e($v) ?>" <?= $savedExpTo === $v ? 'selected' : '' ?>><?= e($v) ?></option><?php endforeach; ?>
-            </select>
-          </div>
-          <p id="expPreview" class="mt-2 text-xs text-base-content/50"><?= ($savedExpFrom !== '' && $savedExpTo !== '') ? e($savedExpFrom . ' - ' . $savedExpTo . ' years') : 'Select experience range' ?></p>
-        </fieldset>
-      </div>
-    </div> -->
 
     <!-- ═══ CARD 5: JOB CONTENT ═════════════════════════════════════ -->
     <div id="job-description-section" class="<?= $postJobCardClass ?> border-t-4 border-t-[#e7e9f0]">
@@ -1252,19 +1079,10 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
           <textarea id="job_description" name="job_description" class="<?= TEXTAREA_CLASS ?>"><?= old("job_description") ?></textarea>
         </fieldset>
 
-        <fieldset class="fieldset flex flex-col gap-1.5">
-          <legend class="fieldset-legend">Responsibilities</legend>
-          <textarea id="responsibilities" name="responsibilities" rows="5" class="<?= TEXTAREA_CLASS ?>" placeholder="Key responsibilities..."><?= old("responsibilities") ?></textarea>
-        </fieldset>
 
         <fieldset class="fieldset flex flex-col gap-1.5">
           <legend class="fieldset-legend">Required Skills <span class="text-error">*</span></legend>
           <textarea id="key_skills" name="key_skills" class="<?= TEXTAREA_CLASS ?>"><?= old("key_skills") ?></textarea>
-        </fieldset>
-
-        <fieldset class="fieldset flex flex-col gap-1.5">
-          <legend class="fieldset-legend">Preferred Skills</legend>
-          <textarea id="preferred_skills" name="preferred_skills" rows="4" class="<?= TEXTAREA_CLASS ?>" placeholder="Preferred or nice-to-have skills..."><?= old("preferred_skills") ?></textarea>
         </fieldset>
 
         <fieldset class="fieldset flex flex-col gap-1.5">
@@ -1832,6 +1650,12 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
     salaryPreview.textContent = parts.length ? parts.join(' | ') : '—';
   }
 
+  function updateClientCodePreview() {
+    if (typeof updateJobActionState === 'function') {
+      updateJobActionState();
+    }
+  }
+
   // ── Date helpers ──────────────────────────────────────────────
   function toDisplay(ymd) {
     if (!ymd) return '';
@@ -1958,8 +1782,6 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
     // DOM already loaded
     initializeForm();
   }
-
-  document.addEventListener('DOMContentLoaded', initializeForm);
 </script>
 
 <script>
@@ -2024,7 +1846,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
   }; // ← Add new countries above this line
 
   if (window.tinymce) tinymce.init({
-    selector: '#job_description, #key_skills, #our_terms, #responsibilities, #preferred_skills, #qualifications',
+    selector: '#job_description, #key_skills, #our_terms',
     height: 300,
     menubar: false,
     plugins: 'anchor autolink charmap codesample emoticons image link lists media searchreplace table visualblocks wordcount',
@@ -2079,7 +1901,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
 
   function initializeRichTextEditors() {
     if (typeof Quill === 'undefined') return;
-    ['job_description', 'responsibilities', 'key_skills', 'preferred_skills', 'our_terms'].forEach(id => {
+    ['job_description', 'key_skills', 'our_terms'].forEach(id => {
       const textarea = document.getElementById(id);
       if (!textarea || richTextEditors[id]) return;
       const editorHost = document.createElement('div');
@@ -2200,6 +2022,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
   });
 
   let initialJobFormSnapshot = '';
+  let jobFormReadyForDirtyCheck = false;
   let jobFormSubmitted = false;
   let pendingJobNavigation = null;
 
@@ -2216,7 +2039,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
     const pairs = [];
 
     for (const [name, value] of data.entries()) {
-      if (name === 'csrf_token' || name === 'submit_action' || name === 'a') continue;
+      if (name === 'submit_action' || name === 'a') continue;
       pairs.push(`${name}:${value}`);
     }
 
@@ -2225,16 +2048,54 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
 
   function hasUnsavedJobChanges() {
     return !!jobForm &&
+      jobFormReadyForDirtyCheck &&
       !jobFormSubmitted &&
       jobFormSnapshot(jobForm) !== initialJobFormSnapshot;
   }
 
+  function richTextFieldHasContent(id) {
+    const editor = richTextEditors[id];
+    if (editor) return editor.getText().trim().length > 0;
+    return (document.getElementById(id)?.value || '').trim().length > 0;
+  }
+
+  function controlsAreValid(selector) {
+    if (!jobForm) return false;
+    return [...jobForm.querySelectorAll(selector)]
+      .filter(control => !control.disabled && control.type !== 'hidden')
+      .every(control => control.checkValidity());
+  }
+
+  function draftRequiredFieldsComplete() {
+    return controlsAreValid('#country, #client_id, #clientCodeSuffix, input[name="job_title"]');
+  }
+
+  function publishRequiredFieldsComplete() {
+    syncRichTextEditors();
+    return controlsAreValid('input[required], select[required], textarea[required]') &&
+      richTextFieldHasContent('job_description') &&
+      richTextFieldHasContent('key_skills') &&
+      richTextFieldHasContent('our_terms');
+  }
+
+  function setJobActionButtonState(button, enabled) {
+    if (!button) return;
+    button.disabled = !enabled;
+    button.classList.toggle('btn-disabled', !enabled);
+  }
+
   function updateJobActionState() {
     const hasChanges = hasUnsavedJobChanges();
-    document.querySelectorAll('.job-action-button').forEach(button => {
-      button.disabled = !hasChanges;
-      button.classList.toggle('btn-disabled', !hasChanges);
-    });
+    setJobActionButtonState(document.getElementById('saveJobButton'), hasChanges);
+    setJobActionButtonState(document.getElementById('draftJobButton'), hasChanges && draftRequiredFieldsComplete());
+    setJobActionButtonState(document.getElementById('publishJobButton'), hasChanges && publishRequiredFieldsComplete());
+  }
+
+  function markJobFormClean() {
+    if (!jobForm) return;
+    initialJobFormSnapshot = jobFormSnapshot(jobForm);
+    jobFormReadyForDirtyCheck = true;
+    updateJobActionState();
   }
 
   function openUnsavedJobChangesModal(nextAction) {
@@ -2245,16 +2106,35 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
     modal.showModal();
   }
 
-  requestAnimationFrame(() => {
-    initialJobFormSnapshot = jobForm ? jobFormSnapshot(jobForm) : '';
-    updateJobActionState();
+  updateJobActionState();
+  window.addEventListener('load', () => {
+    window.setTimeout(markJobFormClean, 150);
   });
+  if (document.readyState === 'complete') {
+    window.setTimeout(markJobFormClean, 150);
+  }
 
   jobForm?.addEventListener('input', updateJobActionState);
   jobForm?.addEventListener('change', updateJobActionState);
 
   jobForm?.addEventListener('submit', event => {
     updateJobActionState();
+
+    if (event.submitter?.name === 'a') {
+      jobFormSubmitted = true;
+      return;
+    }
+
+    if (event.submitter?.value === 'draft' && !draftRequiredFieldsComplete()) {
+      event.preventDefault();
+      return;
+    }
+
+    if (event.submitter?.value === 'publish' && !publishRequiredFieldsComplete()) {
+      event.preventDefault();
+      return;
+    }
+
     if (!hasUnsavedJobChanges()) {
       event.preventDefault();
       return;

@@ -1,5 +1,6 @@
 <?php
 require_once dirname(__DIR__) . '/auth.php';
+require_once dirname(__DIR__) . '/DB/queries.php';
 require_once dirname(__DIR__) . '/utils/classes.php';
 
 function currentJobFilters(): array
@@ -44,7 +45,7 @@ function jobsStatusBadgeClass(string $statusClass): string
     default => 'badge-warning badge-soft badge',
   };
 }
-// ]select-sm h-10 min-h-10 w-full rounded-lg border-base-300 bg-base-100 text-sm shadow-sm transition-all duration-150 focus:border-primary focus:shadow-2xl focus:outline-none focus:ring-2 focus:ring-primary/20
+
 function renderJobsFilterSelect(string $name, string $placeholder, string $selectedValue, array $options): string
 {
   ob_start(); ?>
@@ -88,39 +89,42 @@ function renderJobsTableBody(array $jobs): string
       [$statusLabel, $statusClass] = jobsStatus($job['status'], $expired);
       $publicUrl = SITE_URL . '/job-detail.php?slug=' . urlencode($job['slug']);
       $editUrl = ADMIN_URL . '/pages/post_job.php?edit=' . (int)$job['id'];
-      $dropdownPlacement = $index >= max(0, $jobCount - 2) ? 'dropdown-top' : 'dropdown-bottom'; ?>
-      <tr class="job-row group border-t border-base-300 transition-colors hover:bg-[#F28C28]" data-edit="<?= e($editUrl) ?>">
+      $dropdownPlacement = $index >= max(0, $jobCount - 2) ? 'dropdown-top' : 'dropdown-bottom';
+      $isClosedRow = $statusClass === 'closed';
+      $rowEditAttribute = $isClosedRow ? '' : ' data-edit="' . e($editUrl) . '"';
+      $rowCursorClass = $isClosedRow ? 'cursor-default' : 'cursor-pointer'; ?>
+      <tr class="job-row group border-t border-base-300 transition-colors hover:bg-[#F28C28]"<?= $rowEditAttribute ?>>
         <td class="w-11 px-3 text-center align-middle group-hover:bg-[#F28C28]"><input class="row-check checkbox checkbox-primary checkbox-sm mx-auto" type="checkbox" name="ids[]" value="<?= (int)$job['id'] ?>" aria-label="Select <?= e($job['job_title']) ?>"></td>
-        <a href="<?= e($editUrl) ?>" target="_blank" class="cursor-pointer" rel="noopener">
-          <td class="min-w-64 px-4 py-3.5 align-middle group-hover:bg-[#F28C28] cursor-pointer">
+        <?php if (!$isClosedRow): ?><a href="<?= e($editUrl) ?>" target="_blank" class="cursor-pointer" rel="noopener"><?php endif; ?>
+          <td class="min-w-64 px-4 py-3.5 align-middle group-hover:bg-[#F28C28] <?= $rowCursorClass ?>">
 
             <b class="block font-medium text-base-content group-hover:text-white text-base"><?= e(ucwords($job['job_title'])) ?></b>
             <small class="mt-1 block font-mono text-xs text-base-content/55 group-hover:text-white/80"><?= e($job['job_code']) ?> <i>·</i> Job Code: <?= e($job["client_code"]) ?></small>
 
           </td>
-          <td class="px-4 py-3.5 align-middle group-hover:bg-[#F28C28] cursor-pointer">
+          <td class="px-4 py-3.5 align-middle group-hover:bg-[#F28C28] <?= $rowCursorClass ?>">
             <span class="flex items-center gap-1.5 whitespace-nowrap text-base-content/80 group-hover:text-white">
               <b><?= jobsFlag($job['country']) ?></b>
               <?= e($job['country']) ?>
             </span>
           </td>
-          <td class="px-4 py-3.5 align-middle group-hover:bg-[#F28C28] cursor-pointer">
+          <td class="px-4 py-3.5 align-middle group-hover:bg-[#F28C28] <?= $rowCursorClass ?>">
             <span class="badge badge-sm  <?= jobsStatusBadgeClass($statusClass) ?>"><?= e($statusLabel) ?></span>
           </td>
-          <td class="px-4 py-3.5 align-middle group-hover:bg-[#F28C28] cursor-pointer">
+          <td class="px-4 py-3.5 align-middle group-hover:bg-[#F28C28] <?= $rowCursorClass ?>">
             <span class="badge badge-soft badge-sm whitespace-nowrap capitalize"><?= e($job['workplace_type']) ?></span>
           </td>
-          <td class="px-4 py-3.5 align-middle text-base-content/65 group-hover:bg-[#F28C28] group-hover:text-white! cursor-pointer"><?= e($job['experience'] ?: '—') ?></td>
-          <td class="px-4 py-3.5 align-middle text-base-content/65 group-hover:bg-[#F28C28] group-hover:text-white! cursor-pointer">
+          <td class="px-4 py-3.5 align-middle text-base-content/65 group-hover:bg-[#F28C28] group-hover:text-white! <?= $rowCursorClass ?>"><?= e($job['experience'] ?: '—') ?></td>
+          <td class="px-4 py-3.5 align-middle text-base-content/65 group-hover:bg-[#F28C28] group-hover:text-white! <?= $rowCursorClass ?>">
             <?= e($job['job_type'] ?: '—') ?>
           </td>
-          <td class="px-4 py-3.5 align-middle text-base-content/80 group-hover:bg-[#F28C28] group-hover:text-white! cursor-pointer">
+          <td class="px-4 py-3.5 align-middle text-base-content/80 group-hover:bg-[#F28C28] group-hover:text-white! <?= $rowCursorClass ?>">
             <?= e($job['posted_by'] ?: '—') ?>
           </td>
-          <td class="px-4 py-3.5 align-middle whitespace-nowrap  group-hover:bg-[#F28C28] group-hover:text-white! cursor-pointer">
+          <td class="px-4 py-3.5 align-middle whitespace-nowrap  group-hover:bg-[#F28C28] group-hover:text-white! <?= $rowCursorClass ?>">
             <?= $job['created_at'] ? date('M j, Y', strtotime($job['created_at'])) : '—' ?>
           </td>
-        </a>
+        <?php if (!$isClosedRow): ?></a><?php endif; ?>
         <td class="job-actions-cell right-0 z-30 w-14  px-2 py-3.5 text-right align-middle group-hover:bg-[#F28C28]" onclick="event.stopPropagation()">
           <div class="dropdown <?= $dropdownPlacement ?> dropdown-end">
             <div tabindex="0" role="button" class="btn btn-sm btn-ghost m-1 p-2 bg-transparent border-none shadow-none outline-none focus:outline-none focus-visible:outline-none hover:bg-transparent text-base-content group-hover:text-white">
@@ -162,8 +166,7 @@ function renderJobsTableBody(array $jobs): string
               <li>
                 <button class="text-error" type="button" onclick="openDeleteModal(
                           '<?= e($job['id']) ?>',
-                          '<?= e($job['job_title']) ?>',
-                          '<?= e(buildFilterUrl(ADMIN_URL . '/pages/job_action.php', ['id' => $job['id'], 'a' => 'delete'])) ?>'
+                          '<?= e($job['job_title']) ?>'
                         )" data-id="<?= (int)$job['id'] ?>" data-value="delete" data-action="Delete" data-job="<?= e($job['job_title']) ?>" data-danger="true">
                   Delete
                 </button>
@@ -225,18 +228,15 @@ $jobTypeOptions = [];
 $workplaceTypeOptions = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['action'])) {
-
   $ids = array_values(array_filter(array_map('intval', (array)($_POST['ids'] ?? []))));
   $action = $_POST['action'];
   if ($ids && in_array($action, ['publish', 'draft', 'close', 'archive', 'delete'], true)) {
     try {
-      $marks = implode(',', array_fill(0, count($ids), '?'));
       if ($action === 'delete') {
-        db()->prepare("DELETE FROM jobs WHERE id IN ($marks)")->execute($ids);
+        deleteJobsByIds($ids);
       } else {
         $status = $action === 'publish' ? 'published' : ($action === 'close' ? 'closed' : $action);
-        $sql = "UPDATE jobs SET status=?, updated_at=NOW()" . ($status === 'published' ? ', published_at=COALESCE(published_at,NOW())' : '') . " WHERE id IN ($marks)";
-        db()->prepare($sql)->execute(array_merge([$status], $ids));
+        updateJobsStatusByIds($ids, $status);
       }
       logActivity($action . '_jobs', 'job', null, 'IDs: ' . implode(',', $ids));
       flash('success', count($ids) . ' job' . (count($ids) === 1 ? '' : 's') . ' updated.');
@@ -280,51 +280,31 @@ $jobs = [];
 $totalRows = 0;
 $totalPages = 1;
 try {
-  $pdo = db();
-  $countryOptions = $pdo->query("SELECT DISTINCT country FROM jobs WHERE country IS NOT NULL AND country != '' ORDER BY country")->fetchAll(PDO::FETCH_COLUMN) ?: $countryOptions;
-  $jobTypeOptions = $pdo->query("SELECT DISTINCT job_type FROM jobs WHERE job_type IS NOT NULL AND job_type != '' ORDER BY job_type")->fetchAll(PDO::FETCH_COLUMN) ?: [];
-  $workplaceTypeOptions = $pdo->query("SELECT DISTINCT workplace_type FROM jobs WHERE workplace_type IS NOT NULL AND workplace_type != '' ORDER BY workplace_type")->fetchAll(PDO::FETCH_COLUMN) ?: [];
+  $countryOptions = getDistinctJobCountries() ?: $countryOptions;
+  $jobTypeOptions = getDistinctJobTypes() ?: [];
+  $workplaceTypeOptions = getDistinctWorkplaceTypes() ?: [];
 
-  $counter = $pdo->prepare("SELECT COUNT(DISTINCT j.id) FROM jobs j LEFT JOIN clients c ON c.id=j.client_id WHERE $whereSql");
-  $counter->execute($params);
-  $totalRows = (int)$counter->fetchColumn();
+  $totalRows = countFilteredJobs($whereSql, $params);
   $totalPages = max(1, (int)ceil($totalRows / $perPage));
   $page = min($page, $totalPages);
   $offset = ($page - 1) * $perPage;
-  $query = $pdo->prepare("SELECT
-      j.*,
-      REGEXP_REPLACE(j.client_code, '[^0-9]', '') AS client_code,
-      a.name AS posted_by,
-      c.client_name
-    FROM jobs j
-    LEFT JOIN admin_users a
-      ON a.id = j.created_by
-    LEFT JOIN clients c
-            ON (
-                c.id = j.client_id
-                OR LEFT(j.client_code, 4) = c.client_code
-            )
-    WHERE $whereSql
-    ORDER BY j.created_at DESC
-    LIMIT $perPage OFFSET $offset");
-  $query->execute($params);
-  $jobs = $query->fetchAll();
+  $jobs = getFilteredJobs($whereSql, $params, $offset, $perPage);
 } catch (Exception $e) {
   error_log('Jobs page query failed: ' . $e->getMessage());
   $offset = 0;
 }
 
-if (($_GET['ajax'] ?? '') === '1') {
-  header('Content-Type: application/json; charset=utf-8');
-  echo json_encode([
-    'count' => $totalRows,
-    'page' => $page,
-    'totalPages' => $totalPages,
-    'rows' => renderJobsTableBody($jobs),
-    'pagination' => renderJobsPagination($page, $totalPages, $totalRows, $perPage),
-  ]);
-  exit;
-}
+// if (($_GET['ajax'] ?? '') === '1') {
+//   header('Content-Type: application/json; charset=utf-8');
+//   echo json_encode([
+//     'count' => $totalRows,
+//     'page' => $page,
+//     'totalPages' => $totalPages,
+//     'rows' => renderJobsTableBody($jobs),
+//     'pagination' => renderJobsPagination($page, $totalPages, $totalRows, $perPage),
+//   ]);
+//   exit;
+// }
 
 function pageUrl(int $pg): string
 {
@@ -576,23 +556,24 @@ $warnMessage = flash('warn');
           </div>
         </div>
       </div>
-      <div class="flex flex-col-reverse gap-3 border-t border-base-200 bg-base-200/30 px-6 py-4 sm:flex-row sm:justify-end">
+      <form method="POST" action="<?= ADMIN_URL ?>/pages/job_action.php" class="flex flex-col-reverse gap-3 border-t border-base-200 bg-base-200/30 px-6 py-4 sm:flex-row sm:justify-end">
+        <input type="hidden" name="id" id="deleteJobId">
+        <input type="hidden" name="a" value="delete">
         <button
           type="button"
           onclick="deleteModal.close()"
           class="btn btn-ghost h-11 min-h-11 w-full rounded-xl px-6 text-sm font-semibold sm:w-auto hover:bg-base-200">
           Cancel
         </button>
-        <a
-          id="confirmDeleteBtn"
-          href="#"
+        <button
+          type="submit"
           class="btn btn-error h-11 min-h-11 w-full rounded-xl px-6 text-sm font-semibold !text-white sm:w-auto shadow-lg">
           <svg class="size-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3m-9 0h14" />
           </svg>
           Delete job
-        </a>
-      </div>
+        </button>
+      </form>
     </div>
     <form method="dialog" class="modal-backdrop bg-black/40">
       <button>close</button>
@@ -866,7 +847,7 @@ $warnMessage = flash('warn');
       </div>
     </div>
     <form method="dialog" class="modal-backdrop bg-black/40">
-      <button aria-label="Close dialog" type="submit>">close</button>
+      <button aria-label="Close dialog" type="submit">close</button>
     </form>
   </dialog>
 
@@ -968,13 +949,13 @@ $warnMessage = flash('warn');
       window.open(row.dataset.edit, '_blank', 'noopener')
     });
 
-    function openDeleteModal(id, jobName, deleteUrl) {
+    function openDeleteModal(id, jobName) {
       const modal = document.getElementById('deleteModal');
       const jobNameElement = document.getElementById('deleteJobName');
-      const confirmButton = document.getElementById('confirmDeleteBtn');
+      const deleteJobId = document.getElementById('deleteJobId');
 
       jobNameElement.textContent = jobName;
-      confirmButton.href = deleteUrl;
+      deleteJobId.value = id;
 
       modal.showModal();
     }

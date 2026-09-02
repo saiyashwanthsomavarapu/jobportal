@@ -267,22 +267,14 @@ $stats = [
                       </td>
                       <td class="px-4 py-3.5 align-middle group-hover:bg-[#F28C28]">
                         <span class="flex items-center gap-1.5 whitespace-nowrap text-base-content/80 group-hover:text-white">
+
+                          <?= e($job['city'] ?: $job['country']) ?>,
                           <b><?= dashboardFlag($job['country']) ?></b>
-                          <?= e($job['city'] ?: $job['country']) ?>
                         </span>
                         <small class="mt-1 block text-xs text-base-content/55 group-hover:text-white/80"><?= e($job['workplace_type'] ?: '—') ?></small>
                       </td>
                       <td class="px-4 py-3.5 align-middle group-hover:bg-[#F28C28]">
                         <span class="text-base-content/80 group-hover:text-white"><?= e($job['job_type'] ?: '—') ?></span>
-                        <?php if ((int)$job['views'] > 0): ?>
-                          <small class="mt-1 flex items-center gap-1 text-xs text-base-content/55 group-hover:text-white/80">
-                            <svg class="size-3.5" viewBox="0 0 24 24">
-                              <circle cx="9" cy="8" r="3" />
-                              <path d="M3.5 19c.5-4 2.3-6 5.5-6s5 2 5.5 6M16 9.5c2.4.3 3.7 1.9 4 4.5" />
-                            </svg>
-                            <?= (int)$job['views'] ?>
-                          </small>
-                        <?php endif; ?>
                       </td>
                       <td class="px-4 py-3.5 align-middle group-hover:bg-[#F28C28]">
                         <span class="badge badge-sm <?= $statusClass === 'status-published'
