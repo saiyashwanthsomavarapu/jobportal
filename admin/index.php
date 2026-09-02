@@ -31,6 +31,7 @@ function dashboardFlag(?string $country): string
     'united states', 'usa', 'us' => '🇺🇸',
     'canada' => '🇨🇦',
     'india' => '🇮🇳',
+    'mexico' => '🇲🇽',
     default => '🌐',
   };
 }

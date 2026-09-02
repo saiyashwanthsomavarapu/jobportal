@@ -21,6 +21,7 @@ function jobsFlag(?string $country): string
     'united states', 'usa', 'us' => '🇺🇸',
     'canada' => '🇨🇦',
     'india' => '🇮🇳',
+    'mexico' => '🇲🇽',
     default => '🌐',
   };
 }
@@ -93,7 +94,7 @@ function renderJobsTableBody(array $jobs): string
       $isClosedRow = $statusClass === 'closed';
       $rowEditAttribute = $isClosedRow ? '' : ' data-edit="' . e($editUrl) . '"';
       $rowCursorClass = $isClosedRow ? 'cursor-default' : 'cursor-pointer'; ?>
-      <tr class="job-row group border-t border-base-300 transition-colors hover:bg-[#F28C28]"<?= $rowEditAttribute ?>>
+      <tr class="job-row group border-t border-base-300 transition-colors hover:bg-[#F28C28]" <?= $rowEditAttribute ?>>
         <td class="w-11 px-3 text-center align-middle group-hover:bg-[#F28C28]"><input class="row-check checkbox checkbox-primary checkbox-sm mx-auto" type="checkbox" name="ids[]" value="<?= (int)$job['id'] ?>" aria-label="Select <?= e($job['job_title']) ?>"></td>
         <?php if (!$isClosedRow): ?><a href="<?= e($editUrl) ?>" target="_blank" class="cursor-pointer" rel="noopener"><?php endif; ?>
           <td class="min-w-64 px-4 py-3.5 align-middle group-hover:bg-[#F28C28] <?= $rowCursorClass ?>">
@@ -124,7 +125,8 @@ function renderJobsTableBody(array $jobs): string
           <td class="px-4 py-3.5 align-middle whitespace-nowrap  group-hover:bg-[#F28C28] group-hover:text-white! <?= $rowCursorClass ?>">
             <?= $job['created_at'] ? date('M j, Y', strtotime($job['created_at'])) : '—' ?>
           </td>
-        <?php if (!$isClosedRow): ?></a><?php endif; ?>
+          <?php if (!$isClosedRow): ?>
+          </a><?php endif; ?>
         <td class="job-actions-cell right-0 z-30 w-14  px-2 py-3.5 text-right align-middle group-hover:bg-[#F28C28]" onclick="event.stopPropagation()">
           <div class="dropdown <?= $dropdownPlacement ?> dropdown-end">
             <div tabindex="0" role="button" class="btn btn-sm btn-ghost m-1 p-2 bg-transparent border-none shadow-none outline-none focus:outline-none focus-visible:outline-none hover:bg-transparent text-base-content group-hover:text-white">

@@ -1522,64 +1522,6 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
     });
   }
 
-  function sectionIsComplete(sectionId) {
-    const section = document.getElementById(sectionId);
-    if (!section) return false;
-
-    return [...section.querySelectorAll('input, select, textarea')]
-      .filter(control => control.required && !control.disabled && control.type !== 'hidden')
-      .every(control => control.checkValidity());
-  }
-
-  function moveToSection(sectionId) {
-    const section = document.getElementById(sectionId);
-    if (!section) return;
-
-    section.scrollIntoView({
-      behavior: 'smooth',
-      block: 'start'
-    });
-    window.setTimeout(() => {
-      section.querySelector('select:not([disabled]), input:not([disabled]):not([readonly])')
-        ?.focus({
-          preventScroll: true
-        });
-    }, 350);
-  }
-
-  function initializeSectionProgression() {
-    if (IS_EDIT || IS_CLONE) return;
-
-    const steps = [{
-        current: 'country-basics',
-        next: 'employment-details'
-      },
-      {
-        current: 'employment-details',
-        next: 'compensation'
-      },
-      {
-        current: 'compensation',
-        next: 'job-description-section'
-      }
-    ];
-
-    steps.forEach(step => {
-      const section = document.getElementById(step.current);
-      if (!section) return;
-
-      // Advance when the user finishes this card and tabs or clicks outside
-      // it. Listening on the whole section works regardless of field order.
-      section.addEventListener('focusout', () => {
-        window.setTimeout(() => {
-          if (section.contains(document.activeElement)) return;
-          if (sectionIsComplete(step.current)) moveToSection(step.next);
-        }, 0);
-      });
-    });
-  }
-
-  initializeSectionProgression();
   // ── Other reveal ─────────────────────────────────────────────
   function toggleOther(select, targetId) {
     // const div = document.getElementById(divId);
