@@ -11,11 +11,16 @@ sort($workplaces);
 sort($countries);
 $remoteCount = count(array_filter($jobs, fn($job) => strtolower($job['workplace_type'] ?? '') === 'remote'));
 
-function countryFlag(string $country): string
+
+function countryFlag(?string $country): string
 {
-  $flags = ['united states' => 'us.jpg', 'usa' => 'us.jpg', 'us' => 'us.jpg', 'india' => 'india.jpg', 'canada' => 'canada.jpg', 'maxico' => 'us.jpg'];
-  $file = $flags[strtolower(trim($country))] ?? null;
-  return $file ? '<img src="/flags/' . $file . '" alt="" class="inline-block w-5 h-4 object-cover rounded-sm align-middle">' : '<span aria-hidden="true">🌐</span>';
+  return match (strtolower(trim((string)$country))) {
+    'united states', 'usa', 'us' => '🇺🇸',
+    'canada' => '🇨🇦',
+    'india' => '🇮🇳',
+    'mexico' => '🇲🇽',
+    default => '🌐',
+  };
 }
 
 // Badge colour classes per workplace type, matching the theme palette
@@ -102,57 +107,58 @@ function workplaceBadgeClass(string $workplace): string
     <section class="max-w-6xl mx-auto px-4 md:px-8 py-10" id="open-roles" aria-labelledby="jobs-title">
 
       <!-- Filter panel -->
-      <div class="flex items-center gap-2 mb-3">
-        <label class="input flex-1 min-w-[220px]" for="search">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="7"></circle>
-            <path d="m20 20-4-4"></path>
-          </svg>
-          <span class="sr-only">Search jobs</span>
-          <input id="search" type="search" placeholder="Search for a job" autocomplete="off" class="grow bg-transparent focus:outline-none text-sm">
-        </label>
+      <div class="flex flex-col items-center">
+        <div class=" flex items-center gap-2 mb-3">
+          <label class="input flex-1 min-w-[220px]" for="search">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="7"></circle>
+              <path d="m20 20-4-4"></path>
+            </svg>
+            <span class="sr-only">Search jobs</span>
+            <input id="search" type="search" placeholder="Search for a role" autocomplete="off" class="grow bg-transparent focus:outline-none text-sm">
+          </label>
 
-        <label class="relative flex-1 min-w-[220px]">
-          <svg xmlns="http://www.w3.org/2000/svg" class="pointer-events-none absolute left-4 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="9"></circle>
-            <path d="M3 12h18M12 3c2.5 2.5 3.7 5.5 3.7 9s-1.2 6.5-3.7 9c-2.5-2.5-3.7-5.5-3.7-9S9.5 5.5 12 3Z"></path>
-          </svg>
-          <span class="sr-only">Filter by country</span>
-          <select id="country" class="filter-select select w-full min-h-12 pl-11 pr-10 text-sm">
-            <option value="">Country</option>
-            <?php foreach ($countries as $country): ?><option value="<?= e($country) ?>"><?= e($country) ?></option><?php endforeach; ?>
-          </select>
-        </label>
+          <label class="relative flex-1 min-w-[220px]">
+            <svg xmlns="http://www.w3.org/2000/svg" class="pointer-events-none absolute left-4 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="9"></circle>
+              <path d="M3 12h18M12 3c2.5 2.5 3.7 5.5 3.7 9s-1.2 6.5-3.7 9c-2.5-2.5-3.7-5.5-3.7-9S9.5 5.5 12 3Z"></path>
+            </svg>
+            <span class="sr-only">Filter by country</span>
+            <select id="country" class="filter-select select w-full min-h-12 pl-11 pr-10 text-sm">
+              <option value="">Country</option>
+              <?php foreach ($countries as $country): ?><option value="<?= e($country) ?>"><?= e($country) ?></option><?php endforeach; ?>
+            </select>
+          </label>
 
-        <label class="relative flex-1 min-w-[220px]">
-          <svg xmlns="http://www.w3.org/2000/svg" class="pointer-events-none absolute left-4 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="6" width="18" height="14" rx="2"></rect>
-            <path d="M8 6V4h8v2M3 12h18"></path>
-          </svg>
-          <span class="sr-only">Filter by job type</span>
-          <select id="jobType" class="filter-select select w-full min-h-12 pl-11 pr-10 text-sm">
-            <option value="">Job Type</option>
-            <?php foreach ($jobTypes as $type): ?><option value="<?= e($type) ?>"><?= e($type) ?></option><?php endforeach; ?>
-          </select>
-        </label>
+          <label class="relative flex-1 min-w-[220px]">
+            <svg xmlns="http://www.w3.org/2000/svg" class="pointer-events-none absolute left-4 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="6" width="18" height="14" rx="2"></rect>
+              <path d="M8 6V4h8v2M3 12h18"></path>
+            </svg>
+            <span class="sr-only">Filter by job type</span>
+            <select id="jobType" class="filter-select select w-full min-h-12 pl-11 pr-10 text-sm">
+              <option value="">Job Type</option>
+              <?php foreach ($jobTypes as $type): ?><option value="<?= e($type) ?>"><?= e($type) ?></option><?php endforeach; ?>
+            </select>
+          </label>
 
-        <label class="relative flex-1 min-w-[220px]">
-          <svg xmlns="http://www.w3.org/2000/svg" class="pointer-events-none absolute left-4 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path d="M12 21s7-5.2 7-12a7 7 0 1 0-14 0c0 6.8 7 12 7 12Z"></path>
-            <circle cx="12" cy="9" r="2.5"></circle>
-          </svg>
-          <span class="sr-only">Filter by workplace</span>
-          <select id="workplace" class="filter-select select w-full min-h-12 pl-11 pr-10 text-sm">
-            <option value="">Workplace</option>
-            <?php foreach ($workplaces as $workplace): ?><option value="<?= e($workplace) ?>"><?= e($workplace) ?></option><?php endforeach; ?>
-          </select>
-        </label>
+          <label class="relative flex-1 min-w-[220px]">
+            <svg xmlns="http://www.w3.org/2000/svg" class="pointer-events-none absolute left-4 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path d="M12 21s7-5.2 7-12a7 7 0 1 0-14 0c0 6.8 7 12 7 12Z"></path>
+              <circle cx="12" cy="9" r="2.5"></circle>
+            </svg>
+            <span class="sr-only">Filter by workplace</span>
+            <select id="workplace" class="filter-select select w-full min-h-12 pl-11 pr-10 text-sm">
+              <option value="">Workplace</option>
+              <?php foreach ($workplaces as $workplace): ?><option value="<?= e($workplace) ?>"><?= e($workplace) ?></option><?php endforeach; ?>
+            </select>
+          </label>
 
-        <button class="btn btn-ghost btn-sm shrink-0 text-ink2" id="resetFilters" type="button">Reset</button>
+          <button class="btn btn-ghost btn-sm shrink-0 text-ink2" id="resetFilters" type="button">Reset</button>
+        </div>
+
+        <p id="resultText" class="italic text-sm text-muted mb-2" aria-live="polite">Showing roles across all locations and all teams.</p>
       </div>
-
-      <p id="resultText" class="italic text-sm text-muted mb-6" aria-live="polite">Showing roles across all locations and all teams.</p>
-
       <!-- Jobs table -->
       <div class="overflow-x-auto rounded-2xl border border-line">
         <table class="table" id="jobTable">
@@ -193,7 +199,7 @@ function workplaceBadgeClass(string $workplace): string
                   <span class="badge rounded-full font-medium <?= workplaceBadgeClass($workplace) ?>"><?= e($job['workplace_type']) ?></span>
                 </td>
                 <td data-label="Location">
-                  <span class="flex items-center gap-2 text-ink2"><?= countryFlag($job['country'] ?? '') ?><span><?= e($location) ?></span></span>
+                  <span class="flex items-center gap-2 text-ink2"><span><?= e($location) ?> <?= countryFlag($job['country'] ?? '') ?></span></span>
                 </td>
                 <td data-label="Post Date" class="text-ink2 text-sm">
                   <time datetime="<?= e($job['open_date']) ?>"><?= date('j F Y', strtotime($job['open_date'])) ?></time>
@@ -212,19 +218,6 @@ function workplaceBadgeClass(string $workplace): string
       </div>
     </section>
   </main>
-
-  <footer class="border-t border-line px-4 md:px-8 py-8 flex flex-col md:flex-row items-center justify-between gap-3 max-w-6xl mx-auto text-sm text-ink2">
-    <a class="flex items-center gap-2" href="/">
-      <div class="bg-primary rounded-lg p-1.5 flex items-center justify-center">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-primary-content" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M20 7h-3V5a2 2 0 00-2-2H9a2 2 0 00-2 2v2H4a1 1 0 00-1 1v10a2 2 0 002 2h14a2 2 0 002-2V8a1 1 0 00-1-1zM9 5h6v2H9V5z" />
-        </svg>
-      </div>
-      <span class="font-bold text-ink">Careers</span>
-    </a>
-    <p>Build what matters. Grow with people who care.</p>
-    <span>&copy; <?= date('Y') ?> Accelon</span>
-  </footer>
 
   <script>
     const rows = [...document.querySelectorAll('#jobTable tbody tr')];

@@ -59,12 +59,14 @@ if (!empty($referenceShell)) {
           </svg>
           Clients
         </a>
-        <a href="<?= ADMIN_URL ?>/pages/admins.php">
-          <svg viewBox="0 0 24 24">
-            <path d="M15.5 8a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0ZM5 20a7 7 0 0 1 14 0M18 5v6M15 8h6" />
-          </svg>
-          Admin
-        </a>
+        <?php if (currentAdminCanWrite()): ?>
+          <a href="<?= ADMIN_URL ?>/pages/admins.php">
+            <svg viewBox="0 0 24 24">
+              <path d="M15.5 8a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0ZM5 20a7 7 0 0 1 14 0M18 5v6M15 8h6" />
+            </svg>
+            Admin
+          </a>
+        <?php endif; ?>
       </nav>
       <div class="sidebar-footer">
         <div class="admin-row">
@@ -76,7 +78,7 @@ if (!empty($referenceShell)) {
               <?= e($currentAdmin['name'] ?? 'Admin') ?>
             </strong>
             <small>
-              <?= e(ucfirst($currentAdmin['role'] ?? 'admin')) ?>
+              <?= e(adminRoleLabel($currentAdmin['role'] ?? 'admin')) ?>
             </small>
           </span>
           <a class="signout" href="<?= ADMIN_URL ?>/logout.php" title="Sign out" aria-label="Sign out">
@@ -85,7 +87,9 @@ if (!empty($referenceShell)) {
             </svg>
           </a>
         </div>
-        <a class="btn btn-primary btn-sm w-full text-white!" href="<?= ADMIN_URL ?>/pages/post_job.php"><span>+</span> Create Job</a>
+        <?php if (currentAdminCanWrite()): ?>
+          <a class="btn btn-primary btn-sm w-full text-white!" href="<?= ADMIN_URL ?>/pages/post_job.php"><span>+</span> Create Job</a>
+        <?php endif; ?>
       </div>
     </aside>
 
@@ -172,14 +176,16 @@ if (!empty($referenceShell)) {
             </svg>
             View Site
           </a>
-          <a href="<?= ADMIN_URL ?>/pages/post_job.php"
-            class="flex items-center gap-1.5 bg-accent text-white rounded-lg font-head text-[12px] font-bold
-                   tracking-wide px-4 py-2 shadow-pop hover:bg-accent-dark transition-all">
-            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.25">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            Create Job
-          </a>
+          <?php if (currentAdminCanWrite()): ?>
+            <a href="<?= ADMIN_URL ?>/pages/post_job.php"
+              class="flex items-center gap-1.5 bg-accent text-white rounded-lg font-head text-[12px] font-bold
+                     tracking-wide px-4 py-2 shadow-pop hover:bg-accent-dark transition-all">
+              <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.25">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              Create Job
+            </a>
+          <?php endif; ?>
         </div>
       </div>
 

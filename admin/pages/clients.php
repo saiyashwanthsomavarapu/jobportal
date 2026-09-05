@@ -13,6 +13,7 @@ $oldClientName = null;
 $successMessage = "";
 $errorMessage = "";
 $warnMessage = "";
+$canWrite = currentAdminCanWrite();
 $page = max(1, (int) ($_GET['page'] ?? 1));
 $requestedPerPage = (int) ($_GET['per_page'] ?? 10);
 $perPage = in_array($requestedPerPage, [10, 15, 25, 50], true) ? $requestedPerPage : 10;
@@ -71,6 +72,11 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
 
 // ── Handle POST actions ───────────────────────────────────────
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
+  if (!currentAdminCanWrite()) {
+    flash('error', 'Read-only users cannot perform this action.');
+    redirect(ADMIN_URL . '/pages/clients.php');
+  }
+
   $action = $_POST["action"] ?? "";
   $clientId = (int) ($_POST["client_id"] ?? 0);
   $clientName = trim($_POST["client_name"] ?? "");
@@ -201,18 +207,20 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
           <path d="M3.75 21V6.75A1.5 1.5 0 0 1 5.25 5.25h6A1.5 1.5 0 0 1 12.75 6.75V21M3.75 21h16.5M3.75 21H2.25M20.25 21V10.5a1.5 1.5 0 0 0-1.5-1.5h-3a1.5 1.5 0 0 0-1.5 1.5V21" />
         </svg>Clients
       </a>
-      <a href="<?= ADMIN_URL ?>/pages/admins.php">
-        <svg viewBox="0 0 24 24">
-          <path d="M15.5 8a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0ZM5 20a7 7 0 0 1 14 0M18 5v6M15 8h6" />
-        </svg>Admin
-      </a>
+      <?php if ($canWrite): ?>
+        <a href="<?= ADMIN_URL ?>/pages/admins.php">
+          <svg viewBox="0 0 24 24">
+            <path d="M15.5 8a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0ZM5 20a7 7 0 0 1 14 0M18 5v6M15 8h6" />
+          </svg>Admin
+        </a>
+      <?php endif; ?>
     </nav>
     <div class="sidebar-footer">
       <div class="admin-row">
         <span class="admin-avatar"><?= e(strtoupper(substr($currentAdmin['name'] ?? 'A', 0, 1))) ?></span>
         <span class="admin-copy">
           <strong><?= e($currentAdmin['name'] ?? 'Admin') ?></strong>
-          <small><?= e(ucfirst($currentAdmin['role'] ?? 'admin')) ?></small>
+          <small><?= e(adminRoleLabel($currentAdmin['role'] ?? 'admin')) ?></small>
         </span>
         <a class="signout" href="<?= ADMIN_URL ?>/logout.php" title="Sign out">
           <svg viewBox="0 0 24 24">
@@ -220,7 +228,9 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
           </svg>
         </a>
       </div>
-      <a class="btn btn-primary btn-sm w-full text-white!" href="<?= ADMIN_URL ?>/pages/post_job.php"><span>+</span> Create Job</a>
+      <?php if ($canWrite): ?>
+        <a class="btn btn-primary btn-sm w-full text-white!" href="<?= ADMIN_URL ?>/pages/post_job.php"><span>+</span> Create Job</a>
+      <?php endif; ?>
     </div>
   </aside>
 
@@ -252,79 +262,81 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
 
       <?php $isEditPage = (bool) $editClient; ?>
 
-      <details class="<?= $postJobCardClass ?> border-t-4 border-t-success mt-5 collapse  collapse-arrow bg-base-100 border border-base-300" name="my-accordion-det-1">
-        <summary class="<?= $postJobHeadingClass ?> collapse-title font-semibold">
-          <div class="<?= $postJobIconBaseClass ?> bg-success/10 text-success">
-            <svg class="<?= SVG_ICON ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21V6.75A1.5 1.5 0 015.25 5.25h6A1.5 1.5 0 0112.75 6.75V21M3.75 21h16.5M3.75 21H2.25M20.25 21V10.5a1.5 1.5 0 00-1.5-1.5h-3a1.5 1.5 0 00-1.5 1.5V21m3-15h.008v.008H18v-.008zm0 3h.008v.008H18v-.008zm0 3h.008v.008H18v-.008zM6.75 9h.008v.008H6.75V9zm0 3h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm3-6h.008v.008H9.75V9zm0 3h.008v.008H9.75V12zm0 3h.008v.008H9.75V15z" />
-            </svg>
-          </div>
-          <h2 class="<?= $postJobHeadingTextClass ?>"><?= $isEditPage ? 'Edit Client' : 'Create Client' ?></h2>
-        </summary>
-        <div class="collapse-content text-sm">
-          <form method="POST" id="clientForm">
-
-            <input type="hidden" name="action" value="save">
-            <input type="hidden" name="client_id" value="<?= $editClient
-                                                            ? $editClient["id"]
-                                                            : 0 ?>">
-
-            <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
-
-              <!-- Client Name -->
-              <fieldset class="fieldset">
-                <legend class="fieldset-legend">
-                  Client Name
-                  <span class="text-error">*</span>
-                </legend>
-                <input
-                  type="text"
-                  name="client_name"
-                  class="<?= INPUT_CLASS ?>"
-                  placeholder="e.g. Autodesk"
-                  value="<?= e($oldClientName ?? ($editClient["client_name"] ?? "")) ?>"
-                  required
-                  pattern="[A-Za-z0-9 .&-]+"
-                  title="Only letters, numbers, spaces, periods, ampersands, and hyphens are allowed."
-                  oninput="this.value = this.value.replace(/[^A-Za-z0-9 .&-]/g, '')"
-                  autofocus />
-                <p class="text-xs text-base-content/50">
-                  Enter the official client/company name.
-                </p>
-              </fieldset>
+      <?php if ($canWrite): ?>
+        <details class="<?= $postJobCardClass ?> border-t-4 border-t-success mt-5 collapse  collapse-arrow bg-base-100 border border-base-300" name="my-accordion-det-1" <?= ($isEditPage || !empty($errors)) ? 'open' : '' ?>>
+          <summary class="<?= $postJobHeadingClass ?> collapse-title font-semibold">
+            <div class="<?= $postJobIconBaseClass ?> bg-success/10 text-success">
+              <svg class="<?= SVG_ICON ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21V6.75A1.5 1.5 0 015.25 5.25h6A1.5 1.5 0 0112.75 6.75V21M3.75 21h16.5M3.75 21H2.25M20.25 21V10.5a1.5 1.5 0 00-1.5-1.5h-3a1.5 1.5 0 00-1.5 1.5V21m3-15h.008v.008H18v-.008zm0 3h.008v.008H18v-.008zm0 3h.008v.008H18v-.008zM6.75 9h.008v.008H6.75V9zm0 3h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm3-6h.008v.008H9.75V9zm0 3h.008v.008H9.75V12zm0 3h.008v.008H9.75V15z" />
+              </svg>
             </div>
-            <div class="flex items-center gap-2.5 mt-6">
-              <?php if ($isEditPage): ?>
-                <a href="<?= ADMIN_URL ?>/pages/clients.php"
-                  class="flex items-center gap-1.5 text-[12.5px] font-semibold text-gray-900/70 border border-gray-200 rounded-lg px-3.5 py-2 hover:bg-gray-50 hover:text-gray-900 transition-colors">
-                  <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                  Cancel
-                </a>
-              <?php endif; ?>
-              <button
-                type="submit"
-                form="clientForm"
-                id="saveClientButton"
-                class="btn btn-sm btn-primary btn-disabled shadow-sm"
-                disabled>
+            <h2 class="<?= $postJobHeadingTextClass ?>"><?= $isEditPage ? 'Edit Client' : 'Create Client' ?></h2>
+          </summary>
+          <div class="collapse-content text-sm">
+            <form method="POST" id="clientForm">
+
+              <input type="hidden" name="action" value="save">
+              <input type="hidden" name="client_id" value="<?= $editClient
+                                                              ? $editClient["id"]
+                                                              : 0 ?>">
+
+              <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+
+                <!-- Client Name -->
+                <fieldset class="fieldset">
+                  <legend class="fieldset-legend">
+                    Client Name
+                    <span class="text-error">*</span>
+                  </legend>
+                  <input
+                    type="text"
+                    name="client_name"
+                    class="<?= INPUT_CLASS ?>"
+                    placeholder="e.g. Autodesk"
+                    value="<?= e($oldClientName ?? ($editClient["client_name"] ?? "")) ?>"
+                    required
+                    pattern="[A-Za-z0-9 .&-]+"
+                    title="Only letters, numbers, spaces, periods, ampersands, and hyphens are allowed."
+                    oninput="this.value = this.value.replace(/[^A-Za-z0-9 .&-]/g, '')"
+                    autofocus />
+                  <p class="text-xs text-base-content/50">
+                    Enter the official client/company name.
+                  </p>
+                </fieldset>
+              </div>
+              <div class="flex items-center gap-2.5 mt-6">
                 <?php if ($isEditPage): ?>
-                  <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                  </svg>
-                  Update Client
-                <?php else: ?>
-                  <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                  </svg>
-                  Create Client
+                  <a href="<?= ADMIN_URL ?>/pages/clients.php"
+                    class="flex items-center gap-1.5 text-[12.5px] font-semibold text-gray-900/70 border border-gray-200 rounded-lg px-3.5 py-2 hover:bg-gray-50 hover:text-gray-900 transition-colors">
+                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Cancel
+                  </a>
                 <?php endif; ?>
-              </button>
-            </div>
-          </form>
-        </div>
-      </details>
+                <button
+                  type="submit"
+                  form="clientForm"
+                  id="saveClientButton"
+                  class="btn btn-sm btn-primary btn-disabled shadow-sm"
+                  disabled>
+                  <?php if ($isEditPage): ?>
+                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                    Update Client
+                  <?php else: ?>
+                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
+                    Create Client
+                  <?php endif; ?>
+                </button>
+              </div>
+            </form>
+          </div>
+        </details>
+      <?php endif; ?>
 
 
       <!-- ══ CLIENTS TABLE ══ -->
@@ -342,13 +354,15 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
                 <th>Client Name</th>
                 <th>Created By</th>
                 <th>Created</th>
-                <th><span class="sr-only">Actions</span></th>
+                <?php if ($canWrite): ?>
+                  <th><span class="sr-only">Actions</span></th>
+                <?php endif; ?>
               </tr>
             </thead>
             <tbody>
               <?php if (empty($clients)): ?>
                 <tr>
-                  <td colspan="4" class="py-20">
+                  <td colspan="<?= $canWrite ? 4 : 3 ?>" class="py-20">
                     <div class="grid place-items-center gap-2 text-center text-base-content/60">
                       <strong class="text-base font-semibold text-base-content">No clients found</strong>
                       <span class="text-sm">Create your first client to get started.</span>
@@ -357,9 +371,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
                 </tr>
               <?php else: ?>
                 <?php $clientCount = count($clients); ?>
-                <?php foreach ($clients as $index => $c):
-                  $dropdownPlacement = $index >= max(0, $clientCount - 2) ? 'dropdown-top' : 'dropdown-bottom';
-                ?>
+                <?php foreach ($clients as $index => $c): ?>
                   <tr class="group border-t border-base-300 transition-colors hover:bg-[#F28C28]">
                     <td class=" group-hover:bg-[#F28C28]">
                       <strong class="block font-medium text-base-content group-hover:text-white">
@@ -372,43 +384,39 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
                     <td class=" group-hover:bg-[#F28C28] group-hover:text-white">
                       <?= date("M j, Y", strtotime($c["created_at"])) ?>
                     </td>
-                    <td class="job-actions-cell right-0 z-30 w-14  text-right align-middle group-hover:bg-[#F28C28]" onclick="event.stopPropagation()">
-                      <div class="dropdown <?= $dropdownPlacement ?> dropdown-end">
-                        <div tabindex="0" role="button" class="btn btn-sm btn-ghost m-1 p-2 bg-transparent border-none shadow-none outline-none focus:outline-none focus-visible:outline-none hover:bg-transparent text-base-content group-hover:text-white">
+                    <?php if ($canWrite): ?>
+                      <td class="job-actions-cell right-0 z-30 w-14 text-right align-middle group-hover:bg-[#F28C28]" onclick="event.stopPropagation()">
+                        <button type="button" class="btn btn-sm btn-ghost m-1 p-2 bg-transparent border-none shadow-none outline-none focus:outline-none focus-visible:outline-none hover:bg-transparent text-base-content group-hover:text-white" onclick="openClientActions(event, this)" aria-label="Open actions">
                           <svg class="size-4" viewBox="0 0 24 24">
                             <circle cx="5" cy="12" r="1" />
                             <circle cx="12" cy="12" r="1" />
                             <circle cx="19" cy="12" r="1" />
                           </svg>
-                        </div>
-                        <ul tabindex="-1" class="dropdown-content menu bg-base-100 rounded-box z-50 w-52 p-2 shadow-sm">
-                          <li>
-                            <a href="<?= ADMIN_URL ?>/pages/clients.php?edit=<?= $c["id"] ?>" title="Edit">
+                        </button>
+                        <ul class="client-actions-template hidden">
+                          <li onclick="window.location.href = '<?= ADMIN_URL ?>/pages/clients.php?edit=<?= $c['id'] ?>'">
+                            <button type="button" title="Edit">
                               Edit
-                            </a>
+                            </button>
                           </li>
-                          <li>
-                            <form method="POST" class="inline">
-
+                          <form method="POST" class="inline">
+                            <li onclick="openDeleteModal(
+                            <?= (int)$c['id'] ?>,
+                            <?= htmlspecialchars(json_encode($c['client_name']), ENT_QUOTES, 'UTF-8') ?>,
+                            <?= (int)($c['jobs_count'] ?? 0) ?>
+                            )">
                               <input type="hidden" name="action" value="delete">
                               <input type="hidden" name="client_id" value="<?= e($c['id']) ?>">
                               <div class="tooltip" data-tip="Delete">
-                                <button
-                                  type="button"
-                                  onclick="openDeleteModal(
-                          <?= (int)$c['id'] ?>,
-                          <?= htmlspecialchars(json_encode($c['client_name']), ENT_QUOTES, 'UTF-8') ?>,
-                          <?= (int)($c['jobs_count'] ?? 0) ?>
-                        )">
-
+                                <button type="button">
                                   Delete
                                 </button>
                               </div>
-                            </form>
-                          </li>
+                            </li>
+                          </form>
                         </ul>
-                      </div>
-                    </td>
+                      </td>
+                    <?php endif; ?>
                   </tr>
                 <?php endforeach; ?>
               <?php endif; ?>
@@ -558,8 +566,57 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
         </form>
       </dialog>
 
+      <ul id="floatingClientActions" class="menu fixed z-[9999] hidden w-56 rounded-box border border-base-300 bg-base-100 p-2 shadow-2xl" onclick="event.stopPropagation()"></ul>
+
       <script>
+        function closeClientActions() {
+          const menu = document.getElementById('floatingClientActions');
+          if (!menu) return;
+          menu.classList.add('hidden');
+          menu.innerHTML = '';
+          delete menu.dataset.source;
+        }
+
+        function openClientActions(event, button) {
+          event.stopPropagation();
+          const menu = document.getElementById('floatingClientActions');
+          const template = button.parentElement?.querySelector('.client-actions-template');
+          if (!menu || !template) return;
+
+          if (!button.dataset.actionSource) {
+            button.dataset.actionSource = `client-actions-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+          }
+
+          if (!menu.classList.contains('hidden') && menu.dataset.source === button.dataset.actionSource) {
+            closeClientActions();
+            return;
+          }
+
+          menu.innerHTML = template.innerHTML;
+          menu.dataset.source = button.dataset.actionSource;
+          menu.classList.remove('hidden');
+
+          const rect = button.getBoundingClientRect();
+          const menuWidth = menu.offsetWidth || 224;
+          const menuHeight = menu.offsetHeight || 120;
+          const gap = 8;
+          const left = Math.min(window.innerWidth - menuWidth - gap, Math.max(gap, rect.right - menuWidth));
+          const belowTop = rect.bottom + gap;
+          const aboveTop = rect.top - menuHeight - gap;
+          const top = belowTop + menuHeight <= window.innerHeight - gap ?
+            belowTop :
+            Math.max(gap, aboveTop);
+
+          menu.style.left = `${left}px`;
+          menu.style.top = `${top}px`;
+        }
+
+        document.addEventListener('click', closeClientActions);
+        window.addEventListener('scroll', closeClientActions, true);
+        window.addEventListener('resize', closeClientActions);
+
         function openDeleteModal(clientId, clientName, jobsCount = 0) {
+          closeClientActions();
           const hasMappedJobs = Number(jobsCount) > 0;
           document.getElementById('deleteClientId').value = clientId;
           document.getElementById('deleteClientName').textContent = clientName;

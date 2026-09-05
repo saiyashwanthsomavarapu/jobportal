@@ -82,15 +82,27 @@ $similarStmt->execute([
     $job['job_type'],
 ]);
 
+function countryFlag(?string $country): string
+{
+    return match (strtolower(trim((string)$country))) {
+        'united states', 'usa', 'us' => '🇺🇸',
+        'canada' => '🇨🇦',
+        'india' => '🇮🇳',
+        'mexico' => '🇲🇽',
+        default => '🌐',
+    };
+}
+
 $sideBar = [
     'Work Experience'   => $job['experience'] ?? '',
     'Salary / Rate'     => $job['salary_rate'] ?? '',
-    'Location'          => ['text' => $job['city'] . ', ' . $job['state_province'] . ', ' . $job['country']],
+    'Location'          => ['text' => $job['workplace_type'] === 'Remote' ? countryFlag($job['country'])  : $job['city'] . ', ' . $job['state_province'] . ', ' . countryFlag($job['country'])],
     'Job Type'          => $job['job_type'],
-    'Work Mode'         => $job['workplace_type'],
+    'Timezone'       => $job['timezone'],
+    // 'Work Mode'         => $job['workplace_type'],
     // 'Openings'          => '5',
     // 'Visa Sponsorship'  => 'Available',
-    'Notice Period'     => 'Immediate',
+    // 'Notice Period'     => 'Immediate',
 ];
 
 $similarJobs = $similarStmt->fetchAll();
@@ -101,23 +113,6 @@ if (!function_exists('e')) {
     {
         return htmlspecialchars($v ?? '', ENT_QUOTES, 'UTF-8');
     }
-}
-
-// Flag image helper — returns a Tailwind-styled <img>, no bespoke CSS class needed
-function countryFlag(string $country): string
-{
-    $map = [
-        'united states' => 'us.jpg',
-        'usa'           => 'us.jpg',
-        'us'            => 'us.jpg',
-        'india'         => 'india.jpg',
-        'canada'        => 'canada.jpg',
-    ];
-    $file = $map[strtolower(trim($country))] ?? null;
-    if ($file) {
-        return '<img src="/flags/' . $file . '" alt="' . htmlspecialchars($country, ENT_QUOTES, 'UTF-8') . '" class="inline-block w-5 h-3.5 object-cover rounded-sm align-middle mr-1.5">';
-    }
-    return '<span class="align-middle mr-1">🌐</span>';
 }
 
 // Workplace type → daisyUI semantic badge color
@@ -139,20 +134,26 @@ function fmtDate($d)
     return date('M j, Y', strtotime($d));
 }
 
-// Days remaining
-function daysLeft($close)
+// Close date based on the publish/create timestamp
+function jobCloseDateFromCreatedAt($createdAt)
 {
-    if (!$close) return null;
-    $diff = (strtotime($close) - time()) / 86400;
-    return max(0, (int)ceil($diff));
+    if (!$createdAt) return null;
+
+    try {
+        $created = new DateTimeImmutable($createdAt);
+        return $created->modify('+28 days');
+    } catch (Exception $exception) {
+        return null;
+    }
 }
 
-$days = daysLeft($job['close_date']);
+$jobCloseDate = jobCloseDateFromCreatedAt($job['created_at'] ?? '');
+$days = $jobCloseDate ? max(0, (int)(new DateTimeImmutable('today'))->diff($jobCloseDate)->format('%r%a')) : null;
 $requestScheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
 $requestHost = $_SERVER['HTTP_HOST'] ?? parse_url(SITE_URL, PHP_URL_HOST) ?? 'localhost';
 $jobApplyQuery = $_GET;
 $jobApplyUrl = $requestScheme . '://' . $requestHost . $cleanPath . '?' . http_build_query($jobApplyQuery);
-$jobLocationText = trim(implode(', ', array_filter([
+$jobLocationText = $job['workplace_type'] === 'remote' ? $job['country'] : trim(implode(', ', array_filter([
     $job['city'] ?? '',
     $job['state_province'] ?? '',
     $job['country'] ?? '',
@@ -256,7 +257,18 @@ $jobShareText = implode("\n", array_filter([
         }
 
         /* Style the Fillout popup trigger like the .btn "Apply Now" button */
+        .apply-area {
+            width: 100%;
+        }
+
+        .apply-area>div,
         .apply-area [data-fillout-embed-type="popup"] {
+            min-width: min(100%, 18rem);
+            width: 100% !important;
+        }
+
+        .apply-area [data-fillout-embed-type="popup"],
+        .apply-area button {
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -311,33 +323,39 @@ $jobShareText = implode("\n", array_filter([
 
         <!-- Header Card -->
         <div class="card bg-surface border-t-4 border-primary rounded-2xl shadow-sm mb-8">
-            <div class="card-body p-6">
-                <p class="text-primary text-xs font-bold tracking-wider uppercase mb-1">
+            <div class="card-body">
+                <p class="text-primary text-xs font-bold tracking-wider uppercase ">
                     <!-- <?php echo htmlspecialchars($job['type']); ?> -->
                     <?= e($job['job_type'] ?: '') ?>
                 </p>
-                <h1 class="text-3xl font-extrabold text-ink mb-3">
+                <h1 class="text-3xl font-extrabold text-ink mb-2">
                     <!-- <?php echo htmlspecialchars($job['title']); ?> -->
                     <?= e($job['job_title']) ?>
                 </h1>
 
                 <div class="flex flex-wrap gap-2 ">
-                    <span class="badge badge-lg bg-accent-soft text-primary border-none font-medium gap-1 py-3">
+                    <span class="badge badge-lg bg-primary text-white text-sm border-none font-medium gap-1 py-3">
                         <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.5" />
                             <path d="M2 10h16M10 2c-2 2-3 5-3 8s1 6 3 8M10 2c2 2 3 5 3 8s-1 6-3 8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" />
                         </svg>
                         <!-- <?php echo $job['country_flag']; ?> -->
-                        <?= e($job['city']) ?><?= $job['city'] && $job['state_province'] ? ', ' : '' ?><?= e($job['state_province']) ?><?php if ($job['state_province'] != '') { ?>,<?php } ?> <?= e($job['country']) ?>
+                        <?= strtolower(trim((string) ($job['workplace_type'] ?? ''))) === 'remote'
+                            ? e($job['country'] ?? '')
+                            : e(implode(', ', array_filter([
+                                $job['city'] ?? '',
+                                $job['state_province'] ?? '',
+                                $job['country'] ?? '',
+                            ]))) ?>
                     </span>
-                    <span class="badge badge-lg bg-accent-soft text-primary border-none font-medium gap-1 py-3">
+                    <span class="badge badge-lg bg-primary text-white text-sm border-none font-medium gap-1 py-3">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z" />
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                         </svg>
                         <?= e($job['workplace_type']) ?>
                     </span>
-                    <span class="badge badge-lg bg-accent-soft text-primary border-none font-medium gap-1 py-3">
+                    <span class="badge badge-lg bg-primary text-white text-sm border-none font-medium gap-1">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M20 7h-3V5a2 2 0 00-2-2H9a2 2 0 00-2 2v2H4a1 1 0 00-1 1v10a2 2 0 002 2h14a2 2 0 002-2V8a1 1 0 00-1-1zM9 5h6v2H9V5z" />
                         </svg>
@@ -353,6 +371,12 @@ $jobShareText = implode("\n", array_filter([
                             <path stroke-linecap="round" stroke-linejoin="round" d="M8.684 13.342a4 4 0 100-2.684m0 2.684a4 4 0 000 -2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a4 4 0 108-1.658 4 4 0 00-8 1.658zm0 12.632a4 4 0 108-1.658 4 4 0 00-8 1.658z" />
                         </svg>
                         <span>Share</span>
+                    </button>
+                    <button type="button" id="copyJobLinkBtn" class="flex items-center gap-2 text-ink2 hover:text-primary text-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5.25h6m-7.5 3h9m-10.5 12h12A1.5 1.5 0 0019.5 19V7.5A1.5 1.5 0 0018 6h-1.5A2.25 2.25 0 0014.25 3.75h-4.5A2.25 2.25 0 007.5 6H6A1.5 1.5 0 004.5 7.5V19A1.5 1.5 0 006 20.5z" />
+                        </svg>
+                        <span>Copy Link</span>
                     </button>
                     <button type="button" id="printJobBtn" class="flex items-center gap-2 text-ink2 hover:text-primary text-sm">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -454,29 +478,41 @@ $jobShareText = implode("\n", array_filter([
             <div class="lg:col-span-1">
                 <div class="sticky top-6 space-y-4">
 
-                    <div class="">
-                        <?php if ($job['country'] == 'India'): ?>
-                            <div
-                                data-fillout-id="1sLDbgFUV2us"
-                                data-fillout-embed-type="popup"
-                                data-fillout-button-text="Apply Now"
-                                data-fillout-dynamic-resize
-                                data-fillout-button-color="#1A4C8F"
-                                data-fillout-inherit-parameters
-                                data-fillout-popup-size="medium">
-                            </div>
-                            <script src="https://server.fillout.com/embed/v1/"></script>
-                        <?php else: ?>
-                            <div
-                                data-fillout-id="tJm6TzPEVeus"
-                                data-fillout-embed-type="popup"
-                                data-fillout-button-text="Apply Now"
-                                data-fillout-dynamic-resize
-                                data-fillout-button-color="#1A4C8F"
-                                data-fillout-inherit-parameters
-                                data-fillout-popup-size="medium">
-                            </div>
-                            <script src="https://server.fillout.com/embed/v1/"></script>
+                    <div class="flex flex-col items-center gap-2">
+                        <div class="flex justify-center">
+                            <?php if ($job['country'] == 'India'): ?>
+                                <div
+                                    data-fillout-id="1sLDbgFUV2us"
+                                    data-fillout-embed-type="popup"
+                                    data-fillout-button-text="Apply Now"
+                                    data-fillout-dynamic-resize
+                                    data-fillout-button-color="#1A4C8F"
+                                    data-fillout-inherit-parameters
+                                    data-fillout-popup-size="medium">
+                                </div>
+                                <script src="https://server.fillout.com/embed/v1/"></script>
+                            <?php else: ?>
+                                <div
+                                    data-fillout-id="tJm6TzPEVeus"
+                                    data-fillout-embed-type="popup"
+                                    data-fillout-button-text="Apply Now"
+                                    data-fillout-dynamic-resize
+                                    data-fillout-button-color="#1A4C8F"
+                                    data-fillout-inherit-parameters
+                                    data-fillout-popup-size="medium">
+                                </div>
+                                <script src="https://server.fillout.com/embed/v1/"></script>
+                            <?php endif; ?>
+                        </div>
+                        <?php if ($days !== null && $jobCloseDate): ?>
+                            <p class="text-center text-sm font-medium text-ink2">
+                                Closes <?= e($jobCloseDate->format('M j, Y')) ?>
+                                <?php if ($days <= 5): ?>
+                                    - <strong><?= $days ?> day<?= $days != 1 ? 's' : '' ?> left!</strong>
+                                <?php else: ?>
+                                    &nbsp;(<?= $days ?> days left)
+                                <?php endif; ?>
+                            </p>
                         <?php endif; ?>
                     </div>
                     <div class="card bg-surface border border-line rounded-2xl">
@@ -485,7 +521,7 @@ $jobShareText = implode("\n", array_filter([
                             $first = true;
                             foreach ($sideBar as $label => $value):
                             ?>
-                                <div class="<?php echo $first ? 'pb-4' : 'py-4'; ?>">
+                                <div class="<?php echo $first ? 'pb-4' : 'py-1'; ?>">
                                     <p class="text-sm font-semibold text-ink "><?php echo htmlspecialchars($label); ?></p>
                                     <?php if (is_array($value)): ?>
                                         <p class="text-sm text-ink2 flex items-center ">
@@ -509,8 +545,10 @@ $jobShareText = implode("\n", array_filter([
 
     <script>
         const shareJobButton = document.getElementById('shareJobBtn');
+        const copyJobLinkButton = document.getElementById('copyJobLinkBtn');
         const printJobButton = document.getElementById('printJobBtn');
         const jobActionStatus = document.getElementById('jobActionStatus');
+        const jobApplyUrl = <?= json_encode($jobApplyUrl, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
 
         function setJobActionStatus(message) {
             if (!jobActionStatus) return;
@@ -529,6 +567,27 @@ $jobShareText = implode("\n", array_filter([
             const shareWindow = window.open(linkedInShareUrl.toString(), '_blank', 'noopener,noreferrer');
             if (!shareWindow) {
                 setJobActionStatus('Please allow pop-ups to share this job on LinkedIn.');
+            }
+        });
+
+        copyJobLinkButton?.addEventListener('click', async () => {
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText(jobApplyUrl);
+                } else {
+                    const tempInput = document.createElement('textarea');
+                    tempInput.value = jobApplyUrl;
+                    tempInput.setAttribute('readonly', '');
+                    tempInput.style.position = 'fixed';
+                    tempInput.style.opacity = '0';
+                    document.body.appendChild(tempInput);
+                    tempInput.select();
+                    document.execCommand('copy');
+                    tempInput.remove();
+                }
+                setJobActionStatus('Job link copied.');
+            } catch (error) {
+                setJobActionStatus('Could not copy the link. Please try again.');
             }
         });
 

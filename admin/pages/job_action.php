@@ -6,12 +6,17 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirect(ADMIN_URL . '/pages/jobs.php');
 }
 
+if (!currentAdminCanWrite()) {
+    flash('error', 'Read-only users cannot perform this action.');
+    redirect(ADMIN_URL . '/pages/jobs.php');
+}
+
 $id = (int) ($_POST["id"] ?? 0);
 $action = $_POST["a"] ?? "";
 
 if (
     !$id ||
-    !in_array($action, ["publish", "close", "draft", "archive", "delete", "clone"])
+    !in_array($action, ["publish", "close", "draft", "delete", "clone"])
 ) {
     flash("error", "Invalid action.");
     redirect(ADMIN_URL . "/pages/jobs.php");
@@ -55,12 +60,6 @@ try {
                 [$id]
             );
             flash("success", "Job moved to draft.");
-            break;
-        case "archive":
-            $pdo->prepare(
-                "UPDATE jobs SET status='archived', updated_at=NOW() WHERE id=?"
-            )->execute([$id]);
-            flash("success", "Job moved to pending review.");
             break;
         case "delete":
             $pdo->prepare("DELETE FROM jobs WHERE id=?")->execute([$id]);

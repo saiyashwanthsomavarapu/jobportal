@@ -15,7 +15,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   <?php include __DIR__ . '/theme.php'; ?>
   <link href="<?= ADMIN_URL ?>/dashboard.css" rel="stylesheet">
-  <!-- <link href="<?= ADMIN_URL ?>/form-shell.css" rel="stylesheet"><link href="<?= ADMIN_URL ?>/rich-editor.css" rel="stylesheet"> -->
 </head>
 
 <body id="page-top" data-theme="accelon" class="<?= e($referenceBodyClass ?? '') ?>">
@@ -44,11 +43,13 @@
           <path d="M3.75 21V6.75A1.5 1.5 0 0 1 5.25 5.25h6A1.5 1.5 0 0 1 12.75 6.75V21M3.75 21h16.5M3.75 21H2.25M20.25 21V10.5a1.5 1.5 0 0 0-1.5-1.5h-3a1.5 1.5 0 0 0-1.5 1.5V21" />
         </svg> Clients
       </a>
-      <a class="<?= basename($_SERVER['PHP_SELF']) === 'admins.php' ? 'active' : '' ?>" href="<?= ADMIN_URL ?>/pages/admins.php">
-        <svg viewBox="0 0 24 24">
-          <path d="M15.5 8a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0ZM5 20a7 7 0 0 1 14 0M18 5v6M15 8h6" />
-        </svg>Admin
-      </a>
+      <?php if (currentAdminCanWrite()): ?>
+        <a class="<?= basename($_SERVER['PHP_SELF']) === 'admins.php' ? 'active' : '' ?>" href="<?= ADMIN_URL ?>/pages/admins.php">
+          <svg viewBox="0 0 24 24">
+            <path d="M15.5 8a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0ZM5 20a7 7 0 0 1 14 0M18 5v6M15 8h6" />
+          </svg>Admin
+        </a>
+      <?php endif; ?>
     </nav>
     <div class="sidebar-footer">
       <div class="admin-row">
@@ -58,7 +59,7 @@
           <strong>
             <?= e($currentAdmin['name'] ?? 'Admin') ?>
           </strong>
-          <small><?= e(ucfirst($currentAdmin['role'] ?? 'admin')) ?></small>
+          <small><?= e(adminRoleLabel($currentAdmin['role'] ?? 'admin')) ?></small>
         </span>
         <a class="signout" href="<?= ADMIN_URL ?>/logout.php" title="Sign out">
           <svg viewBox="0 0 24 24">
@@ -66,14 +67,17 @@
           </svg>
         </a>
       </div>
-      <a class="btn btn-primary btn-sm w-full text-white!" href="<?= ADMIN_URL ?>/pages/post_job.php"><span>+</span> Create Job</a>
+      <?php if (currentAdminCanWrite()): ?>
+        <a class="btn btn-primary btn-sm w-full text-white!" href="<?= ADMIN_URL ?>/pages/post_job.php"><span>+</span> Create Job</a>
+      <?php endif; ?>
     </div>
   </aside>
   <main class="form-main">
     <?php if (!empty($isEdit) && !empty($job)): ?>
       <?php
       $editStatus = strtolower($job['status'] ?? 'draft');
-      $editStatusLabels = ['published' => 'Published', 'draft' => 'Draft', 'closed' => 'Closed', 'archived' => 'Pending Review'];
+      if ($editStatus === 'archived') $editStatus = 'draft';
+      $editStatusLabels = ['published' => 'Published', 'draft' => 'Draft', 'closed' => 'Closed'];
       $editStatusLabel = $editStatusLabels[$editStatus] ?? ucfirst($editStatus);
       ?>
       <header class="edit-job-page-header">
@@ -83,13 +87,7 @@
           </div>
           <p><?= e($job['job_code'] ?? '') ?></p>
         </div>
-        <?php if ($editStatus !== 'archived'): ?>
-          <form method="POST" action="<?= ADMIN_URL ?>/pages/job_action.php">
-
-            <input type="hidden" name="id" value="<?= (int) $job['id'] ?>">
-            <button class="archive-job-button" type="submit" name="a" value="archive">Archive</button>
-          </form>
-        <?php endif; ?>
+        <?php /* Archive functionality is currently hidden. */ ?>
       </header>
     <?php elseif (empty($hideReferencePageHeader)): ?>
       <?php

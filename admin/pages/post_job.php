@@ -4,6 +4,11 @@ require_once dirname(__DIR__) . "/auth.php";
 require_once dirname(__DIR__) . "/DB/queries.php";
 require_once dirname(__DIR__) . "/utils/classes.php";
 
+if (!currentAdminCanWrite()) {
+  flash("error", "Read-only users cannot create or edit jobs.");
+  redirect(ADMIN_URL . "/pages/jobs.php");
+}
+
 /* LOAD JOB FOR EDIT / CLONE */
 
 $editId = (int) ($_GET["edit"] ?? 0);
@@ -17,7 +22,6 @@ $isClone = false;
 $cloneNewCode = "";
 $cloneNewNumber = 0;
 
-/* Edit */
 if ($editId > 0) {
   $job = getJobById($editId);
 
@@ -49,7 +53,7 @@ if ($editId > 0) {
 if ($isEdit) {
   $pageTitle = "Edit Job: " . ($job["job_code"] ?? "");
 } elseif ($isClone) {
-  $pageTitle = "Clone Job -> " . $cloneNewCode;
+  $pageTitle = "Clone Job";
 } else {
   $pageTitle = "Create Job";
 }
@@ -414,6 +418,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
   /* Salary */
 
+  if (in_array($data["country"], ["United States", "Canada"], true)) {
+    $data["salary_unit_from"] = "";
+    $data["salary_unit_to"] = "";
+  }
+
   if ($data["salary_boe"]) {
     $data["salary_rate"] = "Based on Experience";
 
@@ -717,7 +726,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
     color: #637188;
   }
 
-  body.post-job-shell-page .archive-job-button {
+  /* body.post-job-shell-page .archive-job-button {
     height: 38px;
     padding: 0 14px;
     border: 1px solid var(--line);
@@ -731,6 +740,17 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
 
   body.post-job-shell-page .archive-job-button:hover {
     background: #f1f5f9;
+  } */
+
+  body.post-job-shell-page input[type="number"]::-webkit-outer-spin-button,
+  body.post-job-shell-page input[type="number"]::-webkit-inner-spin-button {
+    margin: 0;
+    -webkit-appearance: none;
+  }
+
+  body.post-job-shell-page input[type="number"] {
+    appearance: textfield;
+    -moz-appearance: textfield;
   }
 
   @media (min-width: 1056px) {
@@ -921,7 +941,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
           <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <fieldset class="fieldset">
               <!-- <legend class="fieldset-legend text-sm font-semibold text-base-content">Minimum</legend> -->
-              <select name="exp_from" id="expFrom" class="<?= SELECT_CLASS ?> cursor-pointer" required onchange="updateExpPreview()">
+              <select name="exp_from" id="expFrom" class="<?= SELECT_CLASS ?> cursor-pointer" required>
                 <option value="">Select minimum years</option>
                 <?php foreach ($expFromOpts as $v): ?>
                   <option value="<?= e($v) ?>" <?= $savedExpFrom === $v ? 'selected' : '' ?>><?= e($v) ?></option>
@@ -931,7 +951,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
 
             <fieldset class="fieldset">
               <!-- <legend class="fieldset-legend text-sm font-semibold text-base-content">Maximum</legend> -->
-              <select name="exp_to" id="expTo" class="<?= SELECT_CLASS ?> cursor-pointer" required onchange="updateExpPreview()">
+              <select name="exp_to" id="expTo" class="<?= SELECT_CLASS ?> cursor-pointer" required>
                 <option value="">Select maximum years</option>
                 <?php foreach ($expToOpts as $v): ?>
                   <option value="<?= e($v) ?>" <?= $savedExpTo === $v ? 'selected' : '' ?>><?= e($v) ?></option>
@@ -964,6 +984,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
             class="<?= SELECT_CLASS ?>"
             required>
             <option value="">Select timezone</option>
+            <option value="Any" <?= oldSel('timezone', 'Any') ?>>Any</option>
           </select>
         </fieldset>
       </div>
@@ -1011,10 +1032,9 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
           <legend class="fieldset-legend text-sm font-semibold text-base-content">Minimum</legend>
           <div class="join w-full overflow-hidden rounded-lg border border-base-300 bg-base-100 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
             <input type="number" name="salary_from" id="salaryFrom" class="input join-item h-11 min-h-11 min-w-0 flex-1 rounded-none border-0 bg-base-100 px-3 text-sm text-base-content placeholder:text-base-content/35 focus:outline-none focus:ring-0" min="0" step="any" placeholder="35" value="<?= e($savedSalFrom) ?>" oninput="updateSalaryPreview()" <?= $savedSalBoe ? '' : 'required' ?>>
-            <select name="salary_unit_from" id="salaryUnitFrom" class="select join-item h-11 min-h-11 !w-[120px] !min-w-[120px] shrink-0 cursor-pointer rounded-none !border-0 !border-l !border-base-300 bg-base-100 px-3 !pr-8 text-sm text-base-content focus:outline-none focus:ring-0" onchange="updateSalaryPreview()" title="Salary unit">
+            <select name="salary_unit_from" id="salaryUnitFrom" class="select join-item relative z-10 h-11 min-h-11 !w-[120px] !min-w-[120px] shrink-0 cursor-pointer rounded-none border-y-0 border-r-0 border-l border-base-300 bg-base-100 px-3 !pr-8 text-sm text-base-content focus:border-l focus:border-base-300 focus:outline-none focus:ring-0" onchange="updateSalaryPreview()" title="Salary unit">
               <option value="" <?= $savedSalUnitFrom === '' ? 'selected' : '' ?>>—</option>
               <option value="L" <?= $savedSalUnitFrom === 'L' ? 'selected' : '' ?>>L</option>
-              <option value="T" <?= $savedSalUnitFrom === 'T' ? 'selected' : '' ?>>T</option>
             </select>
             <span class="sr-only">L means Lakhs. T means Thousands.</span>
           </div>
@@ -1022,11 +1042,13 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
         <fieldset class="fieldset">
           <legend class="fieldset-legend text-sm font-semibold text-base-content">Maximum</legend>
           <div class="join w-full overflow-hidden rounded-lg border border-base-300 bg-base-100 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
-            <input type="number" name="salary_to" id="salaryTo" class="input join-item h-11 min-h-11 min-w-0 flex-1 rounded-none border-0 bg-base-100 px-3 text-sm text-base-content placeholder:text-base-content/35 focus:outline-none focus:ring-0" placeholder="45" value="<?= e($savedSalTo) ?>" min="0" step="any" oninput="updateSalaryPreview()" <?= $savedSalBoe ? '' : 'required' ?>>
-            <select name="salary_unit_to" id="salaryUnitTo" class="select join-item h-11 min-h-11 !w-[120px] !min-w-[120px] shrink-0 cursor-pointer rounded-none !border-0 !border-l !border-base-300 bg-base-100 px-3 !pr-8 text-sm text-base-content focus:outline-none focus:ring-0" onchange="updateSalaryPreview()" title="Salary unit">
+            <input type="number" name="salary_to" id="salaryTo" class="input join-item h-11 min-h-11 min-w-0 flex-1 rounded-none border-0 bg-base-100 px-3 text-sm text-base-content placeholder:text-base-content/35 focus:outline-none focus:ring-0" placeholder="45"
+              value="<?= e(preg_replace("/[^0-9]/", "", $savedSalTo)) ?>"
+              oninput="this.value=this.value.replace(/[^0-9]/g,'');updateSalaryPreview()"
+              <?= $savedSalBoe ? '' : 'required' ?>>
+            <select name="salary_unit_to" id="salaryUnitTo" class="select join-item relative z-10 h-11 min-h-11 !w-[120px] !min-w-[120px] shrink-0 cursor-pointer rounded-none border-y-0 border-r-0 border-l border-base-300 bg-base-100 px-3 !pr-8 text-sm text-base-content focus:border-l focus:border-base-300 focus:outline-none focus:ring-0" onchange="updateSalaryPreview()" title="Salary unit">
               <option value="" <?= $savedSalUnitTo === '' ? 'selected' : '' ?>>—</option>
               <option value="L" <?= $savedSalUnitTo === 'L' ? 'selected' : '' ?>>L</option>
-              <option value="T" <?= $savedSalUnitTo === 'T' ? 'selected' : '' ?>>T</option>
             </select>
             <span class="sr-only">L means Lakhs. T means Thousands.</span>
           </div>
@@ -1084,7 +1106,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
       </div>
     </div>
 
-    <div id="unitedStatesSpecificCard" class="<?= (($old['country'] ?? '') === 'United States') ? '' : 'hidden' ?> <?= $postJobCardClass ?> border-t-4 border-t-error">
+    <!-- <div id="unitedStatesSpecificCard" class="<?= (($old['country'] ?? '') === 'United States') ? '' : 'hidden' ?> <?= $postJobCardClass ?> border-t-4 border-t-error">
       <div class="<?= $postJobHeadingClass ?>">
         <div class="<?= $postJobIconBaseClass ?> bg-error/10 text-error">
           <svg class="<?= SVG_ICON ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
@@ -1103,7 +1125,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
           <legend class="fieldset-legend">Equal Opportunity Statement</legend><textarea name="equal_opportunity_statement" rows="4" class="<?= TEXTAREA_CLASS ?>"><?= old('equal_opportunity_statement') ?></textarea>
         </fieldset>
       </section>
-    </div>
+    </div> -->
 
     <!-- ═══ ACTIONS ══════════════════════════════════════════════ -->
     <div class="bg-transparent">
@@ -1351,6 +1373,30 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
     // updateSalaryPreview();
   }
 
+  function toggleSalaryUnitFields(countryName = '') {
+    const country = countryName || document.getElementById('country')?.value || '';
+    const shouldDisableUnits = country === 'United States' || country === 'Canada';
+    const unitSelects = [
+      document.getElementById('salaryUnitFrom'),
+      document.getElementById('salaryUnitTo')
+    ];
+
+    unitSelects.forEach(select => {
+      if (!select) return;
+      select.disabled = shouldDisableUnits;
+      select.classList.toggle('bg-base-200', shouldDisableUnits);
+      select.classList.toggle('text-base-content/50', shouldDisableUnits);
+      select.classList.toggle('cursor-not-allowed', shouldDisableUnits);
+      select.classList.toggle('cursor-pointer', !shouldDisableUnits);
+
+      if (shouldDisableUnits) {
+        select.value = '';
+      }
+    });
+
+    updateSalaryPreview();
+  }
+
   function getCountryData(countryName) {
     if (!countryName) return {};
     if (COUNTRY_DATA[countryName]) return COUNTRY_DATA[countryName];
@@ -1386,6 +1432,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
     const timezones = data.timezones || [];
 
     if (!timezoneSelect) return;
+    if (timezoneSelect.value === 'Any') return;
 
     if (timezones.length === 1) {
       setTimezoneValue(timezones[0]);
@@ -1451,9 +1498,17 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
 
     /* Time Zone */
     if (timezoneSelect) {
-      timezoneSelect.innerHTML = '<option value="">Select timezone</option>';
+      timezoneSelect.innerHTML = '<option value="">Select timezone</option><option value="Any">Any</option>';
+      if (
+        SAVED_TIMEZONE &&
+        SAVED_TIMEZONE.trim().toLowerCase() === 'any' &&
+        country === SAVED_COUNTRY
+      ) {
+        timezoneSelect.value = 'Any';
+      }
 
       (data.timezones || []).forEach(timezone => {
+        if (String(timezone).trim().toLowerCase() === 'any') return;
         const option = new Option(timezone, timezone);
 
         if (
@@ -1490,6 +1545,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
     const defaultCurrency = (data.currency || [])[0] || '';
     if (currentySelect) currentySelect.value = defaultCurrency;
     if (currencyDisplay) currencyDisplay.value = defaultCurrency;
+    toggleSalaryUnitFields(country);
 
     // Handle "Other"
     toggleOther(jobTypeSelect, 'otherJobType');
@@ -1545,16 +1601,16 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
   }
 
   // ── Experience preview ────────────────────────────────────────
-  function updateExpPreview() {
-    const from = document.getElementById('expFrom')?.value || '';
-    const to = document.getElementById('expTo')?.value || '';
-    const preview = document.getElementById('expPreview');
-    if (!preview) return;
-    preview.textContent =
-      from && to ?
-      `${from} - ${to} years` :
-      'Select experience range';
-  }
+  // function updateExpPreview() {
+  //   const from = document.getElementById('expFrom')?.value || '';
+  //   const to = document.getElementById('expTo')?.value || '';
+  //   const preview = document.getElementById('expPreview');
+  //   if (!preview) return;
+  //   preview.textContent =
+  //     from && to ?
+  //     `${from} - ${to} years` :
+  //     'Select experience range';
+  // }
 
   // ── Salary preview ────────────────────────────────────────────
   function updateSalaryPreview() {
@@ -1629,8 +1685,10 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
     const type = typeEl.value;
 
     if (type === 'Remote') {
-      city.disabled = false;
-      state.disabled = false;
+      city.value = '';
+      state.value = '';
+      city.disabled = true;
+      state.disabled = true;
       city.removeAttribute('required');
       state.removeAttribute('required');
     } else {
@@ -1699,9 +1757,10 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
       // MUST run after setting country
 
       toggleLocationFields(); // FIXED
+      toggleSalaryUnitFields(countrySelect?.value || '');
 
-      updateExpPreview();
-      updateSalaryPreview();
+      // updateExpPreview();
+      // updateSalaryPreview();
       toggleSalaryBoe();
 
       console.log('Form initialization completed');
@@ -1845,8 +1904,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
       const editor = new Quill(editorHost, {
         theme: 'snow',
         placeholder: id === 'job_description' ?
-          'Describe the role...' :
-          (id === 'key_skills' ? 'Add required skills...' : 'Add formatted content...'),
+          'Describe the role...' : (id === 'key_skills' ? 'Add required skills...' : 'Add formatted content...'),
         modules: {
           toolbar: [
             [{

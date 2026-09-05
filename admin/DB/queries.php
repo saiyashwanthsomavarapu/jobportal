@@ -10,10 +10,13 @@ $COUNT_BY_STATUS = "SELECT COUNT(*) AS total,
 
 $RECENT_JOBS = "SELECT  j.*,
                     REGEXP_REPLACE(j.client_code, '[^0-9]', '') AS client_code,
-                    a.name AS posted_by
+                    a.name AS posted_by, 
+                    c.client_name
                 FROM jobs j
                     LEFT JOIN admin_users a 
                     ON a.id = j.created_by
+                    LEFT JOIN clients c
+                    ON (c.id = j.client_id OR LEFT(j.client_code, 4) = c.client_code )
                 WHERE j.status = 'published'
                     ORDER BY j.created_at DESC
                 LIMIT 8";
@@ -25,6 +28,7 @@ function getJobs($whereSql, $offset, $perPage)
 {
     return "SELECT
       j.*,
+      j.client_code AS raw_client_code,
       REGEXP_REPLACE(j.client_code, '[^0-9]', '') AS client_code,
       a.name AS posted_by,
       c.client_name
@@ -342,33 +346,25 @@ function getAdminPasswordResetUserById(int $userId): ?array
 
 function getAdminUsers(bool $includeSuperadmins): array
 {
-    $sql = $includeSuperadmins
-        ? 'SELECT * FROM admin_users ORDER BY role ASC, name ASC'
-        : "SELECT * FROM admin_users WHERE role <> 'superadmin' ORDER BY role ASC, name ASC";
-
-    return db()->query($sql)->fetchAll();
+    return db()
+        ->query('SELECT * FROM admin_users ORDER BY role ASC, name ASC')
+        ->fetchAll();
 }
 
 function countAdminUsers(bool $includeSuperadmins): int
 {
-    $sql = $includeSuperadmins
-        ? 'SELECT COUNT(*) FROM admin_users'
-        : "SELECT COUNT(*) FROM admin_users WHERE role <> 'superadmin'";
-
-    return (int) db()->query($sql)->fetchColumn();
+    return (int) db()->query('SELECT COUNT(*) FROM admin_users')->fetchColumn();
 }
 
 function getAdminUsersPaginated(bool $includeSuperadmins, int $offset, int $perPage): array
 {
     $offset = max(0, $offset);
     $perPage = max(1, $perPage);
-    $where = $includeSuperadmins ? '' : "WHERE role <> 'superadmin'";
 
     return db()
         ->query(
             'SELECT *
              FROM admin_users
-             ' . $where . '
              ORDER BY role ASC, name ASC
              LIMIT ' . $perPage . ' OFFSET ' . $offset
         )

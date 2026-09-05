@@ -41,3 +41,31 @@ if (!$currentAdmin) {
     session_unset(); session_destroy();
     redirect(ADMIN_URL . '/login.php');
 }
+
+function normalizeAdminRole(?string $role): string
+{
+    return match (strtolower(trim((string) $role))) {
+        'superadmin', 'admin' => 'admin',
+        'user', 'editor' => 'user',
+        default => 'user',
+    };
+}
+
+function adminRoleLabel(?string $role): string
+{
+    return normalizeAdminRole($role) === 'admin' ? 'Admin' : 'User';
+}
+
+function currentAdminCanWrite(): bool
+{
+    global $currentAdmin;
+    return normalizeAdminRole($currentAdmin['role'] ?? '') === 'admin';
+}
+
+function requireAdminWriteAccess(): void
+{
+    if (!currentAdminCanWrite()) {
+        flash('error', 'Read-only users cannot perform this action.');
+        redirect(ADMIN_URL . '/index.php');
+    }
+}

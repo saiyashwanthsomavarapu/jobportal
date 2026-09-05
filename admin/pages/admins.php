@@ -3,11 +3,10 @@
 require_once dirname(__DIR__) . "/auth.php";
 require_once dirname(__DIR__) . "/utils/classes.php";
 require_once dirname(__DIR__) . "/DB/queries.php";
-/* Admins can manage standard accounts; only superadmins can manage superadmins. */
-$currentAdminRole = (string) ($currentAdmin['role'] ?? '');
-$canManageSuperadmins = $currentAdminRole === 'superadmin';
+/* Admins can manage accounts. Legacy superadmins are treated as admins. */
+$currentAdminRole = normalizeAdminRole($currentAdmin['role'] ?? '');
 
-if (!in_array($currentAdminRole, ['superadmin', 'admin'], true)) {
+if ($currentAdminRole !== 'admin') {
   flash("error", "Access denied. Admin access is required.");
   redirect(ADMIN_URL . "/index.php");
 }
@@ -79,16 +78,8 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
 /* Handle POST actions */
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-
   $action = $_POST["action"] ?? "";
   $targetId = (int) ($_POST["user_id"] ?? 0);
-
-  if ($targetId > 0 && !$canManageSuperadmins) {
-    if (getAdminUserRoleById($targetId) === 'superadmin') {
-      flash('error', 'Only a superadmin can manage a superadmin account.');
-      redirect(ADMIN_URL . '/pages/admins.php');
-    }
-  }
 
   /* CREATE / UPDATE */
   if ($action === "save") {
@@ -112,9 +103,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     ) {
       $errors[] = "Only @acceloninc.com email addresses are allowed.";
     }
-    $allowedRoles = $canManageSuperadmins
-      ? ["superadmin", "admin", "editor"]
-      : ["admin", "editor"];
+    $allowedRoles = ["admin", "user"];
     if (!in_array($role, $allowedRoles, true)) {
       $errors[] = "Invalid role.";
     }
@@ -201,7 +190,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             /* Prevent demoting yourself */
             if (
               $targetId === (int) $_SESSION["admin_id"] &&
-              $role !== $currentAdminRole
+              normalizeAdminRole($role) !== $currentAdminRole
             ) {
               $errors[] = "You cannot change your own role.";
             } else {
@@ -370,10 +359,6 @@ if ($editId > 0) {
     flash("error", "User not found.");
     redirect(ADMIN_URL . "/pages/admins.php");
   }
-  if (!$canManageSuperadmins && $editUser['role'] === 'superadmin') {
-    flash('error', 'Only a superadmin can manage a superadmin account.');
-    redirect(ADMIN_URL . '/pages/admins.php');
-  }
 }
 
 /* Load password reset target */
@@ -382,20 +367,16 @@ $resetUser = null;
 $resetId = (int) ($_GET["reset"] ?? 0);
 if ($resetId > 0) {
   $resetUser = getAdminPasswordResetUserById($resetId);
-  if ($resetUser && !$canManageSuperadmins && $resetUser['role'] === 'superadmin') {
-    flash('error', 'Only a superadmin can manage a superadmin account.');
-    redirect(ADMIN_URL . '/pages/admins.php');
-  }
 }
 
 /* Load admin users */
 
 try {
-  $totalAdmins = countAdminUsers($canManageSuperadmins);
+  $totalAdmins = countAdminUsers(true);
   $totalPages = max(1, (int) ceil($totalAdmins / $perPage));
   $page = min($page, $totalPages);
   $offset = ($page - 1) * $perPage;
-  $admins = getAdminUsersPaginated($canManageSuperadmins, $offset, $perPage);
+  $admins = getAdminUsersPaginated(true, $offset, $perPage);
 } catch (Exception $ex) {
   $admins = [];
 }
@@ -403,18 +384,17 @@ try {
 // Role badge helper — Tailwind classes, tokens matched to includes/header.php's tailwind.config
 function roleBadge(string $role): string
 {
+  $normalizedRole = normalizeAdminRole($role);
   $map = [
-    "superadmin" => "bg-accent-dark text-white",
     "admin" => "bg-blue-100 text-blue-700 border border-blue-300",
-    "editor" => "bg-green-100 text-green-700 border border-green-300",
+    "user" => "bg-slate-100 text-slate-600 border border-slate-300",
   ];
   $labels = [
-    "superadmin" => "Superadmin",
     "admin" => "Admin",
-    "editor" => "Editor",
+    "user" => "User",
   ];
-  $classes = $map[$role] ?? "bg-slate-100 text-slate-600 border border-slate-300";
-  $label = $labels[$role] ?? ucfirst($role);
+  $classes = $map[$normalizedRole] ?? "bg-slate-100 text-slate-600 border border-slate-300";
+  $label = $labels[$normalizedRole] ?? ucfirst($normalizedRole);
   return '<span class="inline-flex items-center rounded-full text-[11px] font-semibold px-2.5 py-1 ' .
     $classes .
     '">' .
@@ -489,7 +469,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
         <span class="admin-avatar"><?= e(strtoupper(substr($currentAdmin['name'] ?? 'A', 0, 1))) ?></span>
         <span class="admin-copy">
           <strong><?= e($currentAdmin['name'] ?? 'Admin') ?></strong>
-          <small><?= e(ucfirst($currentAdmin['role'] ?? 'admin')) ?></small>
+          <small><?= e(adminRoleLabel($currentAdmin['role'] ?? 'admin')) ?></small>
         </span>
         <a class="signout" href="<?= ADMIN_URL ?>/logout.php" title="Sign out">
           <svg viewBox="0 0 24 24">
@@ -497,7 +477,9 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
           </svg>
         </a>
       </div>
-      <a class="btn btn-primary btn-sm w-full text-white!" href="<?= ADMIN_URL ?>/pages/post_job.php"><span>+</span> Create Job</a>
+      <?php if (currentAdminCanWrite()): ?>
+        <a class="btn btn-primary btn-sm w-full text-white!" href="<?= ADMIN_URL ?>/pages/post_job.php"><span>+</span> Create Job</a>
+      <?php endif; ?>
     </div>
   </aside>
 
@@ -524,7 +506,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
           <?= $message ?>
         </div>
       <?php endif; ?>
-      <details class="<?= $postJobCardClass ?> border-t-4 border-t-success mt-5 collapse  collapse-arrow bg-base-100 border border-base-300" name="my-accordion-det-1">
+      <details class="<?= $postJobCardClass ?> border-t-4 border-t-success mt-5 collapse  collapse-arrow bg-base-100 border border-base-300" name="my-accordion-det-1" <?= $showAdminForm ? 'open' : '' ?>>
         <summary class="<?= $postJobHeadingClass ?> collapse-title font-semibold">
           <div class="<?= $postJobIconBaseClass ?> bg-success/10 text-success">
             <svg class="<?= SVG_ICON ?>" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
@@ -631,7 +613,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
                 </fieldset>
 
                 <fieldset class="fieldset">
-                  <?php $savedRole = $oldForm["role"] ?? ($editUser["role"] ?? "admin"); ?>
+                  <?php $savedRole = normalizeAdminRole($oldForm["role"] ?? ($editUser["role"] ?? "admin")); ?>
                   <legend class="fieldset-legend">
                     Role <span class="text-error">*</span>
                   </legend>
@@ -639,13 +621,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
                     name="role"
                     class="<?= SELECT_CLASS ?>"
                     required>
-                    <?php
-                    foreach (
-                      ($canManageSuperadmins
-                        ? ["superadmin" => "Superadmin", "admin" => "Admin", "editor" => "Editor"]
-                        : ["admin" => "Admin", "editor" => "Editor"]) as $val => $label
-                    ):
-                    ?>
+                    <?php foreach (["admin" => "Admin", "user" => "User"] as $val => $label): ?>
                       <option
                         value="<?= htmlspecialchars($val) ?>"
                         <?= $savedRole === $val ? "selected" : "" ?>>
@@ -761,25 +737,20 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
                 <?php else: ?>
                   <?php $adminCount = count($admins); ?>
                   <?php foreach ($admins as $index => $u):
-                    $dropdownPlacement = $index >= max(0, $adminCount - 2) ? 'dropdown-top' : 'dropdown-bottom';
-
                     $isSelf = (int) $u["id"] === (int) $_SESSION["admin_id"];
+                    $normalizedRowRole = normalizeAdminRole($u["role"] ?? "");
                     $roleColors = [
-                      "superadmin" => "bg-[#2f6fc4] text-white",
-                      "admin" =>
-                      "bg-slate-100 text-slate-700 border border-slate-300",
-                      "editor" =>
-                      "bg-green-100 text-green-700 border border-green-300",
+                      "admin" => "bg-slate-100 text-slate-700 border border-slate-300",
+                      "user" => "bg-green-100 text-green-700 border border-green-300",
                     ];
                     $roleLabels = [
-                      "superadmin" => "Superadmin",
                       "admin" => "Admin",
-                      "editor" => "Editor",
+                      "user" => "User",
                     ];
                     $rc =
-                      $roleColors[$u["role"]] ??
+                      $roleColors[$normalizedRowRole] ??
                       "bg-slate-100 text-slate-500 border border-slate-300";
-                    $rl = $roleLabels[$u["role"]] ?? ucfirst($u["role"]);
+                    $rl = $roleLabels[$normalizedRowRole] ?? ucfirst($normalizedRowRole);
                   ?>
                     <tr class="group border-t border-base-300 transition-colors hover:bg-[#F28C28]">
 
@@ -826,66 +797,62 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
                           ? date("d M Y, g:i A", strtotime($u["last_login"]))
                           : '<span class="text-base-content/40">Never</span>' ?>
                       </td> -->
-                      <td class="job-actions-cell right-0 z-30 w-14  text-right align-middle group-hover:bg-[#F28C28]" onclick="event.stopPropagation()">
-                        <div class="dropdown <?= $dropdownPlacement ?> dropdown-end">
-                          <div tabindex="0" role="button" class="btn btn-sm btn-ghost m-1 p-2 bg-transparent border-none shadow-none outline-none focus:outline-none focus-visible:outline-none hover:bg-transparent text-base-content group-hover:text-white">
-                            <svg class="size-4" viewBox="0 0 24 24">
-                              <circle cx="5" cy="12" r="1" />
-                              <circle cx="12" cy="12" r="1" />
-                              <circle cx="19" cy="12" r="1" />
-                            </svg>
-                          </div>
-                          <ul tabindex="-1" class="dropdown-content menu bg-base-100 rounded-box z-50 w-52 p-2 shadow-sm">
-                            <li>
-                              <a href="<?= ADMIN_URL ?>/pages/admins.php?edit=<?= $u['id'] ?>" title="Edit">
-                                Edit
-                              </a>
-                            </li>
-                            <li>
-                              <button type="button" onclick="openResetModal(<?= $u['id'] ?>, '<?= e(addslashes($u['name'])) ?>')">
-                                Reset Password
-                              </button>
-                            </li>
-                            <?php if (!$isSelf): ?>
-                              <li>
-                                <form method="POST" class="inline">
+                      <td class="job-actions-cell right-0 z-30 w-14 text-right align-middle group-hover:bg-[#F28C28]" onclick="event.stopPropagation()">
+                        <button type="button" class="btn btn-sm btn-ghost m-1 p-2 bg-transparent border-none shadow-none outline-none focus:outline-none focus-visible:outline-none hover:bg-transparent text-base-content group-hover:text-white" onclick="openAdminActions(event, this)" aria-label="Open actions">
+                          <svg class="size-4" viewBox="0 0 24 24">
+                            <circle cx="5" cy="12" r="1" />
+                            <circle cx="12" cy="12" r="1" />
+                            <circle cx="19" cy="12" r="1" />
+                          </svg>
+                        </button>
+                        <ul class="admin-actions-template hidden">
+                          <li onclick="window.location.href='<?= ADMIN_URL ?>/pages/admins.php?edit=<?= $u['id'] ?>'">
+                            <button title="Edit">
+                              Edit
+                            </button>
+                          </li>
+                          <li onclick="openResetModal(<?= $u['id'] ?>, '<?= e(addslashes($u['name'])) ?>')">
+                            <button type="button">
+                              Reset Password
+                            </button>
+                          </li>
+                          <?php if (!$isSelf): ?>
+                            <form method="POST" class="inline">
+                              <li onclick="openToggleModal(<?= (int)$u['id'] ?>, <?= $u['is_active'] ? 'true' : 'false' ?>)">
 
-                                  <input type="hidden" name="action" value="toggle_active">
-                                  <input type="hidden" name="user_id" value="<?= $u["id"] ?>">
-                                  <div class="tooltip" data-tip="<?= $u["is_active"] ? "Deactivate" : "Activate" ?>">
-                                    <button
-                                      type="button"
-                                      onclick="openToggleModal(<?= (int)$u['id'] ?>, <?= $u['is_active'] ? 'true' : 'false' ?>)">
-                                      <?php if ($u["is_active"]): ?>
-                                        Inactive
-                                      <?php else: ?>
-                                        Active
-                                      <?php endif; ?>
-                                    </button>
-                                  </div>
-                                </form>
+                                <input type="hidden" name="action" value="toggle_active">
+                                <input type="hidden" name="user_id" value="<?= $u["id"] ?>">
+                                <div class="tooltip" data-tip="<?= $u["is_active"] ? "Deactivate" : "Activate" ?>">
+                                  <button
+                                    type="button">
+                                    <?php if ($u["is_active"]): ?>
+                                      Inactive
+                                    <?php else: ?>
+                                      Active
+                                    <?php endif; ?>
+                                  </button>
+                                </div>
 
                               </li>
-                              <li>
-                                <form method="POST" class="inline">
+                            </form>
+                            <form method="POST" class="inline">
+                              <li onclick="openDeleteModal(
+                          <?= (int)$u['id'] ?>,
+                          <?= htmlspecialchars(json_encode($u['name']), ENT_QUOTES, 'UTF-8') ?>
+                        )">
 
-                                  <input type="hidden" name="action" value="delete">
-                                  <input type="hidden" name="user_id" value="<?= $u["id"] ?>">
-                                  <div class="tooltip" data-tip="Delete">
-                                    <button type="button"
-                                      onclick="openDeleteModal(
-                            <?= (int)$u['id'] ?>,
-                            <?= htmlspecialchars(json_encode($u['name']), ENT_QUOTES, 'UTF-8') ?>
-                          )">
-                                      Delete
-                                    </button>
-                                  </div>
-                                </form>
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="user_id" value="<?= $u["id"] ?>">
+                                <div class="tooltip" data-tip="Delete">
+                                  <button type="button">
+                                    Delete
+                                  </button>
+                                </div>
 
                               </li>
-                            <?php endif; ?>
-                          </ul>
-                        </div>
+                            </form>
+                          <?php endif; ?>
+                        </ul>
                       </td>
                     </tr>
                   <?php
@@ -903,6 +870,8 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
       </div>
     </div>
   </main>
+
+  <ul id="floatingAdminActions" class="menu fixed z-[9999] hidden w-56 rounded-box border border-base-300 bg-base-100 p-2 shadow-2xl" onclick="event.stopPropagation()"></ul>
 
   <!-- RESET PASSWORD MODAL (light) -->
   <dialog id="resetModal" class="modal">
@@ -1283,6 +1252,52 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
   </dialog>
 
   <script>
+    function closeAdminActions() {
+      const menu = document.getElementById('floatingAdminActions');
+      if (!menu) return;
+      menu.classList.add('hidden');
+      menu.innerHTML = '';
+      delete menu.dataset.source;
+    }
+
+    function openAdminActions(event, button) {
+      event.stopPropagation();
+      const menu = document.getElementById('floatingAdminActions');
+      const template = button.parentElement?.querySelector('.admin-actions-template');
+      if (!menu || !template) return;
+
+      if (!menu.classList.contains('hidden') && menu.dataset.source === button.dataset.actionSource) {
+        closeAdminActions();
+        return;
+      }
+
+      if (!button.dataset.actionSource) {
+        button.dataset.actionSource = `admin-actions-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      }
+
+      menu.innerHTML = template.innerHTML;
+      menu.dataset.source = button.dataset.actionSource;
+      menu.classList.remove('hidden');
+
+      const rect = button.getBoundingClientRect();
+      const menuWidth = menu.offsetWidth || 224;
+      const menuHeight = menu.offsetHeight || 180;
+      const gap = 8;
+      const left = Math.min(window.innerWidth - menuWidth - gap, Math.max(gap, rect.right - menuWidth));
+      const belowTop = rect.bottom + gap;
+      const aboveTop = rect.top - menuHeight - gap;
+      const top = belowTop + menuHeight <= window.innerHeight - gap ?
+        belowTop :
+        Math.max(gap, aboveTop);
+
+      menu.style.left = `${left}px`;
+      menu.style.top = `${top}px`;
+    }
+
+    document.addEventListener('click', closeAdminActions);
+    window.addEventListener('scroll', closeAdminActions, true);
+    window.addEventListener('resize', closeAdminActions);
+
     function updateAccountStatusPreview() {
       const toggle = document.getElementById('isActive');
       const badge = document.getElementById('accountStatusBadge');
@@ -1583,6 +1598,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
     }
 
     function openDeleteModal(clientId, clientName) {
+      closeAdminActions();
       document.getElementById('deleteUserId').value = clientId;
       document.getElementById('deleteUserName').textContent = clientName;
 
@@ -1590,6 +1606,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
     }
 
     function openToggleModal(userId, isActive) {
+      closeAdminActions();
       const deactivating = isActive;
       document.getElementById('toggleUserId').value = userId;
       document.getElementById('toggleModalTitle').textContent = deactivating ? 'Deactivate account?' : 'Activate account?';
@@ -1690,6 +1707,7 @@ $postJobIconBaseClass = "flex size-7 shrink-0 items-center justify-center rounde
     }
 
     function openResetModal(userId, userName) {
+      closeAdminActions();
       const modal = document.getElementById('resetModal');
 
       document.getElementById('resetUserId').value = userId;

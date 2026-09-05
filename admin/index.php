@@ -39,11 +39,11 @@ function dashboardFlag(?string $country): string
 function dashboardStatus(array $job): array
 {
   $status = strtolower((string)($job['status'] ?? 'draft'));
+  if ($status === 'archived') $status = 'draft';
   if ($status === 'published' && !empty($job['close_date']) && strtotime($job['close_date']) < strtotime('today')) $status = 'closed';
   return match ($status) {
     'published' => ['Published', 'status-published'],
     'closed' => ['Closed', 'status-closed'],
-    'archived' => ['Pending Review', 'status-pending'],
     default => ['Draft', 'status-draft'],
   };
 }
@@ -151,9 +151,11 @@ $stats = [
           <path d="M3.75 21V6.75A1.5 1.5 0 0 1 5.25 5.25h6A1.5 1.5 0 0 1 12.75 6.75V21M3.75 21h16.5M3.75 21H2.25M20.25 21V10.5a1.5 1.5 0 0 0-1.5-1.5h-3a1.5 1.5 0 0 0-1.5 1.5V21" />
         </svg>Clients
       </a>
-      <a href="<?= ADMIN_URL ?>/pages/admins.php"><svg viewBox="0 0 24 24">
-          <path d="M15.5 8a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0ZM5 20a7 7 0 0 1 14 0M18 5v6M15 8h6" />
-        </svg>Admin</a>
+      <?php if (currentAdminCanWrite()): ?>
+        <a href="<?= ADMIN_URL ?>/pages/admins.php"><svg viewBox="0 0 24 24">
+            <path d="M15.5 8a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0ZM5 20a7 7 0 0 1 14 0M18 5v6M15 8h6" />
+          </svg>Admin</a>
+      <?php endif; ?>
     </nav>
     <div class="sidebar-footer">
       <div class="admin-row">
@@ -165,7 +167,7 @@ $stats = [
             <?= e($currentAdmin['name'] ?? 'Admin') ?>
           </strong>
           <small>
-            <?= e(ucfirst($currentAdmin['role'] ?? 'admin')) ?>
+            <?= e(adminRoleLabel($currentAdmin['role'] ?? 'admin')) ?>
           </small>
         </span>
         <a class="signout" href="<?= ADMIN_URL ?>/logout.php" title="Sign out" aria-label="Sign out">
@@ -174,7 +176,9 @@ $stats = [
           </svg>
         </a>
       </div>
-      <a class="btn btn-primary btn-sm w-full text-white!" href="<?= ADMIN_URL ?>/pages/post_job.php"><span>+</span> Create Job</a>
+      <?php if (currentAdminCanWrite()): ?>
+        <a class="btn btn-primary btn-sm w-full text-white!" href="<?= ADMIN_URL ?>/pages/post_job.php"><span>+</span> Create Job</a>
+      <?php endif; ?>
     </div>
   </aside>
   <main class="main">
@@ -247,22 +251,30 @@ $stats = [
                       <div class="grid place-items-center gap-2 text-center text-base-content/60">
                         <strong class="text-base font-semibold text-base-content">No jobs yet</strong>
                         <span class="text-sm">New job postings will appear here.</span>
-                        <a class="btn btn-primary btn-sm mt-2" href="<?= ADMIN_URL ?>/pages/post_job.php">Create Job</a>
+                        <?php if (currentAdminCanWrite()): ?>
+                          <a class="btn btn-primary btn-sm mt-2" href="<?= ADMIN_URL ?>/pages/post_job.php">Create Job</a>
+                        <?php endif; ?>
                       </div>
                     </td>
                   </tr>
                 <?php else: ?>
-                  <?php foreach ($recent as $job): [$statusLabel, $statusClass] = dashboardStatus($job); ?>
+                  <?php foreach ($recent as $job):
+                    [$statusLabel, $statusClass] = dashboardStatus($job);
+                    $isClosedRow = $statusClass === 'status-closed';
+                    $editUrl = ADMIN_URL . '/pages/post_job.php?edit=' . (int)$job['id'] . '#page-top';
+                  ?>
                     <tr
+                      <?php if (!$isClosedRow): ?>
                       tabindex="0"
                       role="link"
-                      class="group cursor-pointer border-t border-base-300 transition-colors hover:bg-[#F28C28]"
-                      onclick="window.location.href='<?= ADMIN_URL ?>/pages/post_job.php?edit=<?= (int)$job['id'] ?>#page-top'"
-                      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}">
+                      onclick="window.location.href='<?= e($editUrl) ?>'"
+                      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}"
+                      <?php endif; ?>
+                      class="group border-t border-base-300 transition-colors hover:bg-[#F28C28] <?= $isClosedRow ? 'cursor-default' : 'cursor-pointer' ?>">
                       <td class="min-w-64 px-4 py-3.5 align-middle group-hover:bg-[#F28C28]">
                         <strong class="block font-medium text-base-content group-hover:text-white text-base"><?= e($job['job_title']) ?></strong>
                         <small class="mt-1 flex items-center gap-1.5 font-mono text-xs text-base-content/55 group-hover:text-white/80">
-                          <code><?= e($job['job_code']) ?></code>
+                          <code>Client name: <?= e($job['client_name'] ?? '') ?></code>
                           <i>·</i> Job Code: <?= e($job["client_code"] ?: 'General') ?>
                         </small>
                       </td>

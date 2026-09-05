@@ -1079,7 +1079,7 @@ CREATE TABLE `admin_users` (
   `name` varchar(100) NOT NULL,
   `email` varchar(150) NOT NULL,
   `password` varchar(255) NOT NULL,
-  `role` enum('superadmin','admin','editor') DEFAULT 'admin',
+  `role` enum('superadmin','admin','user') DEFAULT 'admin',
   `is_active` tinyint(1) DEFAULT 1,
   `created_at` datetime DEFAULT current_timestamp(),
   `last_login` datetime DEFAULT NULL,
